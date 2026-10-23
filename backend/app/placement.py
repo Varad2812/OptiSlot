@@ -274,7 +274,7 @@ def _run_check(svc: Service, st: ProjectState, req: PlacementCheckRequest):
     """→ (PlacementCheck, Eval | None, moves | None). Never a 500 for rule trouble: an unexpected evaluation error comes back
     as `refused` / "could not evaluate". An unknown tag is the caller's mistake (404)."""
     wout, wrep, _ = _working(svc, st)
-    view = View(wout, svc.decorate_tqs(st.project.id, wout.tqs))
+    view = View(wout, svc.decorate_tqs(st.project.id, wout.tqs, persist=False))
     idx = find_signal(view, req.tag, req.row)             # unknown tag → KeyError → 404; ambiguous tag → ValueError → 422
     try:
         return _check(svc, st, wout, wrep, view, idx, req)

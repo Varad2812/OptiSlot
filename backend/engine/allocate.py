@@ -103,6 +103,7 @@ class Geometry:
     chs: int
     whole_min: int
     bp_seg: tuple[str, ...] = ()     # segregate rules at baseplate level (e.g. IS / NON-IS): enforced by layout()
+    custom: object | None = None     # engine.custom.CustomPlan when baseplate-scope custom rules exist (enforced by layout())
 
     @property
     def per_cabinet(self) -> int:
@@ -148,11 +149,28 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
             free[bp][i] = False
         return True
 
+    plan = g.custom                                     # custom baseplate-scope rules
+    held: dict[int, list[Block]] = defaultdict(list)    # baseplate → blocks laid on it so far
+
+    def custom_blocks(bp: int, b: Block) -> bool:
+        return plan is not None and plan.bp_conflict(held[bp], b) is not None
+
+    def anchored(bps: list[int], b: Block) -> bool:
+        """False when a "same baseplate" partner is already laid out elsewhere (b must join it)."""
+        if plan is None or not plan.same_bp_rules:
+            return True
+        allowed = plan.bp_anchor(held, b)
+        return allowed is None or all(x in allowed for x in bps)
+
+    def hold(bp: int, b: Block) -> None:
+        if plan is not None:
+            held[bp].append(b)
+
     for b in blocks:
         if b.pinned and b.pin_pos:
             _, _, bp, ch = b.pin_pos
             bps = [bp + k for k in range(b.span)] if b.span else [bp]
-            if any(mixes(x, b) for x in bps):
+            if any(mixes(x, b) or custom_blocks(x, b) for x in bps):
                 return None
             if b.span:
                 if not all(take(bp + k, 1, g.chs) for k in range(b.span)):
@@ -161,15 +179,18 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
                 return None
             for x in bps:
                 mark(x, b)
+                hold(x, b)
             out[b.id] = (bp, ch)
     rest = [b for b in blocks if not (b.pinned and b.pin_pos)]
     for b in [b for b in rest if b.span]:
         for i, bp in enumerate(usable):
             run = usable[i:i + b.span]
-            if len(run) == b.span and run == list(range(bp, bp + b.span)) and all(all(free[x]) for x in run):
+            if (len(run) == b.span and run == list(range(bp, bp + b.span)) and all(all(free[x]) for x in run)
+                    and not any(custom_blocks(x, b) for x in run) and anchored(run, b)):
                 for x in run:
                     take(x, 1, g.chs)
                     mark(x, b)
+                    hold(x, b)
                 out[b.id] = (bp, 1)
                 break
         else:
@@ -178,11 +199,12 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
     for b in sorted([b for b in rest if not b.span], key=lambda b: (sig(b), -b.foot, b.sort_key)):
         done = False
         for bp in usable:
-            if mixes(bp, b):
+            if mixes(bp, b) or custom_blocks(bp, b) or not anchored([bp], b):
                 continue
             for ch0 in range(0, g.chs - b.foot + 1, b.foot):
                 if take(bp, ch0 + 1, b.foot):
                     mark(bp, b)
+                    hold(bp, b)
                     out[b.id] = (bp, ch0 + 1)
                     done = True
                     break
@@ -233,6 +255,9 @@ class Engine:
         self.strategy = rules.cioc_strategy
         self.names = rules.params("naming_pattern")
         self.patterns = self.names.get("patterns", {})
+        from engine.custom import CustomPlan
+        self.custom = CustomPlan(rules.rs, signals, book, lambda cab: self.name("marshalling", cab), settings.channels_per_baseplate)
+        self.g.custom = self.custom if (self.custom.bp_rules or self.custom.same_bp_rules) else None
         self.cabs: list[Cab] = []
         self.blocks: list[Block] = []
         self.unplaced: list[Signal] = []
@@ -403,7 +428,15 @@ class Engine:
         if primary and b.family != "-" and seg_level(primary) == "cioc" and cab.family.get(local) not in (None, b.family):
             return False
         rules = self.locked_rules()
-        return all(cab.locks.get((rid, self.scope(rules[rid], local))) in (None, f) for rid, f in b.fams.items() if rid in rules)
+        if not all(cab.locks.get((rid, self.scope(rules[rid], local))) in (None, f) for rid, f in b.fams.items() if rid in rules):
+            return False
+        return self.custom_conflict(cab, local, b) is None
+
+    def custom_conflict(self, cab: Cab, local: int, b: Block):
+        """(message, rule id, other cables) when a hard custom rule forbids block `b` on this CIOC, else None."""
+        if not self.custom.cab_rules:
+            return None
+        return self.custom.conflict(cab, local, b, [c for c in self.cabs if c.ns == cab.ns and c.domain == cab.domain])
 
     def fits(self, cab: Cab, local: int, b: Block) -> bool:
         return layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is not None
@@ -668,7 +701,10 @@ class Engine:
                     rid = self.rules.rid("future_spare_pct") if res[0][1] == "future" else self.rules.rid("reserve_baseplate")
                     reason = f"baseplate {res[0][0]} is now reserved ({res[0][1].replace('_', ' ')}, rule {rid})"
                 elif not self.compatible(cab, local, b):
-                    if b.family != "-" and cab.family.get(local) not in (None, b.family):
+                    custom = self.custom_conflict(cab, local, b)
+                    if custom is not None:
+                        reason = f"{custom[0]}"
+                    elif b.family != "-" and cab.family.get(local) not in (None, b.family):
                         reason = (f"the cable is now {b.family}-family but CIOC {self.cioc_seq(cab, local):03d} holds "
                                   f"{cab.family[local]}-family signals (rule {seg})")
                     else:
@@ -723,6 +759,9 @@ class Engine:
         for s in live:
             domains[s.domain].append(s)
         self.blocks = self.build_blocks(live)
+        if self.custom.hard:
+            self.ctx = ("allocate", None)
+            self.custom.preflight(self.blocks, self.book, self.rules.rid("cable_contiguous"))
         ordered = sorted(domains, key=lambda d: min(s.row for s in domains[d]))
         self.dorder = {d: i for i, d in enumerate(ordered)}
         if self.baseline:  # a revision keeps every previous cabinet (same names, same numbering)
@@ -753,6 +792,9 @@ class Engine:
                     b.bp, b.ch = (pos or {})[b.id]
         slots = self.fill()
         self.wired_spares(slots)
+        if self.custom.hard:
+            self.ctx = ("layout", None)
+            self.custom.final_check(slots, self.by_row, self.book)
         cabinets = self.cabinet_infos(slots)
         return Allocation(cabinets=cabinets, slots=slots, blocks=self.blocks, cabs=self.cabs, unplaced=self.unplaced)
 
@@ -895,8 +937,12 @@ class Engine:
 
     def wired_spares(self, slots: list[Slot]) -> None:
         rule = self.rules.first("wired_spare_pct")
-        if not rule:
+        extras = any(r.type == "extra_spares" for r in self.custom.rules)
+        if not rule and not extras:
             return
+        if not rule:       # extra spares on their own: the global percentage is off
+            from app.schemas import Rule
+            rule = Rule(id="r-extra-spares", type="wired_spare_pct", label="Extra wired spares", params={"pct": 0})
         pct = float(rule.params.get("pct", 10))
         by_ctrl: dict[str, list[Slot]] = defaultdict(list)
         for s in slots:
@@ -913,6 +959,7 @@ class Engine:
             used: set[str] = set()
             for io in sorted(field, key=lambda t: (io_order.index(t) if t in io_order else 99, t)):
                 target = math.ceil(field[io] * pct / 100 - 1e-9) if rule.params.get("rounding", "ceil") == "ceil" else round(field[io] * pct / 100)
+                target += self.custom.extra_target(io, field[io])
                 if target <= 0:
                     continue
                 got = 0

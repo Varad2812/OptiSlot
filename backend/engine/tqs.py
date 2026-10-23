@@ -7,7 +7,7 @@ from app.schemas import TQ, FixOption, QuarantineRow, Signal
 
 PREFIX = {
     "data": "DATA", "io": "IO", "hardware": "HW", "segregation": "SEG", "capacity": "CAP",
-    "project": "PROJ", "spare": "SPR", "revision": "REV", "cable": "CBL", "sys": "SYS",
+    "project": "PROJ", "spare": "SPR", "revision": "REV", "cable": "CBL", "sys": "SYS", "custom": "CUS",
 }
 
 

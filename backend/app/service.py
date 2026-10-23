@@ -1,6 +1,7 @@
 """Project service: inputs live in the store; outputs are recomputed (deterministic → same hashes after a restart)."""
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import hashlib
 import io
@@ -75,6 +76,7 @@ class Service:
         self.store = store
         self.states: dict[str, ProjectState] = {}
         self._lock = threading.RLock()
+        self._tl = threading.local()
 
     # ───────────── lifecycle ─────────────
     def ensure_demo(self) -> None:
@@ -203,8 +205,19 @@ class Service:
                        signals=comp.kpis.signals, runtime_ms=round(comp.runtime_ms, 1))
         self.store.append("runs", st.project.id, rr.timestamp, rr.model_dump())
 
-    def stable_ids(self, pid: str, tqs: list[TQ]) -> dict[str, str]:
+    @contextlib.contextmanager
+    def no_persist(self):
+        """Inside this block TQ ids are still computed but nothing is written: previews and sandboxes must not reserve ids."""
+        prev = getattr(self._tl, "np", False)
+        self._tl.np = True
+        try:
+            yield
+        finally:
+            self._tl.np = prev
+
+    def stable_ids(self, pid: str, tqs: list[TQ], persist: bool = True) -> dict[str, str]:
         """The same issue keeps the same TQ id across re-runs and revisions (signature → id, persisted)."""
+        persist = persist and not getattr(self._tl, "np", False)
         ids: dict[str, str] = self.store.get(pid, "tq_ids", {}) or {}
         taken = set(ids.values())
         changed = False
@@ -220,14 +233,14 @@ class Service:
                 taken.add(ids[sig])
                 changed = True
             out[t.id] = ids[sig]
-        if changed:
+        if changed and persist:
             self.store.put(pid, "tq_ids", ids)
         return out
 
-    def decorate_tqs(self, pid: str, tqs: list[TQ], slots=None) -> list[TQ]:
+    def decorate_tqs(self, pid: str, tqs: list[TQ], slots=None, persist: bool = True) -> list[TQ]:
         """Stable ids, stored decisions (closed / applied), and applied TQs that no longer occur."""
         decisions: dict[str, dict] = self.store.get(pid, "tq_decisions", {}) or {}
-        remap = self.stable_ids(pid, tqs)
+        remap = self.stable_ids(pid, tqs, persist)
         out: list[TQ] = []
         seen = set()
         for t in tqs:
@@ -335,8 +348,22 @@ class Service:
             self.activity(pid, "import", f"Column mapping updated ({len(st.overrides)} override(s))")
             return self.import_summary(st)
 
+    def preview(self, st: ProjectState, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None) -> Computed:
+        """What the project WOULD look like under another rule set / settings: the very same pipeline as a real change, on a
+        detached copy of the state — nothing is stored, no run is recorded, no TQ id is reserved, `st.current` is untouched."""
+        extra = {k: st.extra[k] for k in ("mdb_b", "mdb_b_name", "recompute_hook") if k in st.extra}
+        clone = ProjectState(project=st.project.model_copy(), ruleset=ruleset or st.ruleset, settings=settings or st.settings,
+                             overrides=st.overrides, mdb=st.mdb, mdb_name=st.mdb_name, current=None, extra=extra, lock=st.lock)
+        with st.lock, self.no_persist():
+            if clone.project.revision == "B" and extra.get("recompute_hook"):
+                from app.revisions import _compute_b
+                return _compute_b(self, clone, record=False)
+            return self.recompute(clone, record=False)
+
     def put_rules(self, pid: str, rs: RuleSet, why: str = "rule set edited", tq_id: str | None = None,
                   patch: dict | None = None, who: str = "engineer") -> AllocationResult:
+        from app.customrules import validate_ruleset
+        validate_ruleset(rs)         # a malformed custom rule is a 422 here, never a broken run later
         st = self.get(pid)
         with st.lock:
             version = self.store.latest_ruleset_version(pid) + 1

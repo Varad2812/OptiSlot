@@ -42,7 +42,8 @@ def _run(svc: Service, pid: str, tag: str, row: int | None, mutate, *, preview: 
                                      kpis_before=comp0.kpis, kpis_after=comp0.kpis, report=comp0.report)
         svc.store.put(pid, "data_patches", new)
         try:
-            comp1 = _quiet(svc, st)
+            with svc.no_persist():                    # a preview or a refused patch must not reserve TQ ids
+                comp1 = _quiet(svc, st)
         except Exception:
             svc.store.put(pid, "data_patches", old)
             st.current = comp0
@@ -66,6 +67,7 @@ def _run(svc: Service, pid: str, tag: str, row: int | None, mutate, *, preview: 
             svc.store.put(pid, "data_patches", old)
             st.current = comp0
             return res
+        svc.stable_ids(pid, comp1.out.tqs)            # now the ids are real: keep them
         svc.record_run(st, comp1, "revision" if st.project.revision == "B" else "allocate")
         _push(svc, pid, {"kind": "patches", "before": old, "after": new, "label": label[:120]})
         ts = now()

@@ -220,8 +220,21 @@ def diagnose_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | 
 
 
 def custom_conflict(out: RunOutput, b: Block, cab, local: int) -> "Refusal | None":
-    """Custom-rule check of a block joining a CIOC (filled in by app.customrules once rules exist)."""
-    return None
+    """Would a hard custom rule (CIOC / cabinet scope, zones, "same" relations) refuse block `b` on this CIOC?"""
+    plan = getattr(out, "_custom_plan", None)
+    if plan is None:
+        from engine.custom import CustomPlan
+        names = {(s.cabinet_seq, s.domain): s.cabinet for s in out.alloc.slots}
+        plan = CustomPlan(out.rules.rs, out.signals, None, lambda c: names.get((c.seq, c.domain), ""),
+                          out.settings.channels_per_baseplate)
+        out._custom_plan = plan            # type: ignore[attr-defined]
+    if not plan.cab_rules:
+        return None
+    hit = plan.conflict(cab, local, b, [c for c in out.alloc.cabs if c.ns == cab.ns and c.domain == cab.domain])
+    if hit is None:
+        return None
+    text, rid, cables = hit
+    return Refusal(text, "rule", rid, [b.cable, *cables])
 
 
 def _diff(prev: RunOutput, new: RunOutput) -> list[SlotDiff]:

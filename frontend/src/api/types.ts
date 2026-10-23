@@ -106,7 +106,12 @@ export interface paths {
         get: operations["get_rules_api_projects__pid__rules_get"];
         /** Put Rules */
         put: operations["put_rules_api_projects__pid__rules_put"];
-        post?: never;
+        /**
+         * Add Rule
+         * @description Add a custom rule (max_per_scope, scope_relation, forbid_mix, zone_cabinets, extra_spares). A malformed rule is a
+         *     422 naming the problem; a rule that would leave a hard violation is refused (stored=false) with the reason.
+         */
+        post: operations["add_rule_api_projects__pid__rules_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -159,6 +164,102 @@ export interface paths {
         /** Draft Rule */
         post: operations["draft_rule_api_projects__pid__rules_draft_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rule-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rule Types
+         * @description Rule templates with parameter schemas, the filter language and what enforces each rule.
+         */
+        get: operations["rule_types_api_rule_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rule-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Project Rule Types */
+        get: operations["project_rule_types_api_projects__pid__rule_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rules/listing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rules Listing
+         * @description Every rule with enforced | advisory | off, its severity, the verifier checks that test it and their last result.
+         */
+        get: operations["rules_listing_api_projects__pid__rules_listing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Rule
+         * @description The full what-if of a rule change — diff, scoreboard, report — WITHOUT touching the stored rule set, the decision log
+         *     or the TQ numbering.
+         */
+        post: operations["preview_rule_api_projects__pid__rules_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit Rule */
+        put: operations["edit_rule_api_projects__pid__rules__rule_id__put"];
+        post?: never;
+        /** Delete Rule */
+        delete: operations["delete_rule_api_projects__pid__rules__rule_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1236,6 +1337,30 @@ export interface components {
              */
             note: string;
         };
+        /** ParamSpec */
+        ParamSpec: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "filter" | "scope" | "enum" | "int" | "float" | "string" | "list" | "io_types" | "cabinets" | "field";
+            /**
+             * Required
+             * @default true
+             */
+            required: boolean;
+            /** Default */
+            default?: unknown;
+            /** Choices */
+            choices?: string[];
+            /**
+             * Help
+             * @default
+             */
+            help: string;
+        };
         /** PlacementAlternative */
         PlacementAlternative: {
             /** Slot Id */
@@ -1637,7 +1762,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "capacity" | "cable_contiguous" | "group_together" | "segregate" | "reserve_baseplate" | "wired_spare_pct" | "future_spare_pct" | "hardware_map" | "io_type_map" | "naming_pattern" | "output_map" | "custom_expr";
+            type: "capacity" | "cable_contiguous" | "group_together" | "segregate" | "reserve_baseplate" | "wired_spare_pct" | "future_spare_pct" | "hardware_map" | "io_type_map" | "naming_pattern" | "output_map" | "custom_expr" | "max_per_scope" | "scope_relation" | "forbid_mix" | "zone_cabinets" | "extra_spares";
             /**
              * Enabled
              * @default true
@@ -1655,6 +1780,52 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+        };
+        /** RuleCatalogue */
+        RuleCatalogue: {
+            /** Types */
+            types: components["schemas"]["RuleTypeInfo"][];
+            /** Filter Fields */
+            filter_fields: string[];
+            /** Filter Syntax */
+            filter_syntax: string;
+            /** Scopes */
+            scopes: string[];
+            /** Notes */
+            notes?: string[];
+        };
+        /** RuleChange */
+        RuleChange: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "update" | "delete";
+            /** Rule Id */
+            rule_id: string;
+            /** Stored */
+            stored: boolean;
+            /** Allowed */
+            allowed: boolean;
+            /** Ruleset Version */
+            ruleset_version: number;
+            rule?: components["schemas"]["RuleView"] | null;
+            /** Messages */
+            messages?: string[];
+            kpis_before: components["schemas"]["Kpis"];
+            kpis_after: components["schemas"]["Kpis"];
+            report: components["schemas"]["RuleCheckReport"];
+            /** Diff */
+            diff?: components["schemas"]["SlotDiff"][];
+            /**
+             * Moves
+             * @default 0
+             */
+            moves: number;
+            /** New Tqs */
+            new_tqs?: string[];
+            /** Resolved Tqs */
+            resolved_tqs?: string[];
         };
         /** RuleCheckReport */
         RuleCheckReport: {
@@ -1703,6 +1874,100 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** RuleEdit */
+        RuleEdit: {
+            /** Label */
+            label?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Severity */
+            severity?: ("hard" | "soft") | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Replace Params
+             * @default false
+             */
+            replace_params: boolean;
+            /** Unset Params */
+            unset_params?: string[];
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Who
+             * @default engineer
+             */
+            who: string;
+        };
+        /** RuleInput */
+        RuleInput: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "capacity" | "cable_contiguous" | "group_together" | "segregate" | "reserve_baseplate" | "wired_spare_pct" | "future_spare_pct" | "hardware_map" | "io_type_map" | "naming_pattern" | "output_map" | "custom_expr" | "max_per_scope" | "scope_relation" | "forbid_mix" | "zone_cabinets" | "extra_spares";
+            /** Label */
+            label: string;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Severity
+             * @default hard
+             * @enum {string}
+             */
+            severity: "hard" | "soft";
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id?: string | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Who
+             * @default engineer
+             */
+            who: string;
+        };
+        /** RuleListing */
+        RuleListing: {
+            /** Project Id */
+            project_id: string;
+            /** Version */
+            version: number;
+            settings: components["schemas"]["RulesetSettings"];
+            /** Rules */
+            rules: components["schemas"]["RuleView"][];
+        };
+        /** RulePreviewRequest */
+        RulePreviewRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "update" | "delete";
+            rule?: components["schemas"]["RuleInput"] | null;
+            /** Rule Id */
+            rule_id?: string | null;
+            edit?: components["schemas"]["RuleEdit"] | null;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
         /** RuleSet */
         RuleSet: {
             /** Id */
@@ -1722,6 +1987,84 @@ export interface components {
             settings?: components["schemas"]["RulesetSettings"];
             /** Rules */
             rules: components["schemas"]["Rule"][];
+        };
+        /** RuleTypeInfo */
+        RuleTypeInfo: {
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /**
+             * Custom
+             * @default false
+             */
+            custom: boolean;
+            /** Scopes */
+            scopes?: string[];
+            /** Params */
+            params?: components["schemas"]["ParamSpec"][];
+            /**
+             * Enforced By Engine
+             * @default true
+             */
+            enforced_by_engine: boolean;
+            /**
+             * Checked By Verifier
+             * @default true
+             */
+            checked_by_verifier: boolean;
+            example?: components["schemas"]["Rule"] | null;
+        };
+        /** RuleView */
+        RuleView: {
+            /** Id */
+            id: string;
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "hard" | "soft";
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Custom */
+            custom: boolean;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "enforced" | "advisory" | "off";
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Check Ids */
+            check_ids?: string[];
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /**
+             * Excepted
+             * @default 0
+             */
+            excepted: number;
         };
         /**
          * RulesetSettings
@@ -2724,6 +3067,41 @@ export interface operations {
             };
         };
     };
+    add_rule_api_projects__pid__rules_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleChange"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     rule_versions_api_projects__pid__rules_versions_get: {
         parameters: {
             query?: never;
@@ -2812,6 +3190,194 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuleDraft"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rule_types_api_rule_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleCatalogue"];
+                };
+            };
+        };
+    };
+    project_rule_types_api_projects__pid__rule_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleCatalogue"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_listing_api_projects__pid__rules_listing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleListing"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_rule_api_projects__pid__rules_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RulePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleChange"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_rule_api_projects__pid__rules__rule_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleChange"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_rule_api_projects__pid__rules__rule_id__delete: {
+        parameters: {
+            query?: {
+                force?: boolean;
+                who?: string;
+            };
+            header?: never;
+            path: {
+                pid: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleChange"];
                 };
             };
             /** @description Validation Error */

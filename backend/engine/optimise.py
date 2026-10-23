@@ -279,6 +279,8 @@ def _improve(engine: Engine, domain: str, ns, placed: list[Block], g_score: Doma
         engine.commit(cab, local, b)
     feasible = all(layout(c.blocks[l], engine.usable(c, l), engine.g) is not None
                    for c, l in seq if c.blocks.get(l))
+    if feasible and engine.custom.cab_rules:   # CP-SAT does not know the custom rules: the engine checks its answer against them
+        feasible = engine.custom.assignment_ok(list({id(c): c for c, _ in seq}.values()))
     c_score = score(engine, domain, ns, placed)
     info["cpsat"] = c_score.__dict__
     if feasible and c_score.key() < g_score.key():

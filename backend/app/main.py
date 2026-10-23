@@ -17,8 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from app.schemas import (
     AllocationResult, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, PlacementApplyRequest, PlacementApplyResult,
     PlacementChangeSet, PlacementCheck, PlacementCheckRequest, PlacementCommitRequest, PlacementCommitResult, PlacementState,
-    DataPatch, Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleDraft, RuleSet, RunRecord, SignalList, SignalPatchRequest,
-    SignalPatchResult, SignalRow, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
+    DataPatch, Project, ProjectSettings, RevisionImpact, RuleCatalogue, RuleChange, RuleCheckReport, RuleDraft, RuleEdit, RuleInput,
+    RuleListing, RulePreviewRequest, RuleSet, RunRecord, SignalList, SignalPatchRequest, SignalPatchResult, SignalRow, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
 )
 from app.service import DEMO_ID, Service
 from store.db import DEFAULT_DB, Store
@@ -135,6 +135,55 @@ def decisions(pid: str):
 def draft_rule(pid: str, body: dict):
     from app.drafting import draft
     return draft(str(body.get("text", "")), svc.get(pid).ruleset)
+
+
+@app.get("/api/rule-types", response_model=RuleCatalogue)
+def rule_types():
+    """Rule templates with parameter schemas, the filter language and what enforces each rule."""
+    from app.rulesapi import catalogue
+    return catalogue()
+
+
+@app.get("/api/projects/{pid}/rule-types", response_model=RuleCatalogue)
+def project_rule_types(pid: str):
+    from app.rulesapi import catalogue
+    svc.get(pid)
+    return catalogue()
+
+
+@app.get("/api/projects/{pid}/rules/listing", response_model=RuleListing)
+def rules_listing(pid: str):
+    """Every rule with enforced | advisory | off, its severity, the verifier checks that test it and their last result."""
+    from app.rulesapi import listing
+    return listing(svc, pid)
+
+
+@app.post("/api/projects/{pid}/rules", response_model=RuleChange)
+def add_rule(pid: str, rule: RuleInput):
+    """Add a custom rule (max_per_scope, scope_relation, forbid_mix, zone_cabinets, extra_spares). A malformed rule is a
+    422 naming the problem; a rule that would leave a hard violation is refused (stored=false) with the reason."""
+    from app.rulesapi import add_rule as _add
+    return _add(svc, pid, rule)
+
+
+@app.post("/api/projects/{pid}/rules/preview", response_model=RuleChange)
+def preview_rule(pid: str, req: RulePreviewRequest):
+    """The full what-if of a rule change — diff, scoreboard, report — WITHOUT touching the stored rule set, the decision log
+    or the TQ numbering."""
+    from app.rulesapi import preview
+    return preview(svc, pid, req)
+
+
+@app.put("/api/projects/{pid}/rules/{rule_id}", response_model=RuleChange)
+def edit_rule(pid: str, rule_id: str, edit: RuleEdit):
+    from app.rulesapi import edit_rule as _edit
+    return _edit(svc, pid, rule_id, edit)
+
+
+@app.delete("/api/projects/{pid}/rules/{rule_id}", response_model=RuleChange)
+def delete_rule(pid: str, rule_id: str, force: bool = False, who: str = "engineer"):
+    from app.rulesapi import delete_rule as _del
+    return _del(svc, pid, rule_id, force, who)
 
 
 # ───────────── allocation ─────────────

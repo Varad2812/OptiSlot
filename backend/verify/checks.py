@@ -846,6 +846,12 @@ def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleS
                                                   c_capacity, c_cioc_count):
                 continue  # rule disabled → check not applicable
             results.append(res)
+    try:                       # custom rules: one dynamic check each (C23, C24, …); a failure here is a FAIL, never a crash
+        from verify.custom import custom_checks
+        results.extend(custom_checks(ctx))
+    except Exception as e:  # noqa: BLE001
+        results.append(CheckResult(id="C23", label="Custom rules can be checked", failed=1,
+                                   violations=[Violation(message=f"custom-rule checks could not run: {type(e).__name__}: {e}")]))
     hard = sum(r.failed for r in results if r.severity == "hard")
     soft = sum(r.failed for r in results if r.severity == "soft")
     return RuleCheckReport(source=source, file=file, checks=results, checks_total=len(results),  # type: ignore[arg-type]

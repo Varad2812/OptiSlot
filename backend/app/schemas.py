@@ -20,6 +20,8 @@ RuleType = Literal[
     "capacity", "cable_contiguous", "group_together", "segregate", "reserve_baseplate",
     "wired_spare_pct", "future_spare_pct", "hardware_map", "io_type_map", "naming_pattern",
     "output_map", "custom_expr",
+    # custom rules (app/customrules.py)
+    "max_per_scope", "scope_relation", "forbid_mix", "zone_cabinets", "extra_spares",
 ]
 SignalKind = Literal["field", "cabinet_alarm"]
 CiocStrategy = Literal["balanced", "compact"]
@@ -798,3 +800,107 @@ class DataPatch(Model):
     tag_key: str
     row: int | None = None
     fields: dict[str, str]
+
+
+# ───────────────────────────── custom rules ─────────────────────────────
+
+class ParamSpec(Model):
+    name: str
+    kind: Literal["filter", "scope", "enum", "int", "float", "string", "list", "io_types", "cabinets", "field"]
+    required: bool = True
+    default: Any = None
+    choices: list[str] = Field(default_factory=list)
+    help: str = ""
+
+
+class RuleTypeInfo(Model):
+    type: str
+    label: str
+    description: str
+    custom: bool = False                       # false = a built-in rule type (parameters are editable via PUT /rules/{id})
+    scopes: list[str] = Field(default_factory=list)
+    params: list[ParamSpec] = Field(default_factory=list)
+    enforced_by_engine: bool = True
+    checked_by_verifier: bool = True
+    example: Rule | None = None
+
+
+class RuleCatalogue(Model):
+    types: list[RuleTypeInfo]
+    filter_fields: list[str]
+    filter_syntax: str
+    scopes: list[str]
+    notes: list[str] = Field(default_factory=list)
+
+
+RuleMode = Literal["enforced", "advisory", "off"]
+
+
+class RuleView(Model):
+    id: str
+    type: str
+    label: str
+    enabled: bool
+    severity: RuleSeverity
+    params: dict[str, Any]
+    custom: bool
+    mode: RuleMode                             # enforced = on + hard · advisory = on + soft (warns, never blocks) · off
+    summary: str = ""                          # plain-English reading of a custom rule
+    check_ids: list[str] = Field(default_factory=list)   # verifier checks that test this rule
+    passed: int = 0
+    failed: int = 0
+    excepted: int = 0
+
+
+class RuleListing(Model):
+    project_id: str
+    version: int
+    settings: RulesetSettings
+    rules: list[RuleView]
+
+
+class RuleInput(Model):
+    type: RuleType
+    label: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    severity: RuleSeverity = "hard"
+    enabled: bool = True
+    id: str | None = None                      # generated (c-<type>-<n>) when omitted
+    reason: str = ""
+    who: str = "engineer"
+
+
+class RuleEdit(Model):
+    label: str | None = None
+    enabled: bool | None = None
+    severity: RuleSeverity | None = None
+    params: dict[str, Any] | None = None       # keys are set (shallow merge); "a.b" sets a nested key
+    replace_params: bool = False               # true: `params` replaces all parameters
+    unset_params: list[str] = Field(default_factory=list)
+    reason: str = ""
+    who: str = "engineer"
+
+
+class RulePreviewRequest(Model):
+    action: Literal["add", "update", "delete"]
+    rule: RuleInput | None = None              # add
+    rule_id: str | None = None                 # update / delete
+    edit: RuleEdit | None = None               # update
+    force: bool = False                        # delete a built-in rule
+
+
+class RuleChange(Model):
+    action: Literal["add", "update", "delete"]
+    rule_id: str
+    stored: bool                               # false for a preview, or when the change was refused
+    allowed: bool                              # the change keeps every hard rule satisfied (no new violation, no system TQ)
+    ruleset_version: int
+    rule: RuleView | None = None
+    messages: list[str] = Field(default_factory=list)
+    kpis_before: Kpis
+    kpis_after: Kpis
+    report: RuleCheckReport
+    diff: list[SlotDiff] = Field(default_factory=list)
+    moves: int = 0
+    new_tqs: list[str] = Field(default_factory=list)
+    resolved_tqs: list[str] = Field(default_factory=list)
