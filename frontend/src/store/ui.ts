@@ -73,6 +73,7 @@ interface UiState {
   focusCioc: number | null; // cioc_local in view at detail level
   filters: ExplorerFilters;
   diveNonce: number;        // bump to replay the Upload Dive
+  injectPending: boolean;   // the top-bar "Inject Rev B" button asks the Revision Center to run the gauntlet
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setMotion: (m: Motion) => void;
@@ -85,6 +86,7 @@ interface UiState {
   setLevel: (l: Level, focusCioc?: number | null) => void;
   setFilters: (f: Partial<ExplorerFilters>) => void;
   replayDive: () => void;
+  requestInject: (v?: boolean) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -100,6 +102,7 @@ export const useUi = create<UiState>((set, get) => ({
   focusCioc: null,
   filters: NO_FILTERS,
   diveNonce: 0,
+  injectPending: false,
   setTheme: (theme) => {
     applyTheme(theme);
     set({ theme });
@@ -121,6 +124,7 @@ export const useUi = create<UiState>((set, get) => ({
   setLevel: (level, focusCioc = null) => set({ level, focusCioc }),
   setFilters: (f) => set({ filters: { ...get().filters, ...f } }),
   replayDive: () => set({ diveNonce: get().diveNonce + 1 }),
+  requestInject: (v = true) => set({ injectPending: v }),
 }));
 
 applyTheme(useUi.getState().theme);

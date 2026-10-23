@@ -54,6 +54,32 @@ Numbers are from headless Chromium; a real GPU window on the stage laptop is exp
 | 3.3 | Export / Rules @1920 | Full and balanced; download links work | — | ok |
 | 3.4 | Detail (dark + light) | Tag / CHARM / TB legible inside each slot; family ring and the reserved alarm BP dashed outline read clearly | — | ok |
 
+## U3 — Try-out Lab + Revision Center (2 rounds, 0 browser errors)
+Captures: `/lab` and `/revisions` × 1440/1920 × dark/light, plus the Rev B diff frozen at 0/50/100 % (`motion/revb__p*`).
+Behaviour checked against the real API (scratch Playwright runs, temp DB):
+- B cable (320-CE-0004) dropped on an A CIOC → **refused**: the pane shakes (x oscillates ±10 px), the target row flashes red three
+  times, and the server's reason is shown ("… cannot join CIOC P30DCIOC3201001 which holds A-family signals — rule r-ab …").
+- Compact switch → Impact **CIOCs 12 → 5 (−7)**, 0 violations; Discard restores Balanced (12).
+- Valid move (12-pair cable, BP 3 → BP 6) → ghost flies on an arc, Impact "9 signals moved", Undo/Redo/Commit and a server-side Undo all work.
+- Inject Rev B → added 10 / deleted 1 / modified 1 / moved 0, stability 98.9 %, auto re-verify "0 violations · 22/22 checks",
+  scoreboard stays at 0 violations; only the 12 changed slots get an element in the diff overlay.
+
+| # | Where | Issue | Fix | Status |
+|---|---|---|---|---|
+| U3.1 | Revisions header | Page title invisible (`text-card` is the surface colour, not a font size) | Explicit size/weight classes | fixed |
+| U3.2 | Top bar @1440 | New "Inject Rev B" button + Rev B pill pushed the Flow Rail over the Rev pills | Motion toggle is icon-only below 1680 px (tooltips keep the names); project select 165 px | fixed |
+| U3.3 | Revisions | Camera opened on the first change (a lone modified slot on another cabinet) | Opens on the busiest cabinet and the side holding most of its changes | fixed |
+| U3.4 | Lab | Lifted-block ring was drawn at the wrong CIOC when the selected cable lives on the other side (front/rear share row positions) | Overlays only draw when cabinet AND side are in view | fixed |
+| U3.5 | Lab panes | Plinth clipped at the bottom; the hint chip covered the last baseplate row | Bottom inset 40; hint chip moved to the top-right | fixed |
+| U3.6 | Revisions | Legend overlapped the cabinet's lower-left corner | Bottom inset 56 | fixed |
+
+Design notes worth knowing:
+- The what-if endpoint has no field for the CIOC strategy, so the Lab applies a strategy change to the rule set *provisionally*
+  (decision log: "Sandbox preview: CIOC strategy → compact") and restores it on Discard / when leaving the Lab. A server-side
+  preview of settings would remove those two log lines.
+- A what-if returns only changed slots, so toggles/sliders that alter wired-spare counts update the Impact numbers but not the
+  proposed World's hatched slots (moves and strategy do show on the World).
+
 ### Still open (for U2–U5)
 - Mission Control, Proof, Lab, Revisions, Import, Rules, TQ, Grid and Export are real-data previews built from shared
   panels (`src/components/panels.tsx`); the full screens arrive in U2–U4 (dev-only "Arrives in" chip).

@@ -84,6 +84,10 @@
   .card-surface { @apply rounded-card border border-border bg-surface inner-hi; }
 }
 
+/* Try-out: valid targets breathe (CLAUDE.md §10.4.6); the Calm toggle and reduced-motion hold them still. */
+@keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.85; } }
+.breathe { animation: breathe 1.8s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }

@@ -24,6 +24,8 @@ export interface WorldProps {
   reveal?: MotionValue<number>;
   drop?: MotionValue<number>;
   interactive?: boolean;
+  /** Extra SVG in world coordinates, drawn above the cabinets (Try-out targets, Rev B diff markers). */
+  overlay?: React.ReactNode;
   className?: string;
   onSize?: (w: number, h: number) => void;
   onSlot?: (id: string) => void;
@@ -38,7 +40,7 @@ export interface WorldProps {
  * cabinet at detail zoom draws text. Slot rects are memoised; hover/click use event delegation (data-slot).
  */
 export const CabinetWorld = memo(function CabinetWorld(props: WorldProps) {
-  const { model, dims, cam, side, activeIdx, cabinetS, match = null, selectedId, reveal, drop, interactive = true, className } = props;
+  const { model, dims, cam, side, activeIdx, cabinetS, match = null, selectedId, reveal, drop, interactive = true, overlay, className } = props;
   const ref = useRef<HTMLDivElement>(null);
   const tip = useRef<TooltipApi>(null);
   const [tier, setTier] = useState<Tier>(() => tierOf(cam.s.get(), cabinetS));
@@ -191,6 +193,7 @@ export const CabinetWorld = memo(function CabinetWorld(props: WorldProps) {
               )}
             </g>
           ))}
+          {overlay}
           {selXY && (
             <motion.rect
               key={selectedId}

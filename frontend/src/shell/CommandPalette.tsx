@@ -1,4 +1,4 @@
-import { Clapperboard, Moon, Play, Search, ShieldCheck, Sparkles, Sun, Wind } from "lucide-react";
+import { Clapperboard, FlaskConical, Moon, Play, Search, ShieldCheck, Sparkles, Sun, Wind } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -74,6 +74,11 @@ export function CommandPalette() {
             {match("Replay Upload Dive") && (
               <CommandItem value="dive" onSelect={() => run(() => (nav("/explorer"), replayDive()))}>
                 <Sparkles /> Replay Upload Dive
+              </CommandItem>
+            )}
+            {match("Inject Rev B") && (
+              <CommandItem value="inject" onSelect={() => run(() => (useUi.getState().requestInject(), nav("/revisions")))}>
+                <FlaskConical /> Inject Rev B
               </CommandItem>
             )}
             {match(`${theme === "dark" ? "Light" : "Dark"} theme`) && (

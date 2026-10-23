@@ -1,6 +1,7 @@
 // Visual-QA capture (CLAUDE.md §10.6)
 //   routes:  every route × {1440×900, 1920×1080} × {dark, light}          → /shots/<route>__<vp>__<theme>.png
 //   motion:  Upload Dive + cabinet glide frozen at 0/25/50/75/100 %        → /shots/motion/<seq>__p<NNN>__<theme>.png
+//            Rev B diff (inject silently, then scrub) at 0/50/100 %          → /shots/motion/revb__p<NNN>__<theme>.png
 //   stress:  the 10k project in the Explorer (stills + glide FPS)          → /shots/stress/*.png
 //   npm run shots                      builds the frontend, serves it with the real API (temp DB, seeds stress10k), captures
 //   SHOTS_URL=http://127.0.0.1:8000 …  reuse an already-running `make demo` / `make dev` instead
@@ -204,6 +205,33 @@ try {
     }
     await page.close();
     await ctx.close();
+  }
+
+  // ───── 2c. Rev B diff: inject silently, then freeze the diff at 0/50/100 % (the gauntlet is deterministic) ─────
+  const projectApi = `${base}/api/projects/demo`;
+  const toRevA = () => fetch(`${projectApi}/revisions/switch?rev=A`, { method: "POST" }).catch(() => undefined);
+  await toRevA();
+  for (const theme of THEMES) {
+    const ctx = await context(theme, VIEWPORTS[0]);
+    const page = await ctx.newPage();
+    watch(page, `revb ${theme}`);
+    await page.goto(`${base}/revisions?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
+    await page.waitForFunction(() => !!window.__optislot?.revb, null, { timeout: 60_000 });
+    await settle(page);
+    await page.screenshot({ path: path.join(outDir, "motion", `revb__intro__${theme}.png`) });
+    await page.evaluate(() => window.__optislot.revb.inject());
+    await sleep(1400); // the camera glides to the busiest cabinet
+    for (const p of [0, 0.5, 1]) {
+      await page.evaluate((v) => window.__optislot.revb.seek(v), p);
+      await raf2(page);
+      await sleep(120);
+      await page.screenshot({ path: path.join(outDir, "motion", `revb__p${pct(p)}__${theme}.png`) });
+      count++;
+    }
+    count++;
+    await page.close();
+    await ctx.close();
+    await toRevA(); // leave the project on Rev A for whatever runs next (or for the reused server)
   }
 
   // ───── 3. stress project (10k) ─────

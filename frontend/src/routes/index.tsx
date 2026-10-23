@@ -4,7 +4,11 @@ import { AppShell } from "@/shell/AppShell";
 import { SCREENS } from "@/shell/routes";
 
 import Explorer from "./Explorer";
+import Lab from "./Lab";
+import Revisions from "./Revisions";
 import ScreenPreview from "./ScreenPreview";
+
+const ELEMENTS: Record<string, JSX.Element> = { "/explorer": <Explorer />, "/lab": <Lab />, "/revisions": <Revisions /> };
 
 // Route table = CLAUDE.md §10.2 sidebar (src/shell/routes.ts). scripts/shots.mjs captures the same paths.
 export function AppRoutes() {
@@ -12,7 +16,7 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AppShell />}>
         {SCREENS.map((s) => (
-          <Route key={s.path} path={s.path} element={s.path === "/explorer" ? <Explorer /> : <ScreenPreview />} />
+          <Route key={s.path} path={s.path} element={ELEMENTS[s.path] ?? <ScreenPreview />} />
         ))}
         <Route path="*" element={<ScreenPreview />} />
       </Route>

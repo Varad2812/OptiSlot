@@ -1,4 +1,5 @@
-import { Clapperboard, Command, Moon, Sun, WifiOff, Wind } from "lucide-react";
+import { Clapperboard, Command, FlaskConical, Moon, Sun, WifiOff, Wind } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { useProject, useProjects } from "@/api/hooks";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export function Logo({ className }: { className?: string }) {
 
 export function TopBar() {
   const { theme, toggleTheme, motion, setMotion, projectId, setProject, offline, setPalette } = useUi();
+  const nav = useNavigate();
   const { data: projects } = useProjects();
   const { data: project } = useProject();
   const list = projects?.length ? projects : project ? [project] : [];
@@ -35,7 +37,7 @@ export function TopBar() {
         </div>
         <span className="h-5 w-px bg-border" />
         <Select value={projectId} onValueChange={setProject}>
-          <SelectTrigger className="h-8 w-[190px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">
+          <SelectTrigger className="h-8 w-[165px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">
             <SelectValue placeholder="Project" />
           </SelectTrigger>
           <SelectContent>
@@ -76,6 +78,9 @@ export function TopBar() {
             <TooltipContent side="bottom">API unreachable — showing the generated fixtures</TooltipContent>
           </Tooltip>
         )}
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 border-brand/40 text-[12px] text-text hover:border-brand" onClick={() => (useUi.getState().requestInject(), nav("/revisions"))} data-testid="topbar-inject">
+          <FlaskConical className="size-3.5 text-brand" /> Inject Rev B
+        </Button>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => setPalette(true)}>
           <Command className="size-3.5" />
           <span className="font-mono text-[11px]">K</span>
@@ -92,6 +97,8 @@ export function TopBar() {
           {(["cinematic", "calm"] as const).map((m) => (
             <button
               key={m}
+              title={m}
+              aria-label={m}
               role="radio"
               aria-checked={motion === m}
               onClick={() => setMotion(m)}
@@ -101,7 +108,7 @@ export function TopBar() {
               )}
             >
               {m === "cinematic" ? <Clapperboard className="size-3.5" /> : <Wind className="size-3.5" />}
-              {m}
+              <span className="hidden min-[1680px]:inline">{m}</span>
             </button>
           ))}
         </div>

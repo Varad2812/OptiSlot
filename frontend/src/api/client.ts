@@ -29,6 +29,20 @@ export async function postJson<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+export async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new ApiError(res.status, await detail(res));
+  useUi.getState().setOffline(false);
+  return (await res.json()) as T;
+}
+
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: "POST", body: form });
+  if (!res.ok) throw new ApiError(res.status, await detail(res));
+  useUi.getState().setOffline(false);
+  return (await res.json()) as T;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
