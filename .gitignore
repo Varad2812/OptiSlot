@@ -8,7 +8,7 @@ frontend/dist/
 .hypothesis/
 projects/*
 !projects/.gitkeep
-shots/*.png
+shots/**/*.png
 *.sqlite*
 ~$*
 *.tsbuildinfo

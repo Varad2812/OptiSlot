@@ -15,11 +15,11 @@ export function UploadDiveOverlay({ p, imp, calm }: { p: MotionValue<number>; im
   const opacity = useTransform(p, (v) => 1 - phase(v, calm ? 0.45 : 0.3, calm ? 0.9 : 0.42));
   const pointer = useTransform(opacity, (o) => (o < 0.05 ? "none" : "auto"));
   const card = useTransform(p, (v) => easeOut(phase(v, 0.02, 0.12)));
-  const cardScale = useTransform(card, (t) => 1 - 0.94 * t);
-  const cardRadius = useTransform(card, (t) => `${12 + t * 140}px`);
-  const cardInner = useTransform(card, (t) => 1 - Math.min(1, t * 2.2));
-  const dotGlow = useTransform(card, (t) => t);
-  const lift = useTransform(p, (v) => -110 * easeOut(phase(v, 0.1, 0.18)));
+  const cardScale = useTransform(card, (t) => (calm ? 1 : 1 - 0.94 * t));
+  const cardRadius = useTransform(card, (t) => `${calm ? 12 : 12 + t * 140}px`);
+  const cardInner = useTransform(card, (t) => (calm ? 1 : 1 - Math.min(1, t * 2.2)));
+  const dotGlow = useTransform(card, (t) => (calm ? 0 : t));
+  const lift = useTransform(p, (v) => (calm ? 0 : -110 * easeOut(phase(v, 0.1, 0.18))));
   const mapping = (imp?.mapping ?? []).filter((m) => m.source).slice(0, 24);
   return (
     <motion.div className="absolute inset-0 z-30 grid place-items-center bg-bg/85 backdrop-blur-sm" style={{ opacity, pointerEvents: pointer }} data-testid="dive-overlay">
@@ -45,9 +45,9 @@ export function UploadDiveOverlay({ p, imp, calm }: { p: MotionValue<number>; im
           />
         </motion.div>
 
-        <div className="mt-[-40px] flex flex-wrap justify-center gap-1.5">
+        <div className={calm ? "mt-6 flex flex-wrap justify-center gap-1.5" : "mt-[-40px] flex flex-wrap justify-center gap-1.5"}>
           {mapping.map((m, i) => (
-            <Chip key={m.field} p={p} i={i} n={mapping.length} label={m.label} source={m.source ?? ""} conf={m.confidence} />
+            <Chip key={m.field} p={p} i={i} n={mapping.length} calm={calm} label={m.label} source={m.source ?? ""} conf={m.confidence} />
           ))}
         </div>
 
@@ -64,13 +64,14 @@ export function UploadDiveOverlay({ p, imp, calm }: { p: MotionValue<number>; im
   );
 }
 
-function Chip({ p, i, n, label, source, conf }: { p: MotionValue<number>; i: number; n: number; label: string; source: string; conf: number }) {
+function Chip({ p, i, n, label, source, conf, calm }: { p: MotionValue<number>; i: number; n: number; label: string; source: string; conf: number; calm: boolean }) {
   // ≈30 ms stagger at the cinematic duration; each chip flies in from the dot (above) to its place.
   const t = useTransform(p, (v) => easeOut(phase(v, 0.12 + i * 0.0075, 0.17 + i * 0.0075)));
   const opacity = useTransform(t, (x) => x);
-  const y = useTransform(t, (x) => (1 - x) * -70);
-  const x = useTransform(t, (k) => (1 - k) * ((n / 2 - i) * 14));
-  const scale = useTransform(t, (k) => 0.6 + 0.4 * k);
+  // Calm mode: the chips only fade in place.
+  const y = useTransform(t, (x) => (calm ? 0 : (1 - x) * -70));
+  const x = useTransform(t, (k) => (calm ? 0 : (1 - k) * ((n / 2 - i) * 14)));
+  const scale = useTransform(t, (k) => (calm ? 1 : 0.6 + 0.4 * k));
   return (
     <motion.span style={{ opacity, x, y, scale }} className="flex items-center gap-1.5 rounded-chip border border-border bg-raised px-2 py-1 text-[11.5px]">
       <span className="text-muted-foreground">{label}</span>

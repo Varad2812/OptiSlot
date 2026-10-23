@@ -29,7 +29,7 @@ export function PlantStrip({ height = 230 }: { height?: number }) {
   const cabinetS = vp.w && n ? fit(cabinetBounds(0, dims), vp.w, vp.h, { top: 0, right: 0, bottom: 0, left: 0 }).s * 4 : 1;
   return (
     <Panel title="Marshalling room" aside={<span className="text-[11px] text-muted-foreground">{n} cabinets · click one to dive in</span>}>
-      <div style={{ height }} className="overflow-hidden rounded-chip">
+      <div style={{ height: `clamp(${height}px, 30vh, ${Math.round(height * 1.5)}px)` }} className="overflow-hidden rounded-chip">
         {!model ? (
           <Skeleton className="h-full w-full" />
         ) : (

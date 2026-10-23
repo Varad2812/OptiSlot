@@ -35,7 +35,7 @@ export function TopBar() {
         </div>
         <span className="h-5 w-px bg-border" />
         <Select value={projectId} onValueChange={setProject}>
-          <SelectTrigger className="h-8 w-[210px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">
+          <SelectTrigger className="h-8 w-[190px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">
             <SelectValue placeholder="Project" />
           </SelectTrigger>
           <SelectContent>
@@ -46,7 +46,7 @@ export function TopBar() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center rounded-chip border border-border bg-raised p-0.5" aria-label="Revision">
+        <div className="flex shrink-0 items-center whitespace-nowrap rounded-chip border border-border bg-raised p-0.5" aria-label="Revision">
           {(project?.revisions ?? ["A"]).map((r) => (
             <span
               key={r}
@@ -65,11 +65,16 @@ export function TopBar() {
         <FlowRail />
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         {offline && (
-          <span className="mr-1 flex items-center gap-1.5 rounded-chip border border-warn/40 bg-warn/10 px-2 py-1 text-[11px] text-warn">
-            <WifiOff className="size-3.5" /> Offline fixtures
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="mr-1 flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-chip border border-warn/40 bg-warn/10 px-2 py-1 text-[11px] text-warn">
+                <WifiOff className="size-3.5" /> Offline
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">API unreachable — showing the generated fixtures</TooltipContent>
+          </Tooltip>
         )}
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => setPalette(true)}>
           <Command className="size-3.5" />

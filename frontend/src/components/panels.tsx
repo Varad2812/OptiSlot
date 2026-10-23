@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
-import { CheckCircle2, CircleAlert, FileSpreadsheet, Hash, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Hash, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
-  useAllocation, useExports, useImportSummary, useRules, useRuns, type AllocationResult,
+  useAllocation, useExports, useImportSummary, useProjectId, useRules, useRuns, type AllocationResult,
 } from "@/api/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
@@ -148,7 +148,7 @@ export function SparesPanel({ delay }: { delay?: number }) {
 
 export function Bar({ pct, tone = "brand" }: { pct: number; tone?: "brand" | "ok" | "warn" }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-[64px] flex-1 items-center gap-2">
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-raised">
         <motion.div className={cn("h-full rounded-full", tone === "brand" ? "bg-brand" : tone === "ok" ? "bg-ok" : "bg-warn")} initial={{ width: 0 }} animate={{ width: `${Math.min(100, pct)}%` }} transition={{ duration: 0.6, ease: EASE }} />
       </div>
@@ -283,17 +283,21 @@ export function RulesPanel({ delay }: { delay?: number }) {
 
 export function ExportsPanel({ delay }: { delay?: number }) {
   const { data: files } = useExports();
+  const pid = useProjectId();
   return (
     <Panel title="Output files" delay={delay}>
       {!files ? <Loading /> : (
         <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
           {files.map((f) => (
-            <li key={f.kind} className="flex items-center gap-3 rounded-chip border border-border bg-raised/40 p-3">
-              <FileSpreadsheet className="size-5 text-ok" />
-              <div className="min-w-0">
-                <div className="truncate font-mono text-[12px]">{f.filename}</div>
-                <div className="text-[11px] text-muted-foreground tnum">{f.rows} rows{f.sha256 ? ` · ${short(f.sha256)}` : ""}</div>
-              </div>
+            <li key={f.kind}>
+              <a href={`/api/projects/${pid}/export/${f.kind}`} download={f.filename} className="flex items-center gap-3 rounded-chip border border-border bg-raised/40 p-3 transition-colors hover:border-brand/50 hover:bg-raised">
+                <FileSpreadsheet className="size-5 text-ok" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-mono text-[12px]">{f.filename}</div>
+                  <div className="text-[11px] text-muted-foreground tnum">{f.rows} rows{f.sha256 ? ` · ${short(f.sha256)}` : ""}</div>
+                </div>
+                <Download className="size-4 text-muted-foreground" />
+              </a>
             </li>
           ))}
         </ul>
@@ -379,5 +383,54 @@ export function Stat({ k, v }: { k: string; v: ReactNode }) {
       <div className="label-caps">{k}</div>
       <div className="mt-0.5 text-[16px] font-semibold tnum">{v}</div>
     </div>
+  );
+}
+
+export function MdbPreviewPanel({ delay }: { delay?: number }) {
+  const { data: imp } = useImportSummary();
+  const rows = imp?.preview ?? [];
+  const cols = rows.length ? Object.keys(rows[0]).slice(0, 10) : [];
+  return (
+    <Panel title="MDB preview" delay={delay} aside={imp && <span className="text-[11px] text-muted-foreground tnum">first {rows.length} of {imp.rows} rows</span>}>
+      {!imp ? <Loading rows={8} /> : !rows.length ? <p className="text-muted-foreground">No preview rows in this summary.</p> : (
+        <div className="overflow-x-auto rounded-chip border border-border">
+          <table className="w-full text-[11.5px]">
+            <thead className="bg-raised text-left text-[11px] text-muted-foreground">
+              <tr>{cols.map((c) => <th key={c} className="whitespace-nowrap px-2 py-1.5 font-medium">{c}</th>)}</tr>
+            </thead>
+            <tbody className="font-mono">
+              {rows.slice(0, 12).map((r, i) => (
+                <tr key={i} className="border-t border-border">
+                  {cols.map((c) => <td key={c} className="max-w-[220px] truncate whitespace-nowrap px-2 py-1">{r[c] || "-"}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function BomPanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  const bom = Object.entries(a?.kpis.hardware_bom ?? {}).sort((x, y) => y[1] - x[1]);
+  const max = Math.max(1, ...bom.map(([, v]) => v));
+  return (
+    <Panel title="Hardware bill of materials" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.kpis.cabinets} cabinets · {a.kpis.ciocs} CIOCs · {a.kpis.baseplates_used} BPs</span>}>
+      {!a ? <Loading rows={6} /> : (
+        <ul className="space-y-1.5">
+          {bom.map(([part, n]) => (
+            <li key={part} className="grid grid-cols-[110px_1fr_48px] items-center gap-3 text-[12px]">
+              <span className="font-mono text-[11.5px]">{part}</span>
+              <div className="h-1.5 overflow-hidden rounded-full bg-raised">
+                <motion.div className="h-full rounded-full bg-brand/80" initial={{ width: 0 }} animate={{ width: `${(100 * n) / max}%` }} transition={{ duration: 0.6, ease: EASE }} />
+              </div>
+              <span className="text-right tnum text-muted-foreground">{n}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
   );
 }

@@ -17,12 +17,15 @@ import { UploadDiveOverlay } from "@/motion/UploadDive";
 import { typing } from "@/shell/useHotkeys";
 import { NO_FILTERS, useUi, type ExplorerFilters, type Level } from "@/store/ui";
 import { CabinetWorld, type Tier } from "@/world/CabinetWorld";
-import { cabinetBounds, ciocRect, fit, plantRect, type Cam, type Insets } from "@/world/geometry";
+import { cabinetBounds, ciocRect, fit, plantRect, slotXY, type Cam, type Insets } from "@/world/geometry";
 import { Minimap } from "@/world/Minimap";
 import { useCamera } from "@/world/useCamera";
 
 const INSETS: Insets = { top: 92, right: 40, bottom: 92, left: 40 };
 const GLIDE_MS = 700;
+// Zoom-out dip mid-glide. Kept above the Plant threshold (0.85× cabinet scale) so the level of detail never pops.
+const GLIDE_DIP = 0.12;
+const PLANT_MAX = 8; // long rows (10k ≈ 46 cabinets): the Plant view walks a window of the row; the minimap shows it all
 const DIVE_S = 4;
 const DIVE_CALM_S = 1.1;
 const DIVE_KEY = "optislot-dive-seen";
@@ -58,10 +61,10 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
   // ───── camera targets ─────
   const camFor = useCallback(
     (lvl: Level, i: number, focus: number | null, w = vp.w, h = vp.h): Cam => {
-      if (lvl === "plant") return fit(plantRect(n, dims), w, h, INSETS);
+      if (lvl === "plant") return fit(plantRect(n, dims, i, PLANT_MAX), w, h, INSETS);
       if (lvl === "detail" && focus != null) {
         const r = ciocRect(i, focus, dims);
-        return fit({ x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 22 }, w, h, { ...INSETS, bottom: 64 });
+        return fit({ x: r.x - 14, y: r.y - 14, w: r.w + 28, h: r.h + 22 }, w, h, { top: 140, right: 64, bottom: 84, left: 40 });
       }
       return fit(cabinetBounds(i, dims), w, h, INSETS);
     },
@@ -98,7 +101,7 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
   useMotionValueEvent(dive.progress, "change", (v) => divingRef.current && applyDive(v));
   function applyDive(v: number) {
     if (!vp.w) return;
-    const plant = camFor("plant", 0, null);
+    const plant = camFor("plant", 0, null);  // the row (or its first window)
     const cab0 = camFor("cabinet", 0, null);
     if (calm) {
       cam.set(cab0);
@@ -188,7 +191,7 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
     if (pv.idx === idx && pv.level === level && pv.focus === focusCioc) return cam.set(target); // resize
     if (calm) return void fade(() => cam.set(target));
     if (pv.idx !== idx && level !== "plant") {
-      void cam.tween(cam.get(), target, GLIDE_MS, vp.w, vp.h, 0.3);
+      void cam.tween(cam.get(), target, GLIDE_MS, vp.w, vp.h, GLIDE_DIP);
     } else cam.springTo(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, level, focusCioc, vp.w, vp.h, diving]);
@@ -236,7 +239,7 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
         suppress.current = true;
         useUi.setState({ cabIdx: to, level: "cabinet", focusCioc: null });
         cam.stop();
-        cam.at(camFor("cabinet", from, null), camFor("cabinet", to, null), pp, vp.w, vp.h, 0.3);
+        cam.at(camFor("cabinet", from, null), camFor("cabinet", to, null), pp, vp.w, vp.h, GLIDE_DIP);
       },
     });
     setDemoReady(true);
@@ -271,6 +274,22 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
   const currentTier = () => tierRef.current;
   const [tier, setTier] = useState<Tier>("cabinet");
   const onTier = useCallback((t: Tier) => ((tierRef.current = t), setTier(t)), []);
+
+  // Keep the inspected slot visible left of the Inspector drawer (400 px).
+  useEffect(() => {
+    if (!inspectorSlot || !vp.w || diving) return;
+    const s = model.bySlotId.get(inspectorSlot);
+    const ci = s ? model.cabIndexByName.get(s.cabinet) : undefined;
+    if (!s || ci == null) return;
+    const t = window.setTimeout(() => {
+      const xy = slotXY(ci, s.cioc_local, s.bp, s.ch, dims);
+      const c = cam.get();
+      const sx = xy.x * c.s + c.x;
+      const limit = vp.w - 420 - 40 * c.s;
+      if (sx > limit) cam.springTo({ ...c, x: c.x - (sx - limit) - 24 });
+    }, 380);
+    return () => window.clearTimeout(t);
+  }, [inspectorSlot, vp.w, diving, model, dims, cam]);
 
   // ───── filters ─────
   const match = useMemo(() => matcher(filters), [filters]);
@@ -311,7 +330,7 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
         {/* header plate: cross-fades per cabinet */}
         <div className="pointer-events-none absolute left-5 top-4 z-10">
           <AnimatePresence mode="wait">
-            {view && !diving && <HeaderPlate key={`${plateKey}-${shownSide}`} view={view} side={shownSide} />}
+            {view && !diving && tier !== "detail" && <HeaderPlate key={`${plateKey}-${shownSide}`} view={view} side={shownSide} />}
           </AnimatePresence>
         </div>
 

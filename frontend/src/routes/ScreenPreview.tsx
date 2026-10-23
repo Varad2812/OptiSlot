@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 
 import {
-  ActivityPanel, CertificatePanel, ChecksPanel, ExportsPanel, ImportStatsPanel, MappingPanel, OptimiserPanel, RowsPreviewPanel,
+  ActivityPanel, BomPanel, CertificatePanel, ChecksPanel, ExportsPanel, ImportStatsPanel, MappingPanel, MdbPreviewPanel, OptimiserPanel, RowsPreviewPanel,
   RulesPanel, RunsPanel, SpareCompliancePanel, SparesPanel, StatusPanel, TqPanel,
 } from "@/components/panels";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,10 +47,15 @@ const LAYOUTS: Record<string, () => ReactNode> = {
       <div className="col-span-12 xl:col-span-5"><ImportStatsPanel /></div>
       <div className="col-span-12 xl:col-span-7"><ActivityPanel delay={0.06} kinds={["import", "allocate"]} /></div>
       <div className="col-span-12"><MappingPanel delay={0.1} /></div>
+      <div className="col-span-12"><MdbPreviewPanel delay={0.14} /></div>
     </>
   ),
   "/rules": () => (
-    <div className="col-span-12"><RulesPanel /></div>
+    <>
+      <div className="col-span-12"><RulesPanel /></div>
+      <div className="col-span-12 xl:col-span-5"><OptimiserPanel delay={0.06} /></div>
+      <div className="col-span-12 xl:col-span-7"><ActivityPanel delay={0.1} kinds={["rule", "tq", "allocate"]} /></div>
+    </>
   ),
   "/tqs": () => (
     <>
@@ -69,6 +74,8 @@ const LAYOUTS: Record<string, () => ReactNode> = {
     <>
       <div className="col-span-12 xl:col-span-7"><ExportsPanel /></div>
       <div className="col-span-12 xl:col-span-5"><CertificatePanel delay={0.06} /></div>
+      <div className="col-span-12 xl:col-span-7"><BomPanel delay={0.1} /></div>
+      <div className="col-span-12 xl:col-span-5"><SparesPanel delay={0.14} /></div>
     </>
   ),
 };

@@ -98,10 +98,12 @@ export function fit(r: Rect, vw: number, vh: number, ins: Insets, maxS = 6): Cam
   return { s, x: ins.left + (aw - r.w * s) / 2 - r.x * s, y: ins.top + (ah - r.h * s) / 2 - r.y * s };
 }
 
-/** Plant view = every cabinet in the row. */
-export function plantRect(n: number, d: Dims): Rect {
-  const last = cabinetBounds(Math.max(0, n - 1), d);
-  const first = cabinetBounds(0, d);
+/** Plant view = every cabinet in the row — or, for long rows, a window of `max` cabinets around `around`. */
+export function plantRect(n: number, d: Dims, around = 0, max = Infinity): Rect {
+  const k = Math.min(n, max);
+  const lo = Math.max(0, Math.min(n - k, Math.round(around - (k - 1) / 2)));
+  const last = cabinetBounds(Math.max(0, lo + k - 1), d);
+  const first = cabinetBounds(lo, d);
   return { x: first.x - 60, y: first.y - 40, w: last.x + last.w - first.x + 120, h: first.h + 170 };
 }
 
