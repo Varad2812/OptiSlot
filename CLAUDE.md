@@ -226,64 +226,101 @@ API:
 - `GET .../slots/{slotId}/why`, `GET .../export/{kind}`, `GET .../export/all.zip`
 - `POST .../stress?n=10000`
 
-## 10. UI/UX — NON-NEGOTIABLE
-Look and feel: an industrial engineering cockpit — Linear × Grafana × DeltaV HMI. Dense, calm, precise. **Never empty**: the demo project is preloaded and every panel shows real data. Empty states = icon + one line + primary CTA.
+## 10. UI/UX — "OptiSlot Control Room" (NON-NEGOTIABLE)
+The concept: a classy industrial control room. Calm, precise, full of real data, with cinematic motion that *explains* something (where signals went, what changed, what was checked). Nothing moves without a reason. **Never empty**: the demo project is preloaded, and every panel shows real data from the API (fixtures as the offline fallback).
 
-**Tokens** (CSS vars, dark default + light theme):
-- Surfaces: bg `#0B0D12`, surface `#12151C`, raised `#181C25`, border `#252A36`
-- Text: text `#E6E9F0`, muted `#8A93A6`
-- Status: accent `#7C5CFF`, ok `#22C55E`, warn `#F59E0B`, err `#EF4444`
+### 10.1 Colour and type (classy: ink graphite + violet, warm-neutral text)
+**Tokens** (CSS vars; dark default, light theme via one key `T`):
+- **Dark surfaces**: bg `#0A0D13`, bg-grad `radial-gradient(1200px 600px at 70% -10%, #1B1640 0%, transparent 60%)`, surface `#10141C`, raised `#151A24`, glass `rgba(21,26,36,.72)` + `backdrop-blur(12px)`, border `#222A38`, hairline `rgba(255,255,255,.06)`
+- **Dark text**: text `#ECEEF3`, muted `#8C95A8`
+- **Dark brand**: brand `#7C5CFF` (the deck's violet), brand-2 `#22D3EE` (a cyan used ONLY for live/motion highlights: scan beams, focus rings, live dots), ok `#34D399`, warn `#FBBF24`, err `#F87171`
+- **Light**: bg `#F6F7FB`, surface `#FFFFFF`, raised `#F1F3F8`, border `#E3E7EF`, text `#0F1422`, muted `#5B6478`, same brand colours
+**IO colours** (harmonised; used identically in the cabinet, charts, chips and legend):
+- AI `#4F8CFF` · AO `#A78BFA` · DI `#34D399` · DO-std `#FBBF24` · DO-iso+fuse `#F87171` · Cabinet Alarm `#F472B6`
+- Wired Spare = the IO colour at 30% + a 45° hatch; Spare Slot = outline `#2A3242` only; empty/reserved baseplate = a dashed outline
+- Segregation: A = solid 2px ring, B = dashed 2px ring
+**Type**: Inter (UI 13px; numbers tabular-nums), Inter 600 for titles (page 22px, card 14px uppercase-tracked labels 11px/0.08em), JetBrains Mono for tags and addresses. 8px grid, radius 10 (cards) / 6 (chips). Depth via hairline borders, inner highlights and a soft glow on the active element — not heavy shadows.
 
-**IO colours** (used identically in grid, charts, chips and legend):
-- AI `#3B82F6`, AO `#A855F7`, DI `#10B981`, DO-std `#F59E0B`, DO-iso `#EF4444`, Cabinet Alarm `#EC4899`
-- Wired Spare = the IO colour at 35% with a diagonal hatch; Spare Slot = `#2A2F3A` outline only
-- Segregation A = solid 2px ring; B = dashed 2px ring
+### 10.2 Shell (same on every screen)
+- **Top bar**:
+  - left: OptiSlot logo + project + revision switcher;
+  - centre: the **Flow Rail** ① Upload → ② Rules → ③ Allocate → ④ Verify → ⑤ Revise → ⑥ Export. Steps light green when done, the current step glows, and clicking a step navigates;
+  - right: ⌘K, theme toggle, a "Motion: Cinematic / Calm" toggle.
+- **Scoreboard strip** under the top bar: **100% allocated · 0 violations · N open TQs · X% untouched · cabinets · CIOCs · fill %**. Numbers tick (count-up) on change; a violation turns its tile red with a single pulse.
+- **Left sidebar**: 64px icons → 220px on hover. Screens: Mission Control, Cabinet Explorer, Try-out Lab, Proof Center, Revision Center | Import, Rules Studio, TQ Center, Allocation Grid, Export.
+- **Right Inspector** drawer: full row + the "Why here?" timeline. Opens from any slot or row, anywhere.
+- **Keys**: ⌘K, `A` allocate, `V` verify, `/` find tag, ←/→ previous/next cabinet, `F` flip front/rear, `Esc` back out one zoom level.
 
-**Type and spacing**:
-- Inter 13px UI; tabular-nums for numbers; JetBrains Mono for tags and addresses.
-- Titles 20px/600. 8px spacing grid. Radius 8. Prefer hairline borders and subtle elevation over shadows.
+### 10.3 The "World" — one cabinet engine, used everywhere
+A single `<CabinetWorld>` component renders the plant in **2.5D SVG** with a **camera** (`{x, y, scale}` animated by framer-motion springs; transform-only, so it runs at 60 fps). Semantic zoom levels:
+1. **Plant**: all cabinets in a row on a subtle floor grid (like walking down the marshalling room). Each shows a low-detail fill heat-map (canvas or simplified rects).
+2. **Cabinet**: front or rear elevation. 2 CIOC columns per side × 8 baseplates × 12 slots, CIOC headers with a capacity bar, cable blocks outlined and labelled.
+3. **CIOC/Baseplate**: slots large enough to show the tag in mono text, CHARM and TB.
+4. **Slot**: opens the Inspector.
+Level of detail: render full detail only for the visible cabinet ± 1. Memoised slot rects. Must stay smooth at 10k signals (~27 cabinets).
 
-**Shell**:
-- 64px icon sidebar (expands to 220px).
-- Top bar: project · revision switcher (Rev A ▾) · **scoreboard** (the semifinal deck's four numbers: **100% allocated · 0 violations · N open TQs · X% untouched**) · **Allocate** primary button · **Inject Rev B** · ⌘K.
-- Main area: resizable panels; right **Inspector** drawer.
+### 10.4 Signature motion moments (framer-motion; skippable; "Calm" mode shortens to fades)
+1. **Upload Dive** (the hero moment):
+   - the drop zone accepts the MDB → the file card shrinks into a glowing dot;
+   - the column-mapping chips fly into place (stagger 30 ms) → pre-flight results tick in;
+   - on Allocate (or straight away with the demo file), the screen **cross-fades into the World at Plant level**, empty cabinets fade up left→right;
+   - the camera **dives into cabinet 1** (spring zoom, ~1.2 s), and cables **drop into their baseplates like falling blocks**, staggered by cable, with a soft settle and the counters rolling up;
+   - total ≤ 4 s; any key skips to the end state.
+2. **Cabinet-to-cabinet glide**:
+   - ←/→, minimap click or swipe → the camera **pans along the row** to the next cabinet with slight parallax (floor grid moves slower than the cabinets) and a zoom-out-pan-zoom-in arc (~700 ms);
+   - the cabinet name and stats cross-fade in a header plate; `F` flips front/rear with a 3D `rotateY` card-flip (~500 ms).
+3. **Verify scan**:
+   - a cyan scan beam sweeps across the visible cabinet while the 20 checks tick one by one in the Proof panel (40 ms stagger);
+   - the certificate **stamps** in (scale 1.15→1 with a short glow), showing the hashes.
+4. **Tamper caught**: drop an edited Excel → the scan runs → the failing slot and row **pulse red** three times, and the camera flies to that slot.
+5. **Rev B diff**:
+   - unchanged slots stay perfectly still (that's the point);
+   - deleted = fade + shrink; added = drop in; modified = flip to its new CHARM colour; moved = a curved flight path from old to new;
+   - the stability gauge sweeps to its value.
+6. **Try-out**:
+   - the selected slot lifts (scale 1.06, glow); valid targets breathe green, invalid ones are dimmed red with a reason tooltip;
+   - on click, a ghost flies along the path; a violation makes a short horizontal shake and the move is refused; a valid move settles with a spring.
+7. **Micro**: hover lift on cards (y −2px), number count-ups, page transitions (fade + 8px slide, 200 ms), skeleton shimmer, toast slide-ins.
+Rules: durations 150–400 ms for UI and ≤ 4 s for the hero sequences; ease `[0.22, 1, 0.36, 1]` or springs (stiffness 260, damping 30); respect `prefers-reduced-motion` and the Calm toggle; never block input.
 
-**Motion and interaction**:
-- 150–250 ms ease-out. After Allocate, slots fill with a staggered animation. Skeletons, never blank spinners.
-- Every number is clickable and filters to its rows. Every TQ links to its slot.
-- Keys: ⌘K, `A` allocate, `V` verify, `/` find tag, arrows move between slots, `Esc` closes.
+### 10.5 Screens
+1. **Mission Control** (home; looks full immediately):
+   - the scoreboard;
+   - a **live Plant strip** (mini World at Plant level — click a cabinet and the camera dives into the Explorer);
+   - spares per cabinet table; spare compliance bars (controller × IO type with the 10% line);
+   - CIOC fill heat-map; TQ preview (top 5); the proof certificate card;
+   - the revision stability gauge; the activity timeline (decision log).
+   Every tile is clickable.
+2. **Cabinet Explorer**:
+   - the full World with the minimap, cabinet tabs, front/rear flip and filter chips (IO, status, family, group, cable search);
+   - a legend; a hover tooltip; click → Inspector with "Why here?";
+   - a "Strategy: Balanced | Compact" chip showing the current mode.
+3. **Try-out Lab**:
+   - split view **Current | Proposed** (two synced Worlds) + an Impact panel (violations, moves, CIOCs, cabinets, fill %, BOM delta);
+   - tools: click-to-move a slot or whole cable block; rule toggles; wired-spare % and future-spare % sliders; the balanced/compact switch;
+   - **Commit / Discard**; undo/redo; an amber "Sandbox" banner.
+4. **Proof Center** (the re-verify USP):
+   - the certificate (input/ruleset/output hashes, engine version, time) and the 20 checks with pass counts;
+   - a "Re-verify now" button; a **"Verify any Excel"** drop zone (the tampered-copy demo) with the failing rows listed and "fly to slot";
+   - run history (hashes), showing that the same inputs give the same hash.
+5. **Revision Center**:
+   - **Inject Rev B** + "Upload your own Rev B";
+   - the diff World with the animation from §10.4.5; stability gauge; added/deleted/modified/moved cards; a from→to list with reasons;
+   - automatic re-verify after the revision.
+6. **Import & Mapping** (where the Upload Dive starts): drop zone; mapping table with confidence chips + override; preview; pre-flight; Project Settings with a "used defaults" chip.
+7. **Rules Studio**:
+   - rule cards (toggle, params, hard/soft); editable hardware-map and naming tables; rule-set versions;
+   - an "English → rule" box with the provider badge;
+   - an "Optimiser: CP-SAT | Greedy" and "Strategy" setting; the decision log.
+8. **TQ Center**: Open / Applied / Closed; each card has the rows, the conflicting rules, fix options with **Apply** (patch preview first) and "what stays unchanged"; candidate vs confirmed.
+9. **Allocation Grid**: the virtualised 76-column Excel-like table, column groups, frozen Tag, filters, revision diff highlights; click a row → camera flies to its slot.
+10. **Export**: 5 file cards + Download all; certificate summary.
 
-### Screens
-1. **Mission Control**:
-   - KPI strip: signals · allocated % · open TQs · violations · cabinets · CIOCs · fill % · wired spares vs target.
-   - Spare-compliance bars (controller × IO type) with a 10% target line; cabinet fill heat-strips.
-  - **Spares per cabinet** table (wired spares, spare slots, empty baseplates, fill %).
-   - TQ-by-category donut; decision/activity feed; "Proof" card with the verifier certificate.
-2. **Import & Mapping**: drop zone (many files); a column-mapping table with confidence chips + override; a 10-row preview; a pre-flight summary.
-3. **Rules Studio**:
-   - rule cards: toggle, params, hard/soft, reorder; editable hardware-map and naming-pattern tables;
-   - rule-set switcher; "Describe a rule in English" box; a live re-allocation counter.
-4. **Cabinet Floor** (hero, the "rack explorer"; render in **SVG** for crisp zoom and projector clarity):
-   - cabinet tabs + F/R toggle; 4 CIOC columns × 8 BPs × 12 slots, IO-coloured with A/B rings;
-   - cable blocks outlined and labelled; hover tooltip; click → Inspector (full row + **Why here?** trace);
-   - filter chips; legend; a capacity bar per CIOC.
-5. **What-if Sandbox** (a mode of Cabinet Floor, amber banner):
-   - **click-to-move**: select a slot or whole cable block → click a target → live verifier result, ghost preview, moves count;
-   - **rule toggles** and **spare % / future % sliders** with an instant impact preview (cabinets needed, fill %, violations, moves);
-   - Commit / Discard; undo/redo stack.
-6. **Allocation Grid**: virtualised Excel-like table of all 76 columns, column groups (Signal / Control / Hardware / Field / Status), frozen Tag column, filters, column chooser, revision diff highlighting.
-7. **TQ Center**: Open / Applied / Closed tabs; severity; category; suggested fix with **[Apply]** (updates the rule set → re-allocates → logs the decision → closes the TQ); a link to the slot.
-8. **Revision Diff**: stability gauge; added/deleted/modified/moved cards; a from→to list; a cabinets-touched mini-map; slots flash on the Cabinet Floor.
-9. **Export & Proof**:
-   - 5 file cards with row counts + "Download all"
-   - the run certificate with hashes
-   - a **"Verify a file"** drop zone (the tampered-copy demo)
-   - run history
-
-### Visual QA loop (MANDATORY after any UI change)
-1. Run `npm run shots`. Playwright captures every route at 1440×900 and 1920×1080, dark and light, into `/shots`.
-2. **Open and look at the PNGs.** Critique them for emptiness, alignment, contrast, density, consistency and truncation, then fix.
-3. Repeat until the screens are clean. Never call UI work done without viewing the screenshots.
+### 10.6 Visual QA loop (MANDATORY after any UI change)
+1. Run `npm run shots` (all routes, 1440×900 and 1920×1080, dark + light).
+2. For the motion sequences, also capture **frames** at 0/25/50/75/100% of the Upload Dive, the cabinet glide and the Rev B diff (the Playwright script triggers them with `?demo=1`).
+3. **Open and look at the PNGs.** Critique them for emptiness, alignment, contrast, density, consistency, truncation and mid-animation glitches, then fix.
+4. Repeat until clean. Also check performance: the dev-tools FPS stays ~60 during the glide on the sample and stays usable at 10k signals.
 
 ## 11. Engineering rules
 - Engine and verifier = pure functions with pytest. Regression test: sample MDB → 0 violations, every live tag allocated or TQ'd, full grid. Also report % address agreement with the reference (informative only).

@@ -7,6 +7,127 @@
 
 ---
 
+## ▶ NOW: Control Room UI build (supersedes the UI parts of P3, P3b, P4, P5, P6)
+Backend is done and verified (commits ab12a7d → a17669e). The UI spec is **CLAUDE.md §10 "OptiSlot Control Room"**. One phase = one fresh Claude Code session (`/clear` first).
+
+| Time (approx.) | Phase | Who | Model |
+|---|---|---|---|
+| 23:00–02:30 | **U1** Design system + shell + Flow Rail + Scoreboard + the World (Cabinet Explorer, Upload Dive, cabinet glide) | everyone watches; 1 driver | Opus 5.5 |
+| 23:00–02:30 | **B1** Backend fixes + P7 hidden-test drills (separate branch, no frontend) | backend person | Opus 5.5 |
+| 02:30–05:30 | **U2** Mission Control + Proof Center | Person B | Opus 5.5 |
+| 02:30–05:30 | **U3** Try-out Lab + Revision Center | Person A | Opus 5.5 |
+| 02:30–05:30 | **U4** Import & Mapping, Rules Studio, TQ Center, Allocation Grid, Export | Person C | Sonnet 5.5 |
+| 05:30 | **GATE B** — merge branches, feature freeze, checklist below | all | — |
+| 05:30–07:00 | **U5** Motion + polish pass + projector check | 1 driver | Opus 5.5 |
+| 07:00–08:00 | **P8b** Offline cold-start drill + backup video | all | Sonnet 5.5 |
+| 08:00–09:00 | **P9** README, demo script, pitch, rehearse twice | all | Sonnet 5.5 |
+Solo? Run U1 → U2 → U3 → U4 → U5 in order and cut U4 screens to the minimum.
+
+### U1 · Foundation + the World (23:00–02:30)
+**Model: Opus 5.5** · plan mode
+```
+Read CLAUDE.md, especially §10 "OptiSlot Control Room" — it is the spec. Backend + API are complete
+and tested; build UI ONLY. Use TanStack Query against the real API, with the generated fixtures as
+the offline fallback. Never change engine/verifier code; if the UI needs a field, add it to
+backend/app/schemas.py and run `make types`. Delete the temporary /kit page.
+Build:
+1. §10.1 tokens (dark + light), the radial background, the glass and hairline utilities, IO colour
+   constants, typography — wired into Tailwind + shadcn.
+2. §10.2 shell: top bar with the Flow Rail (step states driven by real project state), the
+   scoreboard strip with count-up numbers, the left sidebar with all 10 routes (placeholders allowed
+   for screens built later — but styled, never blank), the Inspector drawer with "Why here?",
+   ⌘K, the keyboard shortcuts, the theme and Motion (Cinematic/Calm) toggles.
+3. §10.3 <CabinetWorld>: 2.5D SVG, camera with spring transforms, the Plant → Cabinet → CIOC/Baseplate
+   → Slot semantic zoom, the minimap, level of detail, memoised slots, front/rear flip.
+4. The Cabinet Explorer screen (§10.5.2) using it, fully working on real data.
+5. Motion moments §10.4.1 (Upload Dive — trigger it from the demo project for now; U4 connects the
+   real upload) and §10.4.2 (cabinet-to-cabinet glide). Both skippable; Calm mode = fades.
+   `?demo=1` exposes hooks so Playwright can trigger and freeze sequences at given progress points.
+6. Extend scripts/shots.mjs to capture motion frames (0/25/50/75/100%) for the dive and the glide.
+Visual QA loop (§10.6) at least 3 rounds: look at every PNG and frame, critique in docs/ui_review.md,
+fix, re-shoot. Check that FPS stays ~60 during the glide, and that the 10k stress project is still usable.
+Commit on master as "ui: control room foundation + world".
+Done when: the Explorer looks premium and full in both themes, the dive and the glide are smooth
+and glitch-free in the frame captures, and every route is styled (no blank pages).
+```
+
+### B1 · Backend fixes + hidden-test drills (parallel with U1, own branch `backend/drills`)
+**Model: Opus 5.5**
+```
+Do NOT touch frontend/. Fix these deviations from CLAUDE.md, with tests, without changing any verified
+output on the sample:
+1. engine/hardware.py: the SE4302T02 literal → read the isolated-DO CHARM from the ruleset.
+2. Revisions: support chains (A→B→C); revision numbers come from settings, not hard-coded "01".
+3. TQ Apply: re-allocate revision-style (pinned), not from scratch.
+4. TQ data-patch fix options: actually apply the patch (e.g. rename a tag), then re-run.
+5. Move the remaining literals (spare cover SE6103, alarm remark, the IO order fallback) into
+   the ruleset/catalog.
+Then run Phase P7 hidden-test drills (both cioc_strategy modes; include files with the room/area
+columns deleted) and write docs/drill_report.md. Keep `make fixtures` and the API schemas unchanged
+unless strictly needed — if you change a schema, say so loudly in the commit message.
+```
+
+### U2 · Mission Control + Proof Center (Person B, branch `ui/mission-proof`)
+**Model: Opus 5.5**
+```
+Context: the backend is complete; the design system, shell and <CabinetWorld> exist from U1. Reuse
+them; no new colours or ad-hoc components. Build ONLY:
+1. Mission Control (CLAUDE.md §10.5.1) — full from the first second; the live Plant strip uses
+   <CabinetWorld> at Plant level, and clicking a cabinet dives into the Explorer with the camera
+   transition; every tile clickable.
+2. Proof Center (§10.5.4) with the Verify scan (§10.4.3) and Tamper caught (§10.4.4) motion:
+   certificate stamp; the 20 checks ticking; "Re-verify now"; the "Verify any Excel" drop zone
+   using POST /api/verify-file; failing rows → "fly to slot"; run history with hashes.
+Visual QA loop incl. motion frames. Commit on your branch.
+Done when: tampering an exported file and dropping it in shows the red pulse on the exact slot,
+and Mission Control looks full and premium in both themes.
+```
+
+### U3 · Try-out Lab + Revision Center (Person A, branch `ui/tryout-revision`)
+**Model: Opus 5.5**
+```
+Context: the backend is complete (whatif, commit, undo, revisions, gauntlet endpoints exist); the
+design system, shell and <CabinetWorld> exist from U1. Reuse them. Build ONLY:
+1. Try-out Lab (CLAUDE.md §10.5.3) with the Try-out motion (§10.4.6): split Current | Proposed with
+   synced cameras, the Impact panel, click-to-move slot/whole cable block, rule toggles, spare
+   sliders, the balanced/compact switch, Commit/Discard, undo/redo.
+2. Revision Center (§10.5.5) with the Rev B diff motion (§10.4.5): Inject Rev B, upload your own,
+   stability gauge, change cards, from→to list with reasons, and an automatic re-verify (show the
+   scoreboard staying at 0 violations). Wire the top-bar Inject Rev B button to it.
+Visual QA loop incl. motion frames. Commit on your branch.
+Done when: you can demo — B cable onto an A CIOC is refused with a shake + reason; the compact switch
+shows the CIOC saving in Impact; Inject Rev B animates only the changed slots.
+```
+
+### U4 · Supporting screens (Person C, branch `ui/supporting`)
+**Model: Sonnet 5.5**
+```
+Context: the backend is complete; the design system, shell and <CabinetWorld> exist from U1. Reuse
+them. Build ONLY these screens per CLAUDE.md §10.5: Import & Mapping (6) — and connect the REAL upload
+to the Upload Dive sequence from U1; Rules Studio (7); TQ Center (8) with Apply + patch preview;
+Allocation Grid (9) with row → fly-to-slot; Export (10). Visual QA loop. Commit on your branch.
+Done when: upload the sample MDB → mapping → pre-flight → Allocate plays the Dive → the Grid, TQs,
+Rules and Export all work against the real API.
+```
+
+### ✅ GATE B (≈05:30) — merge all branches into master, then check
+- [ ] `make test` + `npm run typecheck` + `npm run shots` all pass after the merge
+- [ ] The full demo flow below runs end to end without touching code
+- [ ] Every item in the "Semifinal promises checklist" (Gate B in the original section) is visible in the UI
+
+### U5 · Motion + polish pass (≈05:30–07:00)
+**Model: Opus 5.5**
+```
+Act as the lead product designer before a hackathon final judged by Emerson engineers on a projector.
+Run `npm run shots` (incl. motion frames). Review every screen and sequence against CLAUDE.md §10 in
+docs/ui_review.md: emptiness, hierarchy, colour harmony, contrast on a projector (check the light
+theme too), alignment, consistency, motion timing (too slow? janky? gimmicky?), mid-animation glitches,
+truncation. Fix the top 20 issues. Make sure the Upload Dive, the cabinet glide, the Verify scan and
+the Rev B diff each feel cinematic but finish fast, and that Calm mode works. Re-shoot and repeat once.
+Commit.
+```
+---
+
 ## How to use this book
 
 **Before hour 0**
@@ -469,7 +590,7 @@ Commit and tag v1.0.
 ## 🎬 5-minute demo flow (rehearse twice)
 1. **Problem (30 s):** "10,000 signals, hand-placed in Excel, redone every revision."
 2. **Import (30 s):** drop the MDB → columns auto-mapped → **pre-flight finds TQs before we start** (including the missing-tag trap and the A/B cable conflict).
-3. **Allocate (40 s):** one click → slots fill in the cabinet → the scoreboard reads **100% allocated · 0 violations · N open TQs**. Mention "CP-SAT chose the CIOCs, saving X CIOCs vs greedy" (use the real number).
+3. **Allocate + Dive (50 s):** one click → the camera dives from the plant into cabinet 1 while cables drop into their baseplates → glide ←/→ through every cabinet, flip front/rear → the scoreboard reads **100% allocated · 0 violations · N open TQs**. Mention "CP-SAT chose the CIOCs, saving X CIOCs vs greedy" (use the real number).
 4. **Why here? (20 s):** click a slot → the rule trace.
 5. **Sandbox (50 s):**
    - try moving a B cable onto an A CIOC → **blocked, with the reason**
