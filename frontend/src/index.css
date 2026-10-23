@@ -9,47 +9,81 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tokens are space-separated RGB so Tailwind can apply alpha. */
+/* CLAUDE.md §10.1 tokens. Space-separated RGB so Tailwind can apply alpha. Dark is the default. */
 :root,
 [data-theme="dark"] {
-  --bg: 11 13 18;        /* #0B0D12 */
-  --surface: 18 21 28;   /* #12151C */
-  --raised: 24 28 37;    /* #181C25 */
-  --border: 37 42 54;    /* #252A36 */
-  --text: 230 233 240;   /* #E6E9F0 */
-  --muted: 138 147 166;  /* #8A93A6 */
-  --accent: 124 92 255;  /* #7C5CFF */
-  --ok: 34 197 94;
-  --warn: 245 158 11;
-  --err: 239 68 68;
-  --hover: 30 35 46;     /* menu / row hover tint (shadcn "accent") */
-  --accent-fg: 255 255 255;
+  --bg: 10 13 19;          /* #0A0D13 */
+  --surface: 16 20 28;     /* #10141C */
+  --raised: 21 26 36;      /* #151A24 */
+  --border: 34 42 56;      /* #222A38 */
+  --text: 236 238 243;     /* #ECEEF3 */
+  --muted: 140 149 168;    /* #8C95A8 */
+  --brand: 124 92 255;     /* #7C5CFF */
+  --live: 34 211 238;      /* #22D3EE — live/motion highlights only */
+  --ok: 52 211 153;        /* #34D399 */
+  --warn: 251 191 36;      /* #FBBF24 */
+  --err: 248 113 113;      /* #F87171 */
+  --hover: 28 34 46;       /* menu / row hover tint (shadcn "accent") */
+  --on-brand: 255 255 255;
+  --hairline: rgba(255, 255, 255, 0.06);
+  --glass: rgba(21, 26, 36, 0.72);
+  --hi: rgba(255, 255, 255, 0.05);
+  --spare: #2a3242;
+  --floor: rgba(124, 92, 255, 0.07);
+  --world-grad: radial-gradient(1200px 600px at 70% -10%, #1b1640 0%, transparent 60%);
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --bg: 245 246 249;
+  --bg: 246 247 251;       /* #F6F7FB */
   --surface: 255 255 255;
-  --raised: 250 250 252;
-  --border: 222 226 234;
-  --text: 17 20 28;
-  --muted: 92 101 120;
-  --accent: 108 76 240;
-  --ok: 22 163 74;
+  --raised: 241 243 248;   /* #F1F3F8 */
+  --border: 227 231 239;   /* #E3E7EF */
+  --text: 15 20 34;        /* #0F1422 */
+  --muted: 91 100 120;     /* #5B6478 */
+  --brand: 124 92 255;
+  --live: 8 145 178;       /* cyan, darkened for contrast on white */
+  --ok: 5 150 105;
   --warn: 217 119 6;
   --err: 220 38 38;
-  --hover: 238 240 245;
-  --accent-fg: 255 255 255;
+  --hover: 236 239 246;
+  --on-brand: 255 255 255;
+  --hairline: rgba(15, 20, 34, 0.08);
+  --glass: rgba(255, 255, 255, 0.78);
+  --hi: rgba(255, 255, 255, 0.9);
+  --spare: #c9d0de;
+  --floor: rgba(124, 92, 255, 0.09);
+  --world-grad: radial-gradient(1200px 600px at 70% -10%, #e4defe 0%, transparent 60%);
   color-scheme: light;
 }
 
 @layer base {
   * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-bg text-text font-sans text-ui antialiased;
+    font-feature-settings: "cv11", "ss01";
+    overflow: hidden;
+  }
+  ::selection { background: rgb(var(--brand) / 0.35); }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--border)) transparent; }
 }
 
-html, body, #root { height: 100%; }
-body {
-  @apply bg-bg text-text font-sans text-ui antialiased;
-  font-feature-settings: "cv11", "ss01";
+@layer utilities {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .bg-world { background: var(--world-grad), rgb(var(--bg)); }
+  .glass { background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .hairline { box-shadow: inset 0 0 0 1px var(--hairline); }
+  .inner-hi { box-shadow: inset 0 1px 0 0 var(--hi), inset 0 0 0 1px var(--hairline); }
+  .glow-brand { box-shadow: 0 0 0 1px rgb(var(--brand) / 0.55), 0 0 18px -2px rgb(var(--brand) / 0.55); }
+  .glow-live { box-shadow: 0 0 0 1px rgb(var(--live) / 0.6), 0 0 16px -2px rgb(var(--live) / 0.6); }
+  .hatch {
+    background-image: repeating-linear-gradient(45deg, currentColor 0 1.5px, transparent 1.5px 5px);
+  }
+  .label-caps { @apply text-label uppercase text-muted-foreground; }
+  .card-surface { @apply rounded-card border border-border bg-surface inner-hi; }
 }
-.tnum { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}

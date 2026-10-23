@@ -1,38 +1,126 @@
 import { create } from "zustand";
 
 export type Theme = "dark" | "light";
-const KEY = "optislot-theme";
+export type Motion = "cinematic" | "calm";
+export type Side = "F" | "R";
+export type Level = "plant" | "cabinet" | "detail";
 
-function initial(): Theme {
+const THEME_KEY = "optislot-theme";
+const MOTION_KEY = "optislot-motion";
+const PROJECT_KEY = "optislot-project";
+
+function read(key: string): string | null {
   try {
-    return localStorage.getItem(KEY) === "light" ? "light" : "dark";
+    return localStorage.getItem(key);
   } catch {
-    return "dark";
+    return null;
+  }
+}
+function write(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage can be blocked; the choice still applies for this session */
   }
 }
 
-function apply(t: Theme) {
+function initialMotion(): Motion {
+  const saved = read(MOTION_KEY);
+  if (saved === "calm" || saved === "cinematic") return saved;
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "calm" : "cinematic";
+  } catch {
+    return "cinematic";
+  }
+}
+
+function initialProject(): string {
+  try {
+    const q = new URLSearchParams(window.location.search).get("project");
+    if (q) return q;
+  } catch {
+    /* ignore */
+  }
+  return read(PROJECT_KEY) || "demo";
+}
+
+function applyTheme(t: Theme) {
   document.documentElement.dataset.theme = t;
-  try {
-    localStorage.setItem(KEY, t);
-  } catch {
-    /* storage can be blocked; the theme still applies for this session */
-  }
+  write(THEME_KEY, t);
 }
+
+export interface ExplorerFilters {
+  io: string[];        // IoKey values; empty = all
+  status: string[];    // Tag Status values; empty = all
+  family: string[];    // A / B / -
+  group: string | null;
+  search: string;      // cable / tag substring
+}
+
+export const NO_FILTERS: ExplorerFilters = { io: [], status: [], family: [], group: null, search: "" };
 
 interface UiState {
   theme: Theme;
+  motion: Motion;
+  projectId: string;
+  offline: boolean;
+  inspectorSlot: string | null;
+  paletteOpen: boolean;
+  // Cabinet Explorer camera intent (the World animates towards it)
+  cabIdx: number;
+  side: Side;
+  level: Level;
+  focusCioc: number | null; // cioc_local in view at detail level
+  filters: ExplorerFilters;
+  diveNonce: number;        // bump to replay the Upload Dive
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
+  setMotion: (m: Motion) => void;
+  setProject: (id: string) => void;
+  setOffline: (v: boolean) => void;
+  inspect: (slotId: string | null) => void;
+  setPalette: (open: boolean) => void;
+  goCabinet: (i: number) => void;
+  setSide: (s: Side) => void;
+  setLevel: (l: Level, focusCioc?: number | null) => void;
+  setFilters: (f: Partial<ExplorerFilters>) => void;
+  replayDive: () => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
-  theme: initial(),
+  theme: read(THEME_KEY) === "light" ? "light" : "dark",
+  motion: initialMotion(),
+  projectId: initialProject(),
+  offline: false,
+  inspectorSlot: null,
+  paletteOpen: false,
+  cabIdx: 0,
+  side: "F",
+  level: "cabinet",
+  focusCioc: null,
+  filters: NO_FILTERS,
+  diveNonce: 0,
   setTheme: (theme) => {
-    apply(theme);
+    applyTheme(theme);
     set({ theme });
   },
   toggleTheme: () => get().setTheme(get().theme === "dark" ? "light" : "dark"),
+  setMotion: (motion) => {
+    write(MOTION_KEY, motion);
+    set({ motion });
+  },
+  setProject: (projectId) => {
+    write(PROJECT_KEY, projectId);
+    set({ projectId, cabIdx: 0, side: "F", level: "cabinet", focusCioc: null, inspectorSlot: null, filters: NO_FILTERS });
+  },
+  setOffline: (offline) => get().offline !== offline && set({ offline }),
+  inspect: (inspectorSlot) => set({ inspectorSlot }),
+  setPalette: (paletteOpen) => set({ paletteOpen }),
+  goCabinet: (cabIdx) => set({ cabIdx, level: get().level === "plant" ? "cabinet" : get().level, focusCioc: null }),
+  setSide: (side) => set({ side, focusCioc: null }),
+  setLevel: (level, focusCioc = null) => set({ level, focusCioc }),
+  setFilters: (f) => set({ filters: { ...get().filters, ...f } }),
+  replayDive: () => set({ diveNonce: get().diveNonce + 1 }),
 }));
 
-apply(useUi.getState().theme);
+applyTheme(useUi.getState().theme);

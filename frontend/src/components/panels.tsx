@@ -1,0 +1,383 @@
+import { motion } from "framer-motion";
+import { CheckCircle2, CircleAlert, FileSpreadsheet, Hash, XCircle } from "lucide-react";
+import type { ReactNode } from "react";
+
+import {
+  useAllocation, useExports, useImportSummary, useRules, useRuns, type AllocationResult,
+} from "@/api/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
+import { IO_COLOURS, ioKey } from "@/lib/io";
+import { cn } from "@/lib/utils";
+import { EASE } from "@/motion/shared";
+
+/** The card every screen is built from: an uppercase label, optional aside, hairline surface, hover lift. */
+export function Panel({ title, aside, children, className, delay = 0 }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; delay?: number }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay, ease: EASE }}
+      whileHover={{ y: -2 }}
+      className={cn("card-surface flex min-h-0 flex-col p-4", className)}
+    >
+      <header className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="label-caps">{title}</h2>
+        {aside}
+      </header>
+      <div className="min-h-0 flex-1">{children}</div>
+    </motion.section>
+  );
+}
+
+const short = (h?: string) => (h ? `${h.slice(0, 10)}…${h.slice(-4)}` : "—");
+
+function Loading({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className="h-5 w-full" />
+      ))}
+    </div>
+  );
+}
+
+export function CertificatePanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  const c = a?.certificate;
+  const pass = c?.verdict === "PASS";
+  return (
+    <Panel title="Run certificate" delay={delay} aside={c && <Verdict pass={pass} />}>
+      {!c ? <Loading /> : (
+        <>
+          <div className={cn("text-[26px] font-semibold tnum", pass ? "text-ok" : "text-err")}>
+            {c.violations} violations <span className="text-muted-foreground">·</span> <span className="text-text">{c.checks_passed}/{c.checks_total}</span>
+            <span className="ml-1 text-[13px] font-normal text-muted-foreground">checks</span>
+          </div>
+          <dl className="mt-3 grid grid-cols-[96px_1fr] gap-y-1.5 text-[12px]">
+            {([["Input MDB", c.mdb_sha256], ["Rule set", c.ruleset_hash], ["Output", c.output_sha256]] as const).map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt className="flex items-center gap-1.5 text-muted-foreground"><Hash className="size-3" />{k}</dt>
+                <dd className="font-mono text-[11.5px]" title={v}>{short(v)}</dd>
+              </div>
+            ))}
+            <dt className="text-muted-foreground">Engine</dt>
+            <dd className="font-mono text-[11.5px]">{c.engine_version} · {c.timestamp.replace("T", " ").replace("Z", "")}</dd>
+          </dl>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function Verdict({ pass }: { pass: boolean }) {
+  return (
+    <span className={cn("flex items-center gap-1 rounded-chip px-2 py-0.5 text-[11px] font-semibold", pass ? "bg-ok/15 text-ok" : "bg-err/15 text-err")}>
+      {pass ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />} {pass ? "PASS" : "FAIL"}
+    </span>
+  );
+}
+
+export function ChecksPanel({ delay, limit = 20 }: { delay?: number; limit?: number }) {
+  const { data: a } = useAllocation();
+  return (
+    <Panel title="Independent checks" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.report.checks_passed}/{a.report.checks_total}</span>}>
+      {!a ? <Loading rows={8} /> : (
+        <ul className="grid grid-cols-1 gap-x-6 gap-y-1 xl:grid-cols-2">
+          {a.report.checks.slice(0, limit).map((ch, i) => (
+            <motion.li key={ch.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: (delay ?? 0) + i * 0.04 }} className="flex items-center gap-2 py-0.5 text-[12.5px]">
+              {ch.failed ? <XCircle className="size-3.5 shrink-0 text-err" /> : ch.excepted ? <CircleAlert className="size-3.5 shrink-0 text-warn" /> : <CheckCircle2 className="size-3.5 shrink-0 text-ok" />}
+              <span className="truncate">{ch.label}</span>
+              <span className="ml-auto text-[11px] text-muted-foreground tnum">{ch.passed}{ch.excepted ? ` +${ch.excepted} TQ` : ""}</span>
+            </motion.li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+const SEV: Record<string, string> = { critical: "bg-err/20 text-err", high: "bg-err/15 text-err", medium: "bg-warn/15 text-warn", low: "bg-raised text-muted-foreground", info: "bg-raised text-muted-foreground" };
+
+export function TqPanel({ delay, limit = 5 }: { delay?: number; limit?: number }) {
+  const { data: a } = useAllocation();
+  const tqs = a?.tqs ?? [];
+  return (
+    <Panel title="Technical queries" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.kpis.tqs_open} open</span>}>
+      {!a ? <Loading /> : !tqs.length ? <p className="text-muted-foreground">No TQs — every live signal placed cleanly.</p> : (
+        <ul className="space-y-2">
+          {tqs.slice(0, limit).map((t) => (
+            <li key={t.id} className="rounded-chip border border-border bg-raised/50 p-2.5">
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="font-mono text-muted-foreground">{t.id}</span>
+                <span className={cn("rounded-[4px] px-1.5 py-px font-medium", SEV[t.severity] ?? SEV.low)}>{t.severity}</span>
+                <span className="text-muted-foreground">{t.category}</span>
+                <span className="ml-auto rounded-[4px] bg-surface px-1.5 py-px text-muted-foreground">{t.confidence}</span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{t.message}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+export function SparesPanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  return (
+    <Panel title="Spares per cabinet" delay={delay}>
+      {!a ? <Loading /> : (
+        <table className="w-full text-[12px] tnum">
+          <thead className="text-left text-[11px] text-muted-foreground">
+            <tr><th className="pb-1.5 font-medium">Cabinet</th><th className="font-medium">Used</th><th className="font-medium">Wired</th><th className="font-medium">Spare</th><th className="font-medium">Empty BP</th><th className="w-28 font-medium">Fill</th></tr>
+          </thead>
+          <tbody>
+            {a.kpis.spares_per_cabinet.slice(0, 8).map((c) => (
+              <tr key={c.cabinet} className="border-t border-border">
+                <td className="py-1.5 font-mono text-[11.5px]">{c.cabinet}</td>
+                <td>{c.used}</td><td>{c.wired_spares}</td><td>{c.spare_slots}</td><td>{c.empty_baseplates}</td>
+                <td><Bar pct={c.fill_pct} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
+export function Bar({ pct, tone = "brand" }: { pct: number; tone?: "brand" | "ok" | "warn" }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-raised">
+        <motion.div className={cn("h-full rounded-full", tone === "brand" ? "bg-brand" : tone === "ok" ? "bg-ok" : "bg-warn")} initial={{ width: 0 }} animate={{ width: `${Math.min(100, pct)}%` }} transition={{ duration: 0.6, ease: EASE }} />
+      </div>
+      <span className="w-10 text-right text-[11px] text-muted-foreground">{pct.toFixed(0)}%</span>
+    </div>
+  );
+}
+
+export function SpareCompliancePanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  return (
+    <Panel title="Wired spares vs target" delay={delay}>
+      {!a ? <Loading /> : (
+        <ul className="space-y-2">
+          {a.kpis.spare_compliance.slice(0, 8).map((c) => (
+            <li key={`${c.controller}-${c.io_type}`} className="grid grid-cols-[120px_44px_1fr] items-center gap-2 text-[12px]">
+              <span className="truncate font-mono text-[11px] text-muted-foreground">{c.controller}</span>
+              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: IO_COLOURS[ioKey({ status: "Field", io_type: c.io_type })] }} />{c.io_type}</span>
+              <div className="flex items-center gap-2 tnum">
+                <Bar pct={c.target ? (100 * c.wired) / c.target : 100} tone={c.ok ? "ok" : "warn"} />
+                <span className="w-12 text-right text-[11px] text-muted-foreground">{c.wired}/{c.target}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+export function ActivityPanel({ delay, kinds }: { delay?: number; kinds?: string[] }) {
+  const { data: a } = useAllocation();
+  const items = (a?.activity ?? []).filter((e) => !kinds || kinds.includes(e.kind)).slice(0, 8);
+  return (
+    <Panel title="Activity" delay={delay}>
+      {!a ? <Loading /> : !items.length ? <p className="text-muted-foreground">Nothing yet.</p> : (
+        <ol className="space-y-2">
+          {items.map((e, i) => (
+            <li key={i} className="flex gap-3 text-[12.5px]">
+              <span className="w-14 shrink-0 font-mono text-[11px] text-muted-foreground">{e.ts.slice(11, 16)}</span>
+              <span className="rounded-[4px] bg-raised px-1.5 text-[10.5px] uppercase leading-5 tracking-wide text-muted-foreground">{e.kind}</span>
+              <span className="min-w-0 flex-1 leading-snug">{e.text}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Panel>
+  );
+}
+
+export function RunsPanel({ delay }: { delay?: number }) {
+  const { data: runs } = useRuns();
+  return (
+    <Panel title="Run history" delay={delay} aside={<span className="text-[11px] text-muted-foreground">same inputs → same hash</span>}>
+      {!runs ? <Loading /> : (
+        <table className="w-full text-[12px]">
+          <tbody>
+            {runs.slice(0, 8).map((r) => (
+              <tr key={r.run_id} className="border-t border-border first:border-0">
+                <td className="py-1.5 font-mono text-[11px] text-muted-foreground">{r.timestamp.slice(5, 16).replace("T", " ")}</td>
+                <td className="text-[11px]">{r.kind}</td>
+                <td className="font-mono text-[11px]" title={r.output_sha256}>{short(r.output_sha256)}</td>
+                <td className={cn("text-right text-[11px] font-semibold", r.verdict === "PASS" ? "text-ok" : "text-err")}>{r.verdict}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
+export function MappingPanel({ delay }: { delay?: number }) {
+  const { data: imp } = useImportSummary();
+  return (
+    <Panel title="Column mapping" delay={delay} aside={imp && <span className="font-mono text-[11px] text-muted-foreground">{imp.file}</span>}>
+      {!imp ? <Loading rows={8} /> : (
+        <div className="flex flex-wrap gap-1.5">
+          {imp.mapping.map((m) => (
+            <span key={m.field} className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-1 text-[11.5px]", m.source ? "border-border bg-raised/60" : "border-warn/40 bg-warn/10 text-warn")}>
+              <span className="text-muted-foreground">{m.label}</span>
+              <span className="font-mono">{m.source ?? "unmapped"}</span>
+              {m.source && <span className={cn("tnum text-[10.5px]", m.confidence >= 0.9 ? "text-ok" : "text-warn")}>{Math.round(m.confidence * 100)}%</span>}
+            </span>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function ImportStatsPanel({ delay }: { delay?: number }) {
+  const { data: imp } = useImportSummary();
+  return (
+    <Panel title="Pre-flight" delay={delay}>
+      {!imp ? <Loading /> : (
+        <div className="grid grid-cols-3 gap-3">
+          {([["Rows", imp.rows], ["Live", imp.live_rows], ["Quarantined", imp.quarantined]] as const).map(([k, v]) => (
+            <div key={k} className="rounded-chip bg-raised/60 p-3">
+              <div className="label-caps">{k}</div>
+              <div className={cn("mt-1 text-[22px] font-semibold tnum", k === "Quarantined" && v ? "text-warn" : "")}>{v}</div>
+            </div>
+          ))}
+          <div className="col-span-3 font-mono text-[11px] text-muted-foreground">sheet {imp.sheet} · header row {imp.header_row} · sha256 {short(imp.sha256)}</div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function RulesPanel({ delay }: { delay?: number }) {
+  const { data: rs } = useRules();
+  return (
+    <Panel title="Rule set" delay={delay} aside={rs && <span className="font-mono text-[11px] text-muted-foreground">{rs.id} · v{rs.version} · {rs.settings?.cioc_strategy ?? "balanced"}</span>}>
+      {!rs ? <Loading rows={8} /> : (
+        <ul className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+          {rs.rules.map((r) => (
+            <li key={r.id} className="flex items-center gap-2.5 rounded-chip border border-border bg-raised/40 px-2.5 py-2">
+              <span className={cn("h-4 w-7 rounded-full p-0.5 transition-colors", r.enabled ? "bg-brand" : "bg-border")}>
+                <span className={cn("block size-3 rounded-full bg-white transition-transform", r.enabled && "translate-x-3")} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px]">{r.label}</span>
+              <span className="font-mono text-[10.5px] text-muted-foreground">{r.type}</span>
+              <span className={cn("rounded-[4px] px-1.5 text-[10.5px]", r.severity === "hard" ? "bg-brand/15 text-brand" : "bg-raised text-muted-foreground")}>{r.severity}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+export function ExportsPanel({ delay }: { delay?: number }) {
+  const { data: files } = useExports();
+  return (
+    <Panel title="Output files" delay={delay}>
+      {!files ? <Loading /> : (
+        <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+          {files.map((f) => (
+            <li key={f.kind} className="flex items-center gap-3 rounded-chip border border-border bg-raised/40 p-3">
+              <FileSpreadsheet className="size-5 text-ok" />
+              <div className="min-w-0">
+                <div className="truncate font-mono text-[12px]">{f.filename}</div>
+                <div className="text-[11px] text-muted-foreground tnum">{f.rows} rows{f.sha256 ? ` · ${short(f.sha256)}` : ""}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
+export function StatusPanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  const counts = a?.kpis.status_counts ?? {};
+  const total = Object.values(counts).reduce((x, y) => x + y, 0) || 1;
+  const tone: Record<string, string> = { Field: "bg-brand", "Wired Spare": "bg-ok", "Cabinet Alarm": "bg-io-alarm", "Spare Slot": "bg-border" };
+  return (
+    <Panel title="Rows by tag status" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.slots.length} rows</span>}>
+      {!a ? <Loading /> : (
+        <>
+          <div className="flex h-2.5 overflow-hidden rounded-full">
+            {Object.entries(counts).map(([k, v]) => (
+              <div key={k} className={tone[k] ?? "bg-muted"} style={{ width: `${(100 * v) / total}%` }} />
+            ))}
+          </div>
+          <ul className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            {Object.entries(counts).map(([k, v]) => (
+              <li key={k} className="flex items-center gap-2"><span className={cn("size-2 rounded-full", tone[k] ?? "bg-muted")} />{k}<span className="ml-auto tnum text-muted-foreground">{v}</span></li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+export function RowsPreviewPanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  const rows = (a?.slots ?? []).filter((s) => s.status !== "Spare Slot").slice(0, 14);
+  const cols: [string, (s: AllocationResult["slots"][number]) => string | number][] = [
+    ["Tag", (s) => s.tag], ["Status", (s) => s.status], ["IO", (s) => s.io_type], ["Cabinet", (s) => s.cabinet], ["CIOC", (s) => s.cioc], ["BP", (s) => s.baseplate], ["Ch", (s) => s.ch], ["CHARM", (s) => s.charm], ["TB", (s) => s.tb], ["Cable", (s) => s.cable], ["Pair", (s) => s.pair_label],
+  ];
+  return (
+    <Panel title="IO Assignment — first rows" delay={delay}>
+      {!a ? <Loading rows={10} /> : (
+        <div className="overflow-hidden rounded-chip border border-border">
+          <table className="w-full text-[11.5px]">
+            <thead className="bg-raised text-left text-[11px] text-muted-foreground">
+              <tr>{cols.map(([c]) => <th key={c} className="px-2 py-1.5 font-medium">{c}</th>)}</tr>
+            </thead>
+            <tbody className="font-mono">
+              {rows.map((s) => (
+                <tr key={s.id} className="border-t border-border">
+                  {cols.map(([c, f]) => <td key={c} className="truncate px-2 py-1">{f(s)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function OptimiserPanel({ delay }: { delay?: number }) {
+  const { data: a } = useAllocation();
+  const o = a?.optimiser;
+  return (
+    <Panel title="Optimiser" delay={delay}>
+      {!o ? <Loading /> : (
+        <div className="space-y-2 text-[12.5px]">
+          <div className="flex items-baseline gap-2"><span className="text-[22px] font-semibold uppercase">{o.method}</span><span className="text-muted-foreground">{o.adopted ? "adopted" : "greedy kept"} · {o.status}</span></div>
+          <div className="grid grid-cols-3 gap-2 tnum">
+            <Stat k="Greedy CIOCs" v={o.greedy_ciocs} /><Stat k="CP-SAT CIOCs" v={o.cpsat_ciocs ?? "—"} /><Stat k="Solve" v={`${Math.round(o.time_ms)} ms`} />
+          </div>
+          {o.note && <p className="text-muted-foreground">{o.note}</p>}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+export function Stat({ k, v }: { k: string; v: ReactNode }) {
+  return (
+    <div className="rounded-chip bg-raised/60 p-2.5">
+      <div className="label-caps">{k}</div>
+      <div className="mt-0.5 text-[16px] font-semibold tnum">{v}</div>
+    </div>
+  );
+}

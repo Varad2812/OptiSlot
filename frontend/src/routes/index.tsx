@@ -1,28 +1,21 @@
 import { Route, Routes } from "react-router-dom";
 
-import Kit from "./Kit";
-import Placeholder from "./Placeholder";
+import { AppShell } from "@/shell/AppShell";
+import { SCREENS } from "@/shell/routes";
 
-// Route table = CLAUDE.md §10 screens. scripts/shots.mjs captures the same paths.
-export const SCREENS = [
-  { path: "/", title: "Mission Control" },
-  { path: "/import", title: "Import & Mapping" },
-  { path: "/rules", title: "Rules Studio" },
-  { path: "/floor", title: "Cabinet Floor" },
-  { path: "/grid", title: "Allocation Grid" },
-  { path: "/tqs", title: "TQ Center" },
-  { path: "/revisions", title: "Revision Diff" },
-  { path: "/export", title: "Export & Proof" },
-] as const;
+import Explorer from "./Explorer";
+import ScreenPreview from "./ScreenPreview";
 
+// Route table = CLAUDE.md §10.2 sidebar (src/shell/routes.ts). scripts/shots.mjs captures the same paths.
 export function AppRoutes() {
   return (
     <Routes>
-      {SCREENS.map((s) => (
-        <Route key={s.path} path={s.path} element={<Placeholder title={s.title} />} />
-      ))}
-      <Route path="/kit" element={<Kit />} />
-      <Route path="*" element={<Placeholder title="Not found" />} />
+      <Route element={<AppShell />}>
+        {SCREENS.map((s) => (
+          <Route key={s.path} path={s.path} element={s.path === "/explorer" ? <Explorer /> : <ScreenPreview />} />
+        ))}
+        <Route path="*" element={<ScreenPreview />} />
+      </Route>
     </Routes>
   );
 }
