@@ -29,9 +29,23 @@ def _span(rows: list[int]) -> str:
 def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, book: TQBook) -> dict[str, str]:
     """Mutates signals (quarantine flags, inferred sizes, forced domains). Returns {cable: tq_id} exceptions."""
     io_rule = rules.rid("io_type_map") or "r-io-map"
+
+    # 0 ── duplicate tags: the FIRST row in MDB order is the signal, later ones are quarantined
     live = [s for s in signals if s.live and not s.quarantined]
+    first: dict[str, Signal] = {}
+    for s in live:
+        if s.tag_key in first:
+            f = first[s.tag_key]
+            t = book.add("data", "Duplicate tag", "high",
+                         f"Tag {s.tag} appears twice (rows {f.row} and {s.row}). Row {f.row} is kept as the signal, row {s.row} is quarantined.",
+                         rows=[f.row, s.row], tags=[s.tag], field="Tag",
+                         fixes=[{"label": f"Delete row {s.row}"}, {"label": f"Rename the tag on row {s.row}"}])
+            book.quarantine_signal(s, f"duplicate of row {f.row}", t)
+        else:
+            first[s.tag_key] = s
 
     # 1 ── IO type not in the map → excluded + TQ (one per raw type)
+    live = [s for s in signals if s.live and not s.quarantined]
     by_raw: dict[str, list[Signal]] = defaultdict(list)
     for s in live:
         if not s.io_type:
@@ -46,20 +60,6 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                      rows=_rows(sigs), tags=[s.tag for s in sigs], field="IO type", rules=[io_rule], fixes=fixes)
         for s in sigs:
             book.quarantine_signal(s, f"unknown IO type '{raw}'", t)
-
-    # 2 ── duplicate tags (keep the first)
-    live = [s for s in signals if s.live and not s.quarantined]
-    first: dict[str, Signal] = {}
-    for s in live:
-        if s.tag_key in first:
-            f = first[s.tag_key]
-            t = book.add("data", "Duplicate tag", "high",
-                         f"Tag {s.tag} appears twice (rows {f.row} and {s.row}). Row {f.row} allocated, row {s.row} quarantined.",
-                         rows=[f.row, s.row], tags=[s.tag], field="Tag",
-                         fixes=[{"label": f"Delete row {s.row}"}, {"label": f"Rename the tag on row {s.row}"}])
-            book.quarantine_signal(s, f"duplicate of row {f.row}", t)
-        else:
-            first[s.tag_key] = s
 
     # 3 ── field signals need a cable and a pair
     for s in [s for s in signals if s.live and not s.quarantined and s.kind == "field"]:
@@ -81,16 +81,19 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
     exceptions: dict[str, str] = {}
     cables: dict[str, list[Signal]] = defaultdict(list)
     for s in signals:
-        if s.live and not s.quarantined and (s.kind == "field" or (s.cable_size and s.pair)):
+        if s.live and not s.quarantined and (s.kind == "field" or (s.cable and s.cable_size and s.pair)):
             cables[s.cable].append(s)
     for cable, sigs in list(cables.items()):
         kinds = {s.kind for s in sigs}
         alarm_sigs = [s for s in sigs if s.kind == "cabinet_alarm"]
-        too_big = any((s.cable_size or 0) > settings.channels_per_baseplate for s in alarm_sigs)
+        whole = int(rules.params("cable_contiguous").get("whole_baseplate_min_pairs", settings.channels_per_baseplate)) \
+            if rules.first("cable_contiguous") else 10 ** 6
+        too_big = any((s.cable_size or 0) >= whole or (s.cable_size or 0) > settings.channels_per_baseplate // 2
+                      for s in alarm_sigs)
         if alarm_sigs and (len(kinds) > 1 or too_big):
             book.add("data", "Cabinet alarm on field cable", "low",
                      f"Cabinet alarm row(s) on cable {cable} "
-                     + ("share it with field signals" if len(kinds) > 1 else "need more than one baseplate")
+                     + ("share it with field signals" if len(kinds) > 1 else "need whole baseplates")
                      + " — allocated with the cable as field signals.", rows=_rows(alarm_sigs), tags=[s.tag for s in alarm_sigs],
                      rules=[rules.rid("reserve_baseplate") or "r-alarm-bp"], confidence="candidate")
             for s in alarm_sigs:
@@ -148,7 +151,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                 f = seen[s.pair]
                 t = book.add("data", "Duplicate cable pair", "high",
                              f"{cable} pair {s.pair} is used by {f.tag} (row {f.row}) and {s.tag} (row {s.row}). "
-                             f"Row {f.row} allocated, row {s.row} quarantined.", rows=[f.row, s.row], tags=[f.tag, s.tag],
+                             f"Row {f.row} is kept as the signal, row {s.row} is quarantined.", rows=[f.row, s.row], tags=[f.tag, s.tag],
                              field="Pair", rules=[rules.rid("capacity") or "r-capacity"],
                              fixes=[{"label": f"Give {s.tag} a free pair"}, {"label": f"Delete row {s.row}"}])
                 book.quarantine_signal(s, f"duplicate of {cable} pair {s.pair}", t)

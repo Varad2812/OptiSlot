@@ -84,6 +84,8 @@ class Cab:
     alarms: list[Signal] = field(default_factory=list)
     alarm_why: dict[int, str] = field(default_factory=dict)
     alarm_pos: dict[int, tuple[int, int]] = field(default_factory=dict)
+    alarm_exception: str | None = None
+    alarm_minority: str | None = None
 
 
 @dataclass
@@ -421,6 +423,19 @@ class Engine:
                 keep.append(s)
             ch += width
         cab.alarms = keep
+        counts = Counter(s.family for s in keep if s.family in ("A", "B"))
+        fams = set(counts)
+        if fams and self.rules.first("segregate"):
+            minority = min(("A", "B"), key=lambda f: (counts[f], f != "B"))
+            cab.family[local] = ("A" if minority == "B" else "B") if fams == {"A", "B"} else next(iter(fams))
+            cab.alarm_minority = minority
+            if fams == {"A", "B"}:
+                t = self.book.add("segregation", "A/B cabinet alarms", "medium",
+                                  f"Cabinet alarms of both A and B families in {self.name('marshalling', cab)} share the reserved "
+                                  f"baseplate — the {minority} alarms are kept there as a TQ-covered exception. Fix: re-tag the alarms.",
+                                  rows=[s.row for s in keep], tags=[s.tag for s in keep if s.family == minority],
+                                  rules=[self.rules.rid("segregate") or "r-ab", rule.id])
+                cab.alarm_exception = t.id
 
     # ── run ──
     def run(self, assign: Callable[["Engine", str, tuple[str, str], list[Block]], None] | None = None) -> Allocation:
@@ -545,6 +560,9 @@ class Engine:
                         WhyStep(rule_id=alarm_rule.id, text=cab.alarm_why.get(s.row, "")),
                     ])
                     slot.remarks = alarm_rule.params.get("remarks", "Internal Cabinet Alarm.")
+                    if cab.alarm_exception and s.family == cab.alarm_minority:
+                        slot.tq_ids.append(cab.alarm_exception)
+                        slot.remarks = f"Excepted by {cab.alarm_exception}: A/B cabinet alarms"
             for local in range(1, g.ciocs + 1):
                 for bp in range(1, g.bps + 1):
                     for ch in range(1, g.chs + 1):
