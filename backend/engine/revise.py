@@ -37,12 +37,17 @@ def baseline_from(out: RunOutput) -> Baseline:
 
 def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None,
            filename: str | None = None, from_rev: str = "A", to_rev: str = "B", rev_no: str = "01",
-           overrides=None, table=None, moves: dict[str, tuple] | None = None) -> tuple[RunOutput, RevisionImpact]:
+           overrides=None, table=None, moves: dict[str, tuple] | None = None,
+           manual_notes: "dict[str, str] | set[str] | None" = None) -> tuple[RunOutput, RevisionImpact]:
     """moves: {cable: (ns, cabinet seq, cioc local, bp, ch)} — engineer-requested positions (What-if Sandbox)."""
     base = baseline_from(prev)
     for cable, (ns, seq, local, bp, ch) in (moves or {}).items():
         if cable in base.blocks:
             base.blocks[cable] = (ns, seq, local, bp, ch, base.blocks[cable][5])
+        else:  # a cable the engine could not place: the engineer's position becomes its pin (hard rules still decide)
+            b = next((x for x in prev.alloc.blocks if x.cable == cable), None)
+            if b is not None:
+                base.blocks[cable] = (ns, seq, local, bp, ch, b.size)
     settings = (settings or prev.settings).model_copy(update={"cpsat_enabled": False})
     prev_sig = {s.tag_key: s for s in prev.signals if s.live and not s.quarantined}
 
@@ -59,7 +64,7 @@ def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings
 
     out = run(src, ruleset or prev.rules.rs, settings, overrides, filename, table=table, baseline=base,
               assign=None, extra_tqs=[move_tqs])
-    impact = annotate(out, prev, base, from_rev, to_rev, rev_no, manual=set(moves or {}))
+    impact = annotate(out, prev, base, from_rev, to_rev, rev_no, manual=manual_notes if manual_notes is not None else set(moves or {}))
     out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
     out.kpis = compute_kpis(out.signals, out.alloc.slots, out.alloc.cabinets, out.tqs, out.rules,
                             stability_pct=impact.stability_pct)
@@ -67,7 +72,7 @@ def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings
 
 
 def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_rev: str, rev_no: str,
-             manual: set[str] | None = None) -> RevisionImpact:
+             manual: "set[str] | dict[str, str] | None" = None) -> RevisionImpact:
     alloc: Allocation = out.alloc
     new_sig = {s.tag_key: s for s in out.signals if s.live and not s.quarantined}
     by_row = {s.row: s for s in out.signals}
@@ -91,7 +96,9 @@ def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_
             renamed_from = a.tag
         if a is None:
             b = blocks.get(slot.cable)
-            if slot.cable in base.blocks:
+            if isinstance(manual, dict) and slot.cable in manual and b is not None and b.pinned:
+                reason = manual[slot.cable]
+            elif slot.cable in base.blocks:
                 was_spare = (slot.cable, slot.pair) in base.spares
                 reason = (f"New tag on existing cable {slot.cable} pair {slot.pair} → its own pair position"
                           + (" (used the cable's wired spare)" if was_spare else ""))
@@ -118,8 +125,10 @@ def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_
         hw_changed = any(x != y for x, y in hw)
         if slot.id != a.id:
             b = blocks.get(slot.cable)
-            if slot.cable in (manual or set()) and b is not None and b.pinned:
-                reason = "moved by the engineer in the What-if Sandbox (all hard rules re-checked)"
+            note = manual.get(slot.cable) if isinstance(manual, dict) else (
+                "moved by the engineer in the What-if Sandbox (all hard rules re-checked)" if slot.cable in (manual or set()) else None)
+            if note and b is not None and b.pinned:
+                reason = note
             elif old and sig and (old.cable, old.pair) != (sig.cable, sig.pair):
                 reason = f"cable/pair changed ({old.cable} pair {old.pair} → {sig.cable} pair {sig.pair}) — follows its cable"
             elif b and b.move_reason:

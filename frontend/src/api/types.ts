@@ -371,6 +371,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signals
+         * @description EVERY signal (allocated, warning, unallocated, quarantined, deleted) with its slot, hardware, plain-English reason and
+         *     fixes. Filters: q (free text), io_type, status (a state or a Tag Status, comma-separated), cabinet, cioc, cable, tq.
+         */
+        get: operations["signals_api_projects__pid__signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/signals/{tag}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Signal */
+        get: operations["signal_api_projects__pid__signals__tag__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Placement Check
+         * @description Can this signal go to that slot? allowed | refused | swap, with plain-English reasons, what would change and the
+         *     nearest allowed alternatives. The verdict is the engine + the independent verifier's, not a guess.
+         */
+        post: operations["placement_check_api_projects__pid__placement_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Placement Apply */
+        post: operations["placement_apply_api_projects__pid__placement_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Placement State */
+        get: operations["placement_state_api_projects__pid__placement_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Placement Undo */
+        post: operations["placement_undo_api_projects__pid__placement_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/redo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Placement Redo */
+        post: operations["placement_redo_api_projects__pid__placement_redo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Placement Reset */
+        post: operations["placement_reset_api_projects__pid__placement_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Placement Changes */
+        get: operations["placement_changes_api_projects__pid__placement_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/placement/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Placement Commit */
+        post: operations["placement_commit_api_projects__pid__placement_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/revisions": {
         parameters: {
             query?: never;
@@ -857,6 +1035,21 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HardwareChange */
+        HardwareChange: {
+            /** Tag */
+            tag: string;
+            /** Slot Id */
+            slot_id: string;
+            /** Charm Before */
+            charm_before: string;
+            /** Charm After */
+            charm_after: string;
+            /** Tb Before */
+            tb_before: string;
+            /** Tb After */
+            tb_after: string;
+        };
         /** ImportSummary */
         ImportSummary: {
             /** File */
@@ -990,6 +1183,268 @@ export interface components {
              * @default
              */
             note: string;
+        };
+        /** PlacementAlternative */
+        PlacementAlternative: {
+            /** Slot Id */
+            slot_id: string;
+            /** Cabinet */
+            cabinet: string;
+            /** Cioc */
+            cioc: string;
+            /** Bp */
+            bp: number;
+            /** Ch */
+            ch: number;
+            /** Distance */
+            distance: number;
+            /**
+             * Verified
+             * @default true
+             */
+            verified: boolean;
+        };
+        /** PlacementApplyRequest */
+        PlacementApplyRequest: {
+            /** Tag */
+            tag: string;
+            target: components["schemas"]["PlacementTarget"];
+            /** Row */
+            row?: number | null;
+            /** Alternatives */
+            alternatives?: number | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Swap
+             * @default false
+             */
+            swap: boolean;
+        };
+        /** PlacementApplyResult */
+        PlacementApplyResult: {
+            /** Applied */
+            applied: boolean;
+            check: components["schemas"]["PlacementCheck"];
+            /** Diff */
+            diff?: components["schemas"]["SlotDiff"][];
+            kpis_before?: components["schemas"]["Kpis"] | null;
+            kpis_after?: components["schemas"]["Kpis"] | null;
+            report?: components["schemas"]["RuleCheckReport"] | null;
+            state: components["schemas"]["PlacementState"];
+        };
+        /**
+         * PlacementChangeSet
+         * @description Working state (committed + sandbox moves) against the committed base — drives the 3D [Before | Now] view.
+         */
+        PlacementChangeSet: {
+            /** Base Run Id */
+            base_run_id: string;
+            /** Moves */
+            moves?: components["schemas"]["PlacementMove"][];
+            /** Hardware */
+            hardware?: components["schemas"]["HardwareChange"][];
+            /** From Ids */
+            from_ids?: string[];
+            /** To Ids */
+            to_ids?: string[];
+            /** Slots Before */
+            slots_before?: components["schemas"]["Slot"][];
+            /** Slots Now */
+            slots_now?: components["schemas"]["Slot"][];
+            kpis_before?: components["schemas"]["Kpis"] | null;
+            kpis_now?: components["schemas"]["Kpis"] | null;
+            /**
+             * Violations Now
+             * @default 0
+             */
+            violations_now: number;
+            /**
+             * Verdict Now
+             * @default PASS
+             * @enum {string}
+             */
+            verdict_now: "PASS" | "FAIL";
+        };
+        /** PlacementChanges */
+        PlacementChanges: {
+            /** Moves */
+            moves?: components["schemas"]["PlacementMove"][];
+            /** Hardware */
+            hardware?: components["schemas"]["HardwareChange"][];
+            spare?: components["schemas"]["SpareImpact"] | null;
+            /** New Violations */
+            new_violations?: components["schemas"]["ViolationRef"][];
+            /** New Tqs */
+            new_tqs?: string[];
+        };
+        /** PlacementCheck */
+        PlacementCheck: {
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "allowed" | "refused" | "swap";
+            /** Tag */
+            tag: string;
+            /**
+             * Cable
+             * @default -
+             */
+            cable: string;
+            /** Pair */
+            pair?: number | null;
+            /** Block Id */
+            block_id?: string | null;
+            /** From Slot */
+            from_slot?: string | null;
+            /** To Slot */
+            to_slot?: string | null;
+            /** Reasons */
+            reasons?: components["schemas"]["PlacementReason"][];
+            changes?: components["schemas"]["PlacementChanges"];
+            /** Alternatives */
+            alternatives?: components["schemas"]["PlacementAlternative"][];
+            swap?: components["schemas"]["SwapInfo"] | null;
+            /** Fixes */
+            fixes?: components["schemas"]["SignalFix"][];
+            kpis_before?: components["schemas"]["Kpis"] | null;
+            kpis_after?: components["schemas"]["Kpis"] | null;
+        };
+        /** PlacementCheckRequest */
+        PlacementCheckRequest: {
+            /** Tag */
+            tag: string;
+            target: components["schemas"]["PlacementTarget"];
+            /** Row */
+            row?: number | null;
+            /** Alternatives */
+            alternatives?: number | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
+        /** PlacementCommitRequest */
+        PlacementCommitRequest: {
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Who
+             * @default engineer
+             */
+            who: string;
+        };
+        /** PlacementCommitResult */
+        PlacementCommitResult: {
+            /** Committed */
+            committed: number;
+            /** Moves */
+            moves?: components["schemas"]["PlacementMove"][];
+            decision: components["schemas"]["DecisionEntry"];
+            kpis: components["schemas"]["Kpis"];
+            report: components["schemas"]["RuleCheckReport"];
+        };
+        /** PlacementMove */
+        PlacementMove: {
+            /** Tag */
+            tag: string;
+            /**
+             * Cable
+             * @default -
+             */
+            cable: string;
+            /** Pair */
+            pair?: number | null;
+            /** From Slot */
+            from_slot?: string | null;
+            /** To Slot */
+            to_slot?: string | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
+        /** PlacementOp */
+        PlacementOp: {
+            /** N */
+            n: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "move" | "swap";
+            /** Tag */
+            tag: string;
+            /** Label */
+            label: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Ts */
+            ts: string;
+        };
+        /** PlacementReason */
+        PlacementReason: {
+            /** Text */
+            text: string;
+            /**
+             * Kind
+             * @default rule
+             * @enum {string}
+             */
+            kind: "rule" | "capacity" | "occupied" | "reserved" | "domain" | "data" | "engine" | "verifier" | "input" | "error" | "info";
+            /** Rule Id */
+            rule_id?: string | null;
+            /** Tags */
+            tags?: string[];
+            /** Cables */
+            cables?: string[];
+        };
+        /** PlacementState */
+        PlacementState: {
+            /** Depth */
+            depth: number;
+            /**
+             * Redo Depth
+             * @default 0
+             */
+            redo_depth: number;
+            /** Ops */
+            ops?: components["schemas"]["PlacementOp"][];
+            changes?: components["schemas"]["PlacementChangeSet"] | null;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
+         * PlacementTarget
+         * @description A slot. Give `slot_id` ("<cabinet>/<cioc3>/<bp>/<ch>") or cabinet + cioc + bp + ch. `cioc` is the CIOC name
+         *     (P30DCIOC3201001), its 3-digit sequence (001 / 1) or, with a cabinet, its position 1..4 in that cabinet.
+         */
+        PlacementTarget: {
+            /** Slot Id */
+            slot_id?: string | null;
+            /** Cabinet */
+            cabinet?: string | null;
+            /** Cioc */
+            cioc?: string | null;
+            /** Bp */
+            bp?: number | null;
+            /** Ch */
+            ch?: number | null;
         };
         /** Project */
         Project: {
@@ -1270,6 +1725,205 @@ export interface components {
             /** Runtime Ms */
             runtime_ms: number;
         };
+        /** SignalCounts */
+        SignalCounts: {
+            /** Total */
+            total: number;
+            /** Matching */
+            matching: number;
+            /** By State */
+            by_state: {
+                [key: string]: number;
+            };
+            /** By Io Type */
+            by_io_type: {
+                [key: string]: number;
+            };
+            /** By Cabinet */
+            by_cabinet: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * SignalFix
+         * @description One way to get a signal placed (or placed better). `patch` is ready to POST to /signals/{tag}/patch (data_patch),
+         *     PUT to /rules (rule_patch) or POST to /placement/check (placement).
+         */
+        SignalFix: {
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @default info
+             * @enum {string}
+             */
+            kind: "data_patch" | "rule_patch" | "placement" | "info";
+            /** Patch */
+            patch?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** SignalHardware */
+        SignalHardware: {
+            /** Charm */
+            charm: string;
+            /**
+             * Charm Desc
+             * @default
+             */
+            charm_desc: string;
+            /** Tb */
+            tb: string;
+            /**
+             * Tb Desc
+             * @default
+             */
+            tb_desc: string;
+            /**
+             * Tb1
+             * @default -
+             */
+            tb1: string;
+            /**
+             * Tb2
+             * @default -
+             */
+            tb2: string;
+            /**
+             * Tb3
+             * @default -
+             */
+            tb3: string;
+        };
+        /** SignalList */
+        SignalList: {
+            /** Project Id */
+            project_id: string;
+            /** Revision */
+            revision: string;
+            /** Run Id */
+            run_id: string;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            counts: components["schemas"]["SignalCounts"];
+            /** Rows */
+            rows: components["schemas"]["SignalRow"][];
+        };
+        /** SignalLocation */
+        SignalLocation: {
+            /** Cabinet */
+            cabinet: string;
+            /** Cabinet Seq */
+            cabinet_seq: number;
+            /** Controller */
+            controller: string;
+            /** Cioc */
+            cioc: string;
+            /** Cioc Seq */
+            cioc_seq: number;
+            /** Cioc Local */
+            cioc_local: number;
+            /** Side */
+            side: string;
+            /** Baseplate */
+            baseplate: string;
+            /** Bp */
+            bp: number;
+            /** Ch */
+            ch: number;
+            /** Charm No */
+            charm_no: number;
+            /** Slot Id */
+            slot_id: string;
+        };
+        /** SignalRow */
+        SignalRow: {
+            /** Tag */
+            tag: string;
+            /** Tag Key */
+            tag_key: string;
+            /** Row */
+            row: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "allocated" | "warning" | "unallocated" | "quarantined" | "deleted";
+            /**
+             * Tag Status
+             * @default -
+             */
+            tag_status: string;
+            /**
+             * Io Type
+             * @default -
+             */
+            io_type: string;
+            /**
+             * Io Type Raw
+             * @default -
+             */
+            io_type_raw: string;
+            /**
+             * Instrument Type
+             * @default -
+             */
+            instrument_type: string;
+            /**
+             * Cable
+             * @default -
+             */
+            cable: string;
+            /** Pair */
+            pair?: number | null;
+            /** Cable Size */
+            cable_size?: number | null;
+            /**
+             * Family
+             * @default -
+             * @enum {string}
+             */
+            family: "A" | "B" | "-";
+            /**
+             * Group
+             * @default -
+             */
+            group: string;
+            /** Is Flag */
+            is_flag?: boolean | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Rule Ids */
+            rule_ids?: string[];
+            /** Tq Ids */
+            tq_ids?: string[];
+            /** Fixes */
+            fixes?: components["schemas"]["SignalFix"][];
+            location?: components["schemas"]["SignalLocation"] | null;
+            hardware?: components["schemas"]["SignalHardware"] | null;
+            /** Block Id */
+            block_id?: string | null;
+            /**
+             * Can Move
+             * @default false
+             */
+            can_move: boolean;
+            /** Quarantine Reason */
+            quarantine_reason?: string | null;
+            /** Source */
+            source?: {
+                [key: string]: string;
+            };
+            /** Normalised */
+            normalised?: {
+                [key: string]: unknown;
+            };
+        };
         /** Slot */
         Slot: {
             /** Id */
@@ -1484,6 +2138,31 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /** SpareImpact */
+        SpareImpact: {
+            /** Wired Spares Before */
+            wired_spares_before: number;
+            /** Wired Spares After */
+            wired_spares_after: number;
+            /** Spare Slots Before */
+            spare_slots_before: number;
+            /** Spare Slots After */
+            spare_slots_after: number;
+            /**
+             * Wired Target Before
+             * @default 0
+             */
+            wired_target_before: number;
+            /**
+             * Wired Target After
+             * @default 0
+             */
+            wired_target_after: number;
+            /** By Io Type */
+            by_io_type?: {
+                [key: string]: number;
+            };
+        };
         /** StressResult */
         StressResult: {
             /** N */
@@ -1502,6 +2181,20 @@ export interface components {
             violations: number;
             /** Tqs */
             tqs: number;
+        };
+        /** SwapInfo */
+        SwapInfo: {
+            /** With Tag */
+            with_tag: string;
+            /** With Cable */
+            with_cable: string;
+            /** With Slot */
+            with_slot: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
         };
         /** TQ */
         TQ: {
@@ -1571,6 +2264,24 @@ export interface components {
             slot_id?: string | null;
             /** Message */
             message: string;
+        };
+        /** ViolationRef */
+        ViolationRef: {
+            /** Check Id */
+            check_id: string;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Message */
+            message: string;
+            /** Row */
+            row?: number | null;
+            /** Tag */
+            tag?: string | null;
+            /** Slot Id */
+            slot_id?: string | null;
         };
         /** WhatIfRequest */
         WhatIfRequest: {
@@ -2389,6 +3100,343 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllocationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signals_api_projects__pid__signals_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                io_type?: string | null;
+                status?: string | null;
+                cabinet?: string | null;
+                cioc?: string | null;
+                cable?: string | null;
+                tq?: string | null;
+                sort?: string;
+                order?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signal_api_projects__pid__signals__tag__get: {
+        parameters: {
+            query?: {
+                row?: number | null;
+            };
+            header?: never;
+            path: {
+                pid: string;
+                tag: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalRow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_check_api_projects__pid__placement_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacementCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementCheck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_apply_api_projects__pid__placement_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacementApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementApplyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_state_api_projects__pid__placement_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_undo_api_projects__pid__placement_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_redo_api_projects__pid__placement_redo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_reset_api_projects__pid__placement_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_changes_api_projects__pid__placement_changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementChangeSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    placement_commit_api_projects__pid__placement_commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PlacementCommitRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementCommitResult"];
                 };
             };
             /** @description Validation Error */

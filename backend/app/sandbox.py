@@ -6,6 +6,7 @@ every recompute, so a restart reproduces the same allocation and hashes.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from app.schemas import (
@@ -105,39 +106,57 @@ def apply_settings(rs: RuleSet, ps: ProjectSettings, changes: dict[str, Any]) ->
 
 # ───────────────────────────── move validation ─────────────────────────────
 
+@dataclass
+class Refusal:
+    """Why a move is blocked: plain English, the rule behind it, and the other cables involved."""
+    text: str
+    kind: str = "rule"            # rule | capacity | occupied | reserved | domain | input
+    rule_id: str | None = None
+    cables: list[str] = field(default_factory=list)
+
+
 def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | str:
     """→ (cable, (ns, seq, local, bp, ch)) or a human reason why the move is blocked."""
+    res = diagnose_move(out, rs, mv)
+    return res.text if isinstance(res, Refusal) else res
+
+
+def diagnose_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | Refusal:
+    """→ (cable, (ns, seq, local, bp, ch)) or a Refusal. Blocks that the engine could not place can be targeted too."""
     alloc = out.alloc
     rules = out.rules
-    blocks = {b.id: b for b in alloc.blocks if b.cab is not None}
+    blocks = {b.id: b for b in alloc.blocks}
     by_id = {s.id: s for s in alloc.slots}
     b: Block | None = None
     if mv.block_id:
         b = blocks.get(mv.block_id)
         if b is None:
-            return f"cable block {mv.block_id} is not placed"
+            return Refusal(f"cable block {mv.block_id} is not placed", "input")
     elif mv.slot_id:
         s = by_id.get(mv.slot_id)
         if s is None:
-            return f"slot {mv.slot_id} not found"
+            return Refusal(f"slot {mv.slot_id} not found", "input")
         if s.status == "Cabinet Alarm":
-            return f"{s.tag} is a cabinet alarm — it stays on the reserved baseplate (rule {rules.rid('reserve_baseplate')})"
+            rid = rules.rid("reserve_baseplate")
+            return Refusal(f"{s.tag} is a cabinet alarm — it stays on the reserved baseplate (rule {rid})", "rule", rid)
         if not s.block_id:
-            return "this slot holds no cable — pick a signal or a cable block"
+            return Refusal("this slot holds no cable — pick a signal or a cable block", "input")
         b = blocks.get(s.block_id)
         if b and b.size > 1:
-            return (f"{s.tag or 'this slot'} is pair {s.pair} of {b.size}-pair cable {b.cable} — cables move as a whole block "
-                    f"(rule {rules.rid('cable_contiguous') or 'r-cable'}). Move the whole cable instead.")
+            rid = rules.rid("cable_contiguous") or "r-cable"
+            return Refusal(f"{s.tag or 'this slot'} is pair {s.pair} of {b.size}-pair cable {b.cable} — cables move as a whole block "
+                           f"(rule {rid}). Move the whole cable instead.", "rule", rid, [b.cable])
     if b is None:
-        return "nothing to move"
+        return Refusal("nothing to move", "input")
     tgt = next((s for s in alloc.slots if s.cioc == mv.target_cioc), None)
     if tgt is None:
-        return f"CIOC {mv.target_cioc} not found"
+        return Refusal(f"CIOC {mv.target_cioc} not found", "input")
     cab = next((c for c in alloc.cabs if c.seq == tgt.cabinet_seq and c.domain == tgt.domain), None)
     if cab is None:
-        return "target cabinet not found"
+        return Refusal("target cabinet not found", "input")
     if cab.domain != b.domain:
-        return f"{b.cable} belongs to controller domain {b.domain}; {mv.target_cioc} is in {cab.domain}"
+        return Refusal(f"{b.cable} belongs to controller domain {b.domain}; {mv.target_cioc} is in {cab.domain}", "domain",
+                       None, [b.cable])
     local = tgt.cioc_local
     seg_rules = rules.all("segregate")
     seg = rules.primary_seg
@@ -147,8 +166,9 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
         others |= {lock} if lock else set()
         clash = others - {b.family}
         if clash:
-            return (f"{b.family}-family cable {b.cable} cannot join CIOC {mv.target_cioc} which holds "
-                    f"{'/'.join(sorted(clash))}-family signals — rule {seg.id}: {seg.label}")
+            return Refusal(f"{b.family}-family cable {b.cable} cannot join CIOC {mv.target_cioc} which holds "
+                           f"{'/'.join(sorted(clash))}-family signals — rule {seg.id}: {seg.label}", "rule", seg.id,
+                           [b.cable, *[o.cable for o in cab.blocks.get(local, []) if o is not b and o.family in clash]])
     for rule in seg_rules:
         f = b.fams.get(rule.id)
         if not f:
@@ -160,20 +180,26 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
         scope = [o for l, bl in cab.blocks.items() for o in bl] if cabinet else cab.blocks.get(local, [])
         clash = {o.fams.get(rule.id) for o in scope if o is not b} - {None, f}
         if clash:
-            return (f"{f} cable {b.cable} cannot join the {'cabinet' if cabinet else 'CIOC'} of {mv.target_cioc}, which holds "
-                    f"{'/'.join(sorted(clash))} signals — rule {rule.id}: {rule.label}")
+            return Refusal(f"{f} cable {b.cable} cannot join the {'cabinet' if cabinet else 'CIOC'} of {mv.target_cioc}, which holds "
+                           f"{'/'.join(sorted(clash))} signals — rule {rule.id}: {rule.label}", "rule", rule.id,
+                           [b.cable, *[o.cable for o in scope if o is not b and o.fams.get(rule.id) in clash]])
+    custom = custom_conflict(out, b, cab, local)
+    if custom is not None:
+        return custom
     n_bp, n_ch = out.settings.baseplates_per_cioc, out.settings.channels_per_baseplate
     bp, ch = mv.target_bp, (1 if b.span else mv.target_ch)
     if not (1 <= bp <= n_bp) or (b.span and bp + b.span - 1 > n_bp):
-        return f"{b.size}-pair cable needs {b.span} whole baseplate(s) from BP {bp} — beyond baseplate {n_bp}"
+        return Refusal(f"{b.size}-pair cable needs {b.span} whole baseplate(s) from BP {bp} — beyond baseplate {n_bp}", "capacity",
+                       rules.rid("capacity"), [b.cable])
     if not b.span and ch + b.foot - 1 > n_ch:
-        return f"{b.size}-pair cable at channel {ch} would cross the baseplate boundary (rule {rules.rid('cable_contiguous')})"
+        rid = rules.rid("cable_contiguous")
+        return Refusal(f"{b.size}-pair cable at channel {ch} would cross the baseplate boundary (rule {rid})", "rule", rid, [b.cable])
     for x in range(bp, bp + max(1, b.span)):
         if (local, x) in cab.reserved:
             kind = cab.reserved[(local, x)]
             rid = rules.rid("future_spare_pct") if kind == "future" else rules.rid("reserve_baseplate")
             label = next((r.label for r in rs.rules if r.id == rid), "")
-            return f"baseplate {x} is reserved ({kind.replace('_', ' ')}) — rule {rid}: {label}"
+            return Refusal(f"baseplate {x} is reserved ({kind.replace('_', ' ')}) — rule {rid}: {label}", "reserved", rid, [b.cable])
     span_ch = (range(1, n_ch + 1) if b.span else range(ch, ch + b.foot))
     want = {(x, c) for x in range(bp, bp + max(1, b.span)) for c in span_ch}
     for o in cab.blocks.get(local, []):
@@ -181,15 +207,21 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
             continue
         occ = {(o.bp + k, c) for k in range(max(1, o.span)) for c in (range(1, n_ch + 1) if o.span else range(o.ch, o.ch + o.foot))}
         if want & occ:
-            return f"target channels are occupied by cable {o.cable}"
+            return Refusal(f"target channels are occupied by cable {o.cable}", "occupied", rules.rid("capacity"), [b.cable, o.cable])
         for rule in seg_rules:
             f, g_ = b.fams.get(rule.id), o.fams.get(rule.id)
             if rule.params.get("level") == "baseplate" and f and g_ and f != g_ and {x for x, _ in want} & {x for x, _ in occ}:
-                return (f"{f} cable {b.cable} cannot share a baseplate with {g_} cable {o.cable} — rule {rule.id}: {rule.label}")
+                return Refusal(f"{f} cable {b.cable} cannot share a baseplate with {g_} cable {o.cable} — rule {rule.id}: {rule.label}",
+                               "rule", rule.id, [b.cable, o.cable])
     alarm_local = int(rules.params("reserve_baseplate").get("cioc", 1)) if rules.first("reserve_baseplate") else None
     if local == alarm_local and any(pos in want for pos in cab.alarm_pos.values()):
-        return "target channels hold cabinet alarms"
+        return Refusal("target channels hold cabinet alarms", "occupied", rules.rid("reserve_baseplate"), [b.cable])
     return b.cable, (cab.ns, cab.seq, local, bp, ch)
+
+
+def custom_conflict(out: RunOutput, b: Block, cab, local: int) -> "Refusal | None":
+    """Custom-rule check of a block joining a CIOC (filled in by app.customrules once rules exist)."""
+    return None
 
 
 def _diff(prev: RunOutput, new: RunOutput) -> list[SlotDiff]:
@@ -245,8 +277,10 @@ def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput, rs: RuleSet | 
         ns, seq, local, bp, ch = pos
         ok[cable] = (tuple(ns), seq, local, bp, ch)
     rev = st.project.revision
+    stored = svc.store.get(st.project.id, "manual_overrides", {}) or {}      # remarks written by /placement/commit
+    notes = {c: stored.get(c, "moved by the engineer in the What-if Sandbox (all hard rules re-checked)") for c in ok}
     out2, _ = revise(_active_mdb(st), out, rs or st.ruleset, settings or st.settings, from_rev=rev, to_rev=rev,
-                     rev_no=_rev_no(st), moves=ok)
+                     rev_no=_rev_no(st), moves=ok, manual_notes=notes)
     out2.optimiser = out.optimiser
     return out2
 

@@ -15,8 +15,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.schemas import (
-    AllocationResult, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, Project, ProjectSettings, RevisionImpact,
-    RuleCheckReport, RuleDraft, RuleSet, RunRecord, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
+    AllocationResult, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, PlacementApplyRequest, PlacementApplyResult,
+    PlacementChangeSet, PlacementCheck, PlacementCheckRequest, PlacementCommitRequest, PlacementCommitResult, PlacementState,
+    Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleDraft, RuleSet, RunRecord, SignalList, SignalRow,
+    StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
 )
 from app.service import DEMO_ID, Service
 from store.db import DEFAULT_DB, Store
@@ -207,6 +209,77 @@ def apply_tq(pid: str, tq_id: str, option: int = 0):
 def close_tq(pid: str, tq_id: str, decision: str = Query("Accepted as is")):
     from app.sandbox import close_tq as run_close
     return run_close(svc, pid, tq_id, decision)
+
+
+# ───────────── Signal Workbench ─────────────
+
+@app.get("/api/projects/{pid}/signals", response_model=SignalList)
+def signals(pid: str, q: str | None = None, io_type: str | None = None, status: str | None = None, cabinet: str | None = None,
+            cioc: str | None = None, cable: str | None = None, tq: str | None = None, sort: str = "row", order: str = "asc",
+            limit: int = Query(100, ge=1, le=5000), offset: int = Query(0, ge=0)):
+    """EVERY signal (allocated, warning, unallocated, quarantined, deleted) with its slot, hardware, plain-English reason and
+    fixes. Filters: q (free text), io_type, status (a state or a Tag Status, comma-separated), cabinet, cioc, cable, tq."""
+    from app.signals import list_signals
+    st = svc.get(pid)
+    return list_signals(st, st.current, q=q, io_type=io_type, status=status, cabinet=cabinet, cioc=cioc, cable=cable, tq=tq,
+                        sort=sort, order=order, limit=limit, offset=offset)
+
+
+@app.get("/api/projects/{pid}/signals/{tag}", response_model=SignalRow)
+def signal(pid: str, tag: str, row: int | None = None):
+    from app.signals import row_for
+    st = svc.get(pid)
+    return row_for(st.current, tag, row)
+
+
+@app.post("/api/projects/{pid}/placement/check", response_model=PlacementCheck)
+def placement_check(pid: str, req: PlacementCheckRequest):
+    """Can this signal go to that slot? allowed | refused | swap, with plain-English reasons, what would change and the
+    nearest allowed alternatives. The verdict is the engine + the independent verifier's, not a guess."""
+    from app.placement import check
+    return check(svc, pid, req)
+
+
+@app.post("/api/projects/{pid}/placement/apply", response_model=PlacementApplyResult)
+def placement_apply(pid: str, req: PlacementApplyRequest):
+    from app.placement import apply
+    return apply(svc, pid, req)
+
+
+@app.get("/api/projects/{pid}/placement", response_model=PlacementState)
+def placement_state(pid: str):
+    from app.placement import state
+    return state(svc, pid)
+
+
+@app.post("/api/projects/{pid}/placement/undo", response_model=PlacementState)
+def placement_undo(pid: str):
+    from app.placement import undo
+    return undo(svc, pid)
+
+
+@app.post("/api/projects/{pid}/placement/redo", response_model=PlacementState)
+def placement_redo(pid: str):
+    from app.placement import redo
+    return redo(svc, pid)
+
+
+@app.post("/api/projects/{pid}/placement/reset", response_model=PlacementState)
+def placement_reset(pid: str):
+    from app.placement import reset
+    return reset(svc, pid)
+
+
+@app.get("/api/projects/{pid}/placement/changes", response_model=PlacementChangeSet)
+def placement_changes(pid: str):
+    from app.placement import changes
+    return changes(svc, pid)
+
+
+@app.post("/api/projects/{pid}/placement/commit", response_model=PlacementCommitResult)
+def placement_commit(pid: str, req: PlacementCommitRequest | None = None):
+    from app.placement import commit
+    return commit(svc, pid, req or PlacementCommitRequest())
 
 
 # ───────────── revisions ─────────────

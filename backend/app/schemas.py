@@ -514,3 +514,280 @@ class StressResult(Model):
     cabinets: int
     violations: int
     tqs: int
+
+
+# ───────────────────────────── Signal Workbench ─────────────────────────────
+
+SignalState = Literal["allocated", "warning", "unallocated", "quarantined", "deleted"]
+
+
+class SignalLocation(Model):
+    cabinet: str
+    cabinet_seq: int
+    controller: str
+    cioc: str
+    cioc_seq: int
+    cioc_local: int
+    side: str
+    baseplate: str
+    bp: int
+    ch: int
+    charm_no: int
+    slot_id: str
+
+
+class SignalHardware(Model):
+    charm: str
+    charm_desc: str = ""
+    tb: str
+    tb_desc: str = ""
+    tb1: str = "-"
+    tb2: str = "-"
+    tb3: str = "-"
+
+
+class SignalFix(Model):
+    """One way to get a signal placed (or placed better). `patch` is ready to POST to /signals/{tag}/patch (data_patch),
+    PUT to /rules (rule_patch) or POST to /placement/check (placement)."""
+    label: str
+    kind: Literal["data_patch", "rule_patch", "placement", "info"] = "info"
+    patch: dict[str, Any] | None = None
+
+
+class SignalRow(Model):
+    tag: str
+    tag_key: str
+    row: int                                   # Excel row in the source MDB sheet
+    state: SignalState
+    tag_status: str = "-"                      # Field | Cabinet Alarm for placed signals
+    io_type: str = "-"
+    io_type_raw: str = "-"
+    instrument_type: str = "-"
+    cable: str = "-"
+    pair: int | None = None
+    cable_size: int | None = None
+    family: Family = "-"
+    group: str = "-"
+    is_flag: bool | None = None                # True = intrinsically safe
+    reason: str = ""                           # plain English: why it is where it is, or why it has no slot
+    rule_ids: list[str] = Field(default_factory=list)
+    tq_ids: list[str] = Field(default_factory=list)
+    fixes: list[SignalFix] = Field(default_factory=list)
+    location: SignalLocation | None = None
+    hardware: SignalHardware | None = None
+    block_id: str | None = None
+    can_move: bool = False
+    quarantine_reason: str | None = None
+    source: dict[str, str] = Field(default_factory=dict)       # every raw MDB column of the row
+    normalised: dict[str, Any] = Field(default_factory=dict)   # the normalised signal the engine worked with
+
+
+class SignalCounts(Model):
+    total: int                                 # signals in the project (all states)
+    matching: int                              # after the filters
+    by_state: dict[str, int]
+    by_io_type: dict[str, int]
+    by_cabinet: dict[str, int]
+
+
+class SignalList(Model):
+    project_id: str
+    revision: str
+    run_id: str
+    limit: int
+    offset: int
+    counts: SignalCounts
+    rows: list[SignalRow]
+
+
+class PlacementTarget(Model):
+    """A slot. Give `slot_id` ("<cabinet>/<cioc3>/<bp>/<ch>") or cabinet + cioc + bp + ch. `cioc` is the CIOC name
+    (P30DCIOC3201001), its 3-digit sequence (001 / 1) or, with a cabinet, its position 1..4 in that cabinet."""
+    slot_id: str | None = None
+    cabinet: str | None = None
+    cioc: str | None = None
+    bp: int | None = None
+    ch: int | None = None
+
+
+class PlacementCheckRequest(Model):
+    tag: str
+    target: PlacementTarget
+    row: int | None = None                     # disambiguates a tag that appears on several MDB rows
+    alternatives: int | None = Field(None, ge=0, le=20)   # how many alternative slots to find (default 5 when refused, 0 when allowed)
+    reason: str = ""                           # why the engineer wants it (kept with an applied move)
+
+
+class PlacementReason(Model):
+    text: str
+    kind: Literal["rule", "capacity", "occupied", "reserved", "domain", "data", "engine", "verifier", "input", "error", "info"] = "rule"
+    rule_id: str | None = None
+    tags: list[str] = Field(default_factory=list)       # the other signals involved
+    cables: list[str] = Field(default_factory=list)
+
+
+class ViolationRef(Model):
+    check_id: str
+    label: str = ""
+    message: str
+    row: int | None = None
+    tag: str | None = None
+    slot_id: str | None = None
+
+
+class PlacementMove(Model):
+    tag: str
+    cable: str = "-"
+    pair: int | None = None
+    from_slot: str | None = None
+    to_slot: str | None = None
+    reason: str = ""
+
+
+class HardwareChange(Model):
+    tag: str
+    slot_id: str
+    charm_before: str
+    charm_after: str
+    tb_before: str
+    tb_after: str
+
+
+class SpareImpact(Model):
+    wired_spares_before: int
+    wired_spares_after: int
+    spare_slots_before: int
+    spare_slots_after: int
+    wired_target_before: int = 0
+    wired_target_after: int = 0
+    by_io_type: dict[str, int] = Field(default_factory=dict)    # wired-spare delta per IO type
+
+
+class PlacementChanges(Model):
+    moves: list[PlacementMove] = Field(default_factory=list)
+    hardware: list[HardwareChange] = Field(default_factory=list)
+    spare: SpareImpact | None = None
+    new_violations: list[ViolationRef] = Field(default_factory=list)
+    new_tqs: list[str] = Field(default_factory=list)
+
+
+class PlacementAlternative(Model):
+    slot_id: str
+    cabinet: str
+    cioc: str
+    bp: int
+    ch: int
+    distance: int
+    verified: bool = True                      # the engine + verifier accepted it
+
+
+class SwapInfo(Model):
+    with_tag: str
+    with_cable: str
+    with_slot: str
+    note: str = ""
+
+
+PlacementVerdict = Literal["allowed", "refused", "swap"]
+
+
+class PlacementCheck(Model):
+    verdict: PlacementVerdict
+    tag: str
+    cable: str = "-"
+    pair: int | None = None
+    block_id: str | None = None
+    from_slot: str | None = None
+    to_slot: str | None = None
+    reasons: list[PlacementReason] = Field(default_factory=list)
+    changes: PlacementChanges = Field(default_factory=PlacementChanges)
+    alternatives: list[PlacementAlternative] = Field(default_factory=list)
+    swap: SwapInfo | None = None
+    fixes: list[SignalFix] = Field(default_factory=list)   # quarantined / unallocated signals: what would let it be placed
+    kpis_before: Kpis | None = None
+    kpis_after: Kpis | None = None
+
+
+class PlacementApplyRequest(PlacementCheckRequest):
+    swap: bool = False                         # accept the swap the check offered (verdict "swap")
+
+
+class PlacementApplyResult(Model):
+    applied: bool
+    check: PlacementCheck
+    diff: list[SlotDiff] = Field(default_factory=list)
+    kpis_before: Kpis | None = None
+    kpis_after: Kpis | None = None
+    report: RuleCheckReport | None = None
+    state: "PlacementState"
+
+
+class PlacementOp(Model):
+    n: int
+    kind: Literal["move", "swap"]
+    tag: str
+    label: str
+    reason: str = ""
+    ts: str
+
+
+class PlacementChangeSet(Model):
+    """Working state (committed + sandbox moves) against the committed base — drives the 3D [Before | Now] view."""
+    base_run_id: str
+    moves: list[PlacementMove] = Field(default_factory=list)
+    hardware: list[HardwareChange] = Field(default_factory=list)
+    from_ids: list[str] = Field(default_factory=list)
+    to_ids: list[str] = Field(default_factory=list)
+    slots_before: list[Slot] = Field(default_factory=list)
+    slots_now: list[Slot] = Field(default_factory=list)
+    kpis_before: Kpis | None = None
+    kpis_now: Kpis | None = None
+    violations_now: int = 0
+    verdict_now: Literal["PASS", "FAIL"] = "PASS"
+
+
+class PlacementState(Model):
+    depth: int                                 # applied sandbox operations
+    redo_depth: int = 0
+    ops: list[PlacementOp] = Field(default_factory=list)
+    changes: PlacementChangeSet | None = None
+    stale: bool = False                        # the sandbox was discarded because the committed allocation changed
+
+
+class PlacementCommitRequest(Model):
+    reason: str = ""
+    who: str = "engineer"
+
+
+class PlacementCommitResult(Model):
+    committed: int
+    moves: list[PlacementMove] = Field(default_factory=list)
+    decision: DecisionEntry
+    kpis: Kpis
+    report: RuleCheckReport
+
+
+class SignalPatchRequest(Model):
+    fields: dict[str, str]                     # canonical field → new value (io_type, cable, pair, group, instrument_type, …)
+    row: int | None = None
+    preview: bool = False                      # true: validate + show the outcome without storing the patch
+    reason: str = ""
+    who: str = "engineer"
+
+
+class SignalPatchResult(Model):
+    tag: str
+    applied: bool
+    stored: bool
+    before: SignalRow | None = None
+    after: SignalRow | None = None
+    verdict: Literal["placed", "unallocated", "quarantined", "warning", "unchanged"]
+    messages: list[str] = Field(default_factory=list)
+    diff: list[SlotDiff] = Field(default_factory=list)
+    kpis_before: Kpis | None = None
+    kpis_after: Kpis | None = None
+    report: RuleCheckReport | None = None
+    new_tqs: list[str] = Field(default_factory=list)
+
+
+PlacementApplyResult.model_rebuild()

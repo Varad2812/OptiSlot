@@ -1077,6 +1077,615 @@
     }
    }
   },
+  "/api/projects/{pid}/signals": {
+   "get": {
+    "summary": "Signals",
+    "description": "EVERY signal (allocated, warning, unallocated, quarantined, deleted) with its slot, hardware, plain-English reason and\nfixes. Filters: q (free text), io_type, status (a state or a Tag Status, comma-separated), cabinet, cioc, cable, tq.",
+    "operationId": "signals_api_projects__pid__signals_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "name": "io_type",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Io Type"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "cabinet",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cabinet"
+      }
+     },
+     {
+      "name": "cioc",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cioc"
+      }
+     },
+     {
+      "name": "cable",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cable"
+      }
+     },
+     {
+      "name": "tq",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Tq"
+      }
+     },
+     {
+      "name": "sort",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "row",
+       "title": "Sort"
+      }
+     },
+     {
+      "name": "order",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "asc",
+       "title": "Order"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 5000,
+       "minimum": 1,
+       "default": 100,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignalList"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/signals/{tag}": {
+   "get": {
+    "summary": "Signal",
+    "operationId": "signal_api_projects__pid__signals__tag__get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "tag",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Tag"
+      }
+     },
+     {
+      "name": "row",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Row"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignalRow"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/check": {
+   "post": {
+    "summary": "Placement Check",
+    "description": "Can this signal go to that slot? allowed | refused | swap, with plain-English reasons, what would change and the\nnearest allowed alternatives. The verdict is the engine + the independent verifier's, not a guess.",
+    "operationId": "placement_check_api_projects__pid__placement_check_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlacementCheckRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementCheck"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/apply": {
+   "post": {
+    "summary": "Placement Apply",
+    "operationId": "placement_apply_api_projects__pid__placement_apply_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlacementApplyRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementApplyResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement": {
+   "get": {
+    "summary": "Placement State",
+    "operationId": "placement_state_api_projects__pid__placement_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/undo": {
+   "post": {
+    "summary": "Placement Undo",
+    "operationId": "placement_undo_api_projects__pid__placement_undo_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/redo": {
+   "post": {
+    "summary": "Placement Redo",
+    "operationId": "placement_redo_api_projects__pid__placement_redo_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/reset": {
+   "post": {
+    "summary": "Placement Reset",
+    "operationId": "placement_reset_api_projects__pid__placement_reset_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementState"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/changes": {
+   "get": {
+    "summary": "Placement Changes",
+    "operationId": "placement_changes_api_projects__pid__placement_changes_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementChangeSet"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/placement/commit": {
+   "post": {
+    "summary": "Placement Commit",
+    "operationId": "placement_commit_api_projects__pid__placement_commit_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/PlacementCommitRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Req"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlacementCommitResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/projects/{pid}/revisions": {
    "post": {
     "summary": "Upload Revision",
@@ -2290,6 +2899,45 @@
     "type": "object",
     "title": "HTTPValidationError"
    },
+   "HardwareChange": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "slot_id": {
+      "type": "string",
+      "title": "Slot Id"
+     },
+     "charm_before": {
+      "type": "string",
+      "title": "Charm Before"
+     },
+     "charm_after": {
+      "type": "string",
+      "title": "Charm After"
+     },
+     "tb_before": {
+      "type": "string",
+      "title": "Tb Before"
+     },
+     "tb_after": {
+      "type": "string",
+      "title": "Tb After"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "slot_id",
+     "charm_before",
+     "charm_after",
+     "tb_before",
+     "tb_after"
+    ],
+    "title": "HardwareChange"
+   },
    "ImportSummary": {
     "properties": {
      "file": {
@@ -2632,6 +3280,782 @@
      "greedy_ciocs"
     ],
     "title": "OptimiserInfo"
+   },
+   "PlacementAlternative": {
+    "properties": {
+     "slot_id": {
+      "type": "string",
+      "title": "Slot Id"
+     },
+     "cabinet": {
+      "type": "string",
+      "title": "Cabinet"
+     },
+     "cioc": {
+      "type": "string",
+      "title": "Cioc"
+     },
+     "bp": {
+      "type": "integer",
+      "title": "Bp"
+     },
+     "ch": {
+      "type": "integer",
+      "title": "Ch"
+     },
+     "distance": {
+      "type": "integer",
+      "title": "Distance"
+     },
+     "verified": {
+      "type": "boolean",
+      "title": "Verified",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "slot_id",
+     "cabinet",
+     "cioc",
+     "bp",
+     "ch",
+     "distance"
+    ],
+    "title": "PlacementAlternative"
+   },
+   "PlacementApplyRequest": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "target": {
+      "$ref": "#/components/schemas/PlacementTarget"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "alternatives": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 20.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Alternatives"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "swap": {
+      "type": "boolean",
+      "title": "Swap",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "target"
+    ],
+    "title": "PlacementApplyRequest"
+   },
+   "PlacementApplyResult": {
+    "properties": {
+     "applied": {
+      "type": "boolean",
+      "title": "Applied"
+     },
+     "check": {
+      "$ref": "#/components/schemas/PlacementCheck"
+     },
+     "diff": {
+      "items": {
+       "$ref": "#/components/schemas/SlotDiff"
+      },
+      "type": "array",
+      "title": "Diff"
+     },
+     "kpis_before": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kpis_after": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "report": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RuleCheckReport"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "state": {
+      "$ref": "#/components/schemas/PlacementState"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "applied",
+     "check",
+     "state"
+    ],
+    "title": "PlacementApplyResult"
+   },
+   "PlacementChangeSet": {
+    "properties": {
+     "base_run_id": {
+      "type": "string",
+      "title": "Base Run Id"
+     },
+     "moves": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementMove"
+      },
+      "type": "array",
+      "title": "Moves"
+     },
+     "hardware": {
+      "items": {
+       "$ref": "#/components/schemas/HardwareChange"
+      },
+      "type": "array",
+      "title": "Hardware"
+     },
+     "from_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "From Ids"
+     },
+     "to_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "To Ids"
+     },
+     "slots_before": {
+      "items": {
+       "$ref": "#/components/schemas/Slot"
+      },
+      "type": "array",
+      "title": "Slots Before"
+     },
+     "slots_now": {
+      "items": {
+       "$ref": "#/components/schemas/Slot"
+      },
+      "type": "array",
+      "title": "Slots Now"
+     },
+     "kpis_before": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kpis_now": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "violations_now": {
+      "type": "integer",
+      "title": "Violations Now",
+      "default": 0
+     },
+     "verdict_now": {
+      "type": "string",
+      "enum": [
+       "PASS",
+       "FAIL"
+      ],
+      "title": "Verdict Now",
+      "default": "PASS"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "base_run_id"
+    ],
+    "title": "PlacementChangeSet",
+    "description": "Working state (committed + sandbox moves) against the committed base \u2014 drives the 3D [Before | Now] view."
+   },
+   "PlacementChanges": {
+    "properties": {
+     "moves": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementMove"
+      },
+      "type": "array",
+      "title": "Moves"
+     },
+     "hardware": {
+      "items": {
+       "$ref": "#/components/schemas/HardwareChange"
+      },
+      "type": "array",
+      "title": "Hardware"
+     },
+     "spare": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SpareImpact"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "new_violations": {
+      "items": {
+       "$ref": "#/components/schemas/ViolationRef"
+      },
+      "type": "array",
+      "title": "New Violations"
+     },
+     "new_tqs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "New Tqs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "PlacementChanges"
+   },
+   "PlacementCheck": {
+    "properties": {
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "allowed",
+       "refused",
+       "swap"
+      ],
+      "title": "Verdict"
+     },
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "cable": {
+      "type": "string",
+      "title": "Cable",
+      "default": "-"
+     },
+     "pair": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pair"
+     },
+     "block_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Block Id"
+     },
+     "from_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Slot"
+     },
+     "to_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Slot"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementReason"
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "changes": {
+      "$ref": "#/components/schemas/PlacementChanges"
+     },
+     "alternatives": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementAlternative"
+      },
+      "type": "array",
+      "title": "Alternatives"
+     },
+     "swap": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SwapInfo"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "fixes": {
+      "items": {
+       "$ref": "#/components/schemas/SignalFix"
+      },
+      "type": "array",
+      "title": "Fixes"
+     },
+     "kpis_before": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kpis_after": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "verdict",
+     "tag"
+    ],
+    "title": "PlacementCheck"
+   },
+   "PlacementCheckRequest": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "target": {
+      "$ref": "#/components/schemas/PlacementTarget"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "alternatives": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 20.0,
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Alternatives"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "target"
+    ],
+    "title": "PlacementCheckRequest"
+   },
+   "PlacementCommitRequest": {
+    "properties": {
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "who": {
+      "type": "string",
+      "title": "Who",
+      "default": "engineer"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "PlacementCommitRequest"
+   },
+   "PlacementCommitResult": {
+    "properties": {
+     "committed": {
+      "type": "integer",
+      "title": "Committed"
+     },
+     "moves": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementMove"
+      },
+      "type": "array",
+      "title": "Moves"
+     },
+     "decision": {
+      "$ref": "#/components/schemas/DecisionEntry"
+     },
+     "kpis": {
+      "$ref": "#/components/schemas/Kpis"
+     },
+     "report": {
+      "$ref": "#/components/schemas/RuleCheckReport"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "committed",
+     "decision",
+     "kpis",
+     "report"
+    ],
+    "title": "PlacementCommitResult"
+   },
+   "PlacementMove": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "cable": {
+      "type": "string",
+      "title": "Cable",
+      "default": "-"
+     },
+     "pair": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pair"
+     },
+     "from_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Slot"
+     },
+     "to_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Slot"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag"
+    ],
+    "title": "PlacementMove"
+   },
+   "PlacementOp": {
+    "properties": {
+     "n": {
+      "type": "integer",
+      "title": "N"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "move",
+       "swap"
+      ],
+      "title": "Kind"
+     },
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "ts": {
+      "type": "string",
+      "title": "Ts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "n",
+     "kind",
+     "tag",
+     "label",
+     "ts"
+    ],
+    "title": "PlacementOp"
+   },
+   "PlacementReason": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "rule",
+       "capacity",
+       "occupied",
+       "reserved",
+       "domain",
+       "data",
+       "engine",
+       "verifier",
+       "input",
+       "error",
+       "info"
+      ],
+      "title": "Kind",
+      "default": "rule"
+     },
+     "rule_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rule Id"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tags"
+     },
+     "cables": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Cables"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "PlacementReason"
+   },
+   "PlacementState": {
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "title": "Depth"
+     },
+     "redo_depth": {
+      "type": "integer",
+      "title": "Redo Depth",
+      "default": 0
+     },
+     "ops": {
+      "items": {
+       "$ref": "#/components/schemas/PlacementOp"
+      },
+      "type": "array",
+      "title": "Ops"
+     },
+     "changes": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PlacementChangeSet"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "stale": {
+      "type": "boolean",
+      "title": "Stale",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "depth"
+    ],
+    "title": "PlacementState"
+   },
+   "PlacementTarget": {
+    "properties": {
+     "slot_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slot Id"
+     },
+     "cabinet": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cabinet"
+     },
+     "cioc": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cioc"
+     },
+     "bp": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Bp"
+     },
+     "ch": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ch"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "PlacementTarget",
+    "description": "A slot. Give `slot_id` (\"<cabinet>/<cioc3>/<bp>/<ch>\") or cabinet + cioc + bp + ch. `cioc` is the CIOC name\n(P30DCIOC3201001), its 3-digit sequence (001 / 1) or, with a cabinet, its position 1..4 in that cabinet."
    },
    "Project": {
     "properties": {
@@ -3219,6 +4643,440 @@
     ],
     "title": "RunRecord"
    },
+   "SignalCounts": {
+    "properties": {
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "matching": {
+      "type": "integer",
+      "title": "Matching"
+     },
+     "by_state": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "By State"
+     },
+     "by_io_type": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "By Io Type"
+     },
+     "by_cabinet": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "By Cabinet"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "total",
+     "matching",
+     "by_state",
+     "by_io_type",
+     "by_cabinet"
+    ],
+    "title": "SignalCounts"
+   },
+   "SignalFix": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "data_patch",
+       "rule_patch",
+       "placement",
+       "info"
+      ],
+      "title": "Kind",
+      "default": "info"
+     },
+     "patch": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Patch"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label"
+    ],
+    "title": "SignalFix",
+    "description": "One way to get a signal placed (or placed better). `patch` is ready to POST to /signals/{tag}/patch (data_patch),\nPUT to /rules (rule_patch) or POST to /placement/check (placement)."
+   },
+   "SignalHardware": {
+    "properties": {
+     "charm": {
+      "type": "string",
+      "title": "Charm"
+     },
+     "charm_desc": {
+      "type": "string",
+      "title": "Charm Desc",
+      "default": ""
+     },
+     "tb": {
+      "type": "string",
+      "title": "Tb"
+     },
+     "tb_desc": {
+      "type": "string",
+      "title": "Tb Desc",
+      "default": ""
+     },
+     "tb1": {
+      "type": "string",
+      "title": "Tb1",
+      "default": "-"
+     },
+     "tb2": {
+      "type": "string",
+      "title": "Tb2",
+      "default": "-"
+     },
+     "tb3": {
+      "type": "string",
+      "title": "Tb3",
+      "default": "-"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "charm",
+     "tb"
+    ],
+    "title": "SignalHardware"
+   },
+   "SignalList": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "title": "Project Id"
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision"
+     },
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     },
+     "counts": {
+      "$ref": "#/components/schemas/SignalCounts"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/SignalRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "revision",
+     "run_id",
+     "limit",
+     "offset",
+     "counts",
+     "rows"
+    ],
+    "title": "SignalList"
+   },
+   "SignalLocation": {
+    "properties": {
+     "cabinet": {
+      "type": "string",
+      "title": "Cabinet"
+     },
+     "cabinet_seq": {
+      "type": "integer",
+      "title": "Cabinet Seq"
+     },
+     "controller": {
+      "type": "string",
+      "title": "Controller"
+     },
+     "cioc": {
+      "type": "string",
+      "title": "Cioc"
+     },
+     "cioc_seq": {
+      "type": "integer",
+      "title": "Cioc Seq"
+     },
+     "cioc_local": {
+      "type": "integer",
+      "title": "Cioc Local"
+     },
+     "side": {
+      "type": "string",
+      "title": "Side"
+     },
+     "baseplate": {
+      "type": "string",
+      "title": "Baseplate"
+     },
+     "bp": {
+      "type": "integer",
+      "title": "Bp"
+     },
+     "ch": {
+      "type": "integer",
+      "title": "Ch"
+     },
+     "charm_no": {
+      "type": "integer",
+      "title": "Charm No"
+     },
+     "slot_id": {
+      "type": "string",
+      "title": "Slot Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "cabinet",
+     "cabinet_seq",
+     "controller",
+     "cioc",
+     "cioc_seq",
+     "cioc_local",
+     "side",
+     "baseplate",
+     "bp",
+     "ch",
+     "charm_no",
+     "slot_id"
+    ],
+    "title": "SignalLocation"
+   },
+   "SignalRow": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "tag_key": {
+      "type": "string",
+      "title": "Tag Key"
+     },
+     "row": {
+      "type": "integer",
+      "title": "Row"
+     },
+     "state": {
+      "type": "string",
+      "enum": [
+       "allocated",
+       "warning",
+       "unallocated",
+       "quarantined",
+       "deleted"
+      ],
+      "title": "State"
+     },
+     "tag_status": {
+      "type": "string",
+      "title": "Tag Status",
+      "default": "-"
+     },
+     "io_type": {
+      "type": "string",
+      "title": "Io Type",
+      "default": "-"
+     },
+     "io_type_raw": {
+      "type": "string",
+      "title": "Io Type Raw",
+      "default": "-"
+     },
+     "instrument_type": {
+      "type": "string",
+      "title": "Instrument Type",
+      "default": "-"
+     },
+     "cable": {
+      "type": "string",
+      "title": "Cable",
+      "default": "-"
+     },
+     "pair": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pair"
+     },
+     "cable_size": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cable Size"
+     },
+     "family": {
+      "type": "string",
+      "enum": [
+       "A",
+       "B",
+       "-"
+      ],
+      "title": "Family",
+      "default": "-"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group",
+      "default": "-"
+     },
+     "is_flag": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Is Flag"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "rule_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Rule Ids"
+     },
+     "tq_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tq Ids"
+     },
+     "fixes": {
+      "items": {
+       "$ref": "#/components/schemas/SignalFix"
+      },
+      "type": "array",
+      "title": "Fixes"
+     },
+     "location": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SignalLocation"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "hardware": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SignalHardware"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "block_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Block Id"
+     },
+     "can_move": {
+      "type": "boolean",
+      "title": "Can Move",
+      "default": false
+     },
+     "quarantine_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Quarantine Reason"
+     },
+     "source": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Source"
+     },
+     "normalised": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Normalised"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "tag_key",
+     "row",
+     "state"
+    ],
+    "title": "SignalRow"
+   },
    "Slot": {
     "properties": {
      "id": {
@@ -3614,6 +5472,52 @@
     ],
     "title": "SpareCompliance"
    },
+   "SpareImpact": {
+    "properties": {
+     "wired_spares_before": {
+      "type": "integer",
+      "title": "Wired Spares Before"
+     },
+     "wired_spares_after": {
+      "type": "integer",
+      "title": "Wired Spares After"
+     },
+     "spare_slots_before": {
+      "type": "integer",
+      "title": "Spare Slots Before"
+     },
+     "spare_slots_after": {
+      "type": "integer",
+      "title": "Spare Slots After"
+     },
+     "wired_target_before": {
+      "type": "integer",
+      "title": "Wired Target Before",
+      "default": 0
+     },
+     "wired_target_after": {
+      "type": "integer",
+      "title": "Wired Target After",
+      "default": 0
+     },
+     "by_io_type": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "By Io Type"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "wired_spares_before",
+     "wired_spares_after",
+     "spare_slots_before",
+     "spare_slots_after"
+    ],
+    "title": "SpareImpact"
+   },
    "StressResult": {
     "properties": {
      "n": {
@@ -3662,6 +5566,35 @@
      "tqs"
     ],
     "title": "StressResult"
+   },
+   "SwapInfo": {
+    "properties": {
+     "with_tag": {
+      "type": "string",
+      "title": "With Tag"
+     },
+     "with_cable": {
+      "type": "string",
+      "title": "With Cable"
+     },
+     "with_slot": {
+      "type": "string",
+      "title": "With Slot"
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "with_tag",
+     "with_cable",
+     "with_slot"
+    ],
+    "title": "SwapInfo"
    },
    "TQ": {
     "properties": {
@@ -3866,6 +5799,63 @@
      "message"
     ],
     "title": "Violation"
+   },
+   "ViolationRef": {
+    "properties": {
+     "check_id": {
+      "type": "string",
+      "title": "Check Id"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "tag": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag"
+     },
+     "slot_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slot Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "check_id",
+     "message"
+    ],
+    "title": "ViolationRef"
    },
    "WhatIfRequest": {
     "properties": {
