@@ -50,6 +50,7 @@ class Eval:
     landed: bool
     engine_reason: str = ""
     notes: dict[str, str] = field(default_factory=dict)
+    collateral: list[str] = field(default_factory=list)     # OTHER cables the engine had to move to honour the request
 
 
 @dataclass
@@ -78,7 +79,9 @@ def _step(svc: Service, st: ProjectState, prev: RunOutput, moves: dict[str, Pos]
             landed = False
             why = (b.move_reason if b else None) or "a hard rule rejected the position"
             break
-    return Eval(out, rep, landed, why, notes)
+    wanted = set(moves)
+    collateral = sorted({m.cable for m in _moves(prev, out) if m.from_slot is not None and m.cable not in wanted})
+    return Eval(out, rep, landed, why, notes, collateral)
 
 
 def _draft(svc: Service, st: ProjectState) -> Draft:
@@ -364,7 +367,7 @@ def _verdict(base: PlacementCheck, ev: Eval, moves: dict[str, Pos], wout: RunOut
     base.kpis_after = _kpis(ev.out, ev.report)
     base.changes = PlacementChanges(moves=_moves(wout, ev.out), hardware=_hw_changes(wout, ev.out), spare=_spare(wout, ev.out),
                                     new_violations=new_v, new_tqs=[t.id for t in new_tq])
-    if ev.landed and not new_v and not new_tq:
+    if ev.landed and not new_v and not new_tq and not ev.collateral:
         base.verdict = "swap" if swap else "allowed"
         base.swap = swap
         notes = []
@@ -376,11 +379,17 @@ def _verdict(base: PlacementCheck, ev: Eval, moves: dict[str, Pos], wout: RunOut
         notes.append(PlacementReason(text=f"The independent verifier re-checked the result: {ev.report.checks_passed}/{ev.report.checks_total} "
                                           f"checks, {ev.report.violations} violation(s).", kind="info"))
         base.reasons = notes
+        if req.alternatives and not swap:          # asked for explicitly: other slots this signal could take instead
+            base.alternatives = _alternatives(svc, st, wout, wrep, b, s.pair or 1, tgt, req.alternatives)
         return base, ev, moves
     reasons: list[PlacementReason] = []
     if not ev.landed:
         reasons.append(PlacementReason(text=f"The engine could not keep {b.cable} at {tgt.id}: {ev.engine_reason}", kind="engine",
                                        rule_id=_rid(ev.engine_reason)))
+    if ev.collateral:
+        reasons.append(PlacementReason(text=f"Honouring this would also move cable(s) {', '.join(ev.collateral)} out of their slots — the "
+                                            f"target overlaps them. Move those first, or pick a free position.", kind="occupied",
+                                       rule_id=wout.rules.rid("capacity"), tags=_tags_of(wout, ev.collateral), cables=ev.collateral))
     for v in new_v:
         reasons.append(PlacementReason(text=f"{v.check_id} {v.label}: {v.message}", kind="verifier",
                                        rule_id=_rid(v.message),
@@ -445,7 +454,7 @@ def _alternatives(svc: Service, st: ProjectState, wout: RunOutput, wrep: RuleChe
             continue
         confirmed += 1
         ev = _step(svc, st, wout, {res[0]: res[1]})
-        if ev.landed and not _violation_refs(ev.report, wrep) and not _new_tqs(wout, ev.out):
+        if ev.landed and not ev.collateral and not _violation_refs(ev.report, wrep) and not _new_tqs(wout, ev.out):
             out.append(PlacementAlternative(slot_id=sl.id, cabinet=sl.cabinet, cioc=sl.cioc, bp=sl.bp, ch=sl.ch, distance=dist(sl)))
             if len(out) >= k:
                 break

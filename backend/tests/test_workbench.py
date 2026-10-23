@@ -450,3 +450,14 @@ def test_patch_that_adds_a_violation_is_refused(c, monkeypatch):
     monkeypatch.setattr(sf, "_quiet", real)
     assert c.get("/api/projects/mini/patches").json() == []
     assert _row(c, "M-BADIO").state == "quarantined"
+
+
+def test_alternatives_can_be_requested_for_an_allowed_move_too(c):
+    a = alloc(c)
+    tag = tag_of(a, "320-CS-0022", 1)
+    r = c.post(P + "/placement/check", json={"tag": tag, "alternatives": 3, "target": {"cabinet": "P30-DCM-32001-04", "cioc": "3", "bp": 5, "ch": 1}})
+    res = PlacementCheck.model_validate(r.json())
+    assert res.verdict == "allowed" and 0 < len(res.alternatives) <= 3
+    assert all(x.slot_id != res.to_slot for x in res.alternatives)
+    again = c.post(P + "/placement/check", json={"tag": tag, "target": {"cabinet": "P30-DCM-32001-04", "cioc": "3", "bp": 5, "ch": 1}}).json()
+    assert again["alternatives"] == [], "an allowed move offers none unless asked"
