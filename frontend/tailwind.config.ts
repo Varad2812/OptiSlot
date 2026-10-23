@@ -9,16 +9,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        // CLAUDE.md §10 tokens (CSS vars in src/index.css)
         bg: v("bg"),
         surface: v("surface"),
         raised: v("raised"),
         border: v("border"),
         text: v("text"),
-        muted: v("muted"),
-        accent: v("accent"),
+        brand: v("accent"),
         ok: v("ok"),
         warn: v("warn"),
         err: v("err"),
+        // shadcn semantic names → the same tokens (components/ui/* use these)
+        background: v("bg"),
+        foreground: v("text"),
+        card: { DEFAULT: v("surface"), foreground: v("text") },
+        popover: { DEFAULT: v("raised"), foreground: v("text") },
+        primary: { DEFAULT: v("accent"), foreground: v("accent-fg") },
+        secondary: { DEFAULT: v("raised"), foreground: v("text") },
+        muted: { DEFAULT: v("raised"), foreground: v("muted") }, // grey text = text-muted-foreground
+        accent: { DEFAULT: v("hover"), foreground: v("text") }, // shadcn "accent" = hover/selected row tint
+        destructive: { DEFAULT: v("err"), foreground: v("accent-fg") },
+        input: v("border"),
+        ring: v("accent"),
         io: {
           ai: "#3B82F6",
           ao: "#A855F7",

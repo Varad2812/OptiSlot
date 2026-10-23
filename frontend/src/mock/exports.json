@@ -1,0 +1,32 @@
+[
+ {
+  "kind": "allocation",
+  "filename": "IO_Allocation_demo_RevA.xlsx",
+  "rows": 1152,
+  "sha256": "486cd8a4a23fbb4aa6c7773ce7420cfebb88242c9e4bc6f6921714f64021d5ad"
+ },
+ {
+  "kind": "rule_check",
+  "filename": "Rule_Check_Report.xlsx",
+  "rows": 19,
+  "sha256": null
+ },
+ {
+  "kind": "tq_register",
+  "filename": "TQ_Register.xlsx",
+  "rows": 1,
+  "sha256": null
+ },
+ {
+  "kind": "revision_impact",
+  "filename": "Revision_Impact.xlsx",
+  "rows": 0,
+  "sha256": null
+ },
+ {
+  "kind": "capacity_bom",
+  "filename": "Capacity_BOM.xlsx",
+  "rows": 9,
+  "sha256": null
+ }
+]

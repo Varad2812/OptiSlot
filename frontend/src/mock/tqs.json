@@ -1,0 +1,53 @@
+[
+ {
+  "id": "TQ-HW-001",
+  "category": "DO hardware conflict",
+  "severity": "medium",
+  "status": "open",
+  "confidence": "candidate",
+  "rows": [
+   161,
+   162,
+   163,
+   170,
+   173
+  ],
+  "tags": [
+   "500-XA   -00322-L",
+   "500-XA   -00323-L",
+   "500-XA   -00324-L",
+   "500-XA   -00331-L",
+   "500-XA   -00341-L"
+  ],
+  "field": "Instrument type",
+  "rules_in_conflict": [
+   "r-hw"
+  ],
+  "message": "PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush. Instrument type(s) XA, 5 signal(s).",
+  "fix_options": [
+   {
+    "label": "Treat XA as high-current (SE4302T02 + SE4502)",
+    "rule_patch": {
+     "rule_id": "r-hw",
+     "op": "list_add",
+     "path": "lists.high_current_do",
+     "value": "XA"
+    },
+    "data_patch": null
+   },
+   {
+    "label": "Keep standard DO (as in the sample)",
+    "rule_patch": {
+     "rule_id": "r-hw",
+     "op": "list_remove",
+     "path": "lists.review_do",
+     "value": "XA"
+    },
+    "data_patch": null
+   }
+  ],
+  "unchanged_note": "Only the CHARM/TB of these rows can change; no slot moves.",
+  "slot_ids": [],
+  "decision": null
+ }
+]

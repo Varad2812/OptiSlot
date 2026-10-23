@@ -11,3 +11,4 @@ projects/*
 shots/*.png
 *.sqlite*
 ~$*
+*.tsbuildinfo

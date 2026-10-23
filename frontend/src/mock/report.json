@@ -1,0 +1,221 @@
+{
+ "source": "file",
+ "file": "IO_Allocation_demo_RevA.xlsx",
+ "checks": [
+  {
+   "id": "C00",
+   "label": "Workbook has every template column",
+   "rule_id": null,
+   "severity": "hard",
+   "passed": 1,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C01",
+   "label": "Every live MDB tag appears exactly once",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 189,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C02",
+   "label": "No duplicate CIOC / baseplate / channel",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C03",
+   "label": "No duplicate cable + pair",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 261,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C04",
+   "label": "CHARM_No = (baseplate − 1) × 12 + channel",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C05",
+   "label": "Baseplate prefix = CIOC sequence",
+   "rule_id": "r-names",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C06",
+   "label": "Cable pairs contiguous and in order",
+   "rule_id": "r-cable",
+   "severity": "hard",
+   "passed": 17,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C07",
+   "label": "Never put A and B on the same CIOC",
+   "rule_id": "r-ab",
+   "severity": "hard",
+   "passed": 3,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C08",
+   "label": "Each IO grouping kept together, in consecutive cabinets",
+   "rule_id": "r-group",
+   "severity": "soft",
+   "passed": 6,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C09",
+   "label": "CHARM / terminal block match the hardware map",
+   "rule_id": "r-hw",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C10",
+   "label": "Names follow the project patterns",
+   "rule_id": "r-names",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C11",
+   "label": "Wired spares ≥ target per IO type per controller",
+   "rule_id": "r-wired-spare",
+   "severity": "hard",
+   "passed": 8,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C12",
+   "label": "Future-spare baseplates kept free at the end of each cabinet",
+   "rule_id": "r-future",
+   "severity": "hard",
+   "passed": 3,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C13",
+   "label": "Full physical grid present for every cabinet",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 3,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C14",
+   "label": "Tag Status discipline",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C15",
+   "label": "Cabinet alarms on the reserved baseplate, exclusively",
+   "rule_id": "r-alarm-bp",
+   "severity": "hard",
+   "passed": 12,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C16",
+   "label": "IO type mapped per the IO type map",
+   "rule_id": "r-io-map",
+   "severity": "hard",
+   "passed": 189,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C17",
+   "label": "Engineering columns copied from the MDB",
+   "rule_id": "r-out",
+   "severity": "soft",
+   "passed": 177,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C18",
+   "label": "Cabinets and controllers within configured limits",
+   "rule_id": "r-capacity",
+   "severity": "hard",
+   "passed": 3,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  }
+ ],
+ "checks_total": 19,
+ "checks_passed": 19,
+ "violations": 0,
+ "warnings": 0,
+ "excepted": 0,
+ "verdict": "PASS"
+}

@@ -143,6 +143,9 @@
       "MXA",
       "MXL",
       "QAX"
+     ],
+     "review_do": [
+      "XA"
      ]
     },
     "rows": [
@@ -294,7 +297,20 @@
       },
       "value": "HW-TYP-41 - LT-01"
      }
-    ]
+    ],
+    "review": {
+     "when_any": [
+      {
+       "io_type": "DOR",
+       "instrument_type": "@review_do"
+      },
+      {
+       "io_type": "DOR",
+       "instrument_desc": "~(?i)horn|beacon|sounder|siren|klaxon"
+      }
+     ],
+     "message": "PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush."
+    }
    }
   },
   {

@@ -3,44 +3,92 @@
  "to_rev": "B",
  "added": [
   {
-   "tag": "320-PT   -80099",
+   "tag": "320-FT   -90001",
    "from_slot": null,
-   "to_slot": "P30-DCM-32001-01/001/3/10",
-   "reason": "New tag on spare pair 22 of 320-CE-0001 — took the cable's own position"
+   "to_slot": "P30-DCM-32001-01/001/3/5",
+   "reason": "New tag on existing cable 320-CE-0001 pair 17 → its own pair position (used the cable's wired spare)"
   },
   {
-   "tag": "320-XS   -90001",
+   "tag": "320-XLS  -90011",
    "from_slot": null,
-   "to_slot": "P30-DCM-32001-01/004/6/1",
-   "reason": "New 12-pair cable 320-CE-0999 → first free baseplate on a neutral CIOC"
+   "to_slot": "P30-DCM-32001-01/001/6/1",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90012",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/2",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90013",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/3",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90014",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/4",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90015",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/5",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90016",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/6",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90017",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/7",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XLS  -90018",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/8",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
+  },
+  {
+   "tag": "320-XYV  -90030",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/6/10",
+   "reason": "New cable 320-CE-9001 → first free 1 whole baseplate(s) on CIOC 001 (normal engine)"
   }
  ],
  "deleted": [
   {
-   "tag": "320-TT   -80005",
-   "from_slot": "P30-DCM-32001-01/001/2/12",
+   "tag": "320-FT   -80004",
+   "from_slot": "P30-DCM-32001-01/001/2/4",
    "to_slot": null,
-   "reason": "Deleted in Rev B — slot freed as Spare Slot"
+   "reason": "Deleted: 320-FT   -80004 deleted in the MDB — slot freed"
   }
  ],
  "modified": [
   {
-   "tag": "500-XA   -00322-L",
-   "from_slot": "P24-DCM-50002-01/003/3/1",
-   "to_slot": "P24-DCM-50002-01/003/3/1",
-   "reason": "Instrument type → XYV: CHARM SE4302T01→SE4302T02, TB SE4501→SE4502, same slot"
+   "tag": "500-MHL  -G0001-RL",
+   "from_slot": "P24-DCM-50002-01/001/3/7",
+   "to_slot": "P24-DCM-50002-01/001/3/7",
+   "reason": "Modified: instrument type MHL → XYV; hardware SE4302T01/SE4501 → SE4302T02/SE4502 in the same slot"
   }
  ],
  "moved": [],
- "unchanged_in_place": 186,
+ "unchanged_in_place": 187,
  "previous_live": 189,
- "stability_pct": 98.4,
+ "stability_pct": 98.9,
  "cabinets_touched": [
-  "P30-DCM-32001-01",
-  "P24-DCM-50002-01"
+  "P24-DCM-50002-01",
+  "P30-DCM-32001-01"
  ],
  "new_tqs": [
-  "TQ-REV-001",
-  "TQ-REV-002"
+  "TQ-DATA-001",
+  "TQ-HW-001"
  ]
 }

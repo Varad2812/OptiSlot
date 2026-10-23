@@ -1,6 +1,6 @@
 {
  "id": "demo",
- "name": "VIT Sample — PIB-30 / PIB-24",
+ "name": "Demo — VIT Sample",
  "revision": "A",
  "revisions": [
   "A"
@@ -18,12 +18,18 @@
   "max_cabinets_per_controller": 1,
   "max_cabinets_per_domain": 99,
   "revision": "00",
+  "deleted_statuses": [
+   "DELETED",
+   "DELETE",
+   "REMOVED",
+   "VOID"
+  ],
   "cpsat_enabled": true,
   "cpsat_time_limit_s": 2.0
  },
  "ruleset_id": "default",
  "ruleset_version": 1,
  "mdb_file": "Sample_IO_MDB_VIT_v2_1.xlsx",
- "created": "2026-10-23T10:00:00Z",
- "updated": "2026-10-23T10:00:00Z"
+ "created": "2026-10-23T12:39:48Z",
+ "updated": "2026-10-23T12:39:48Z"
 }

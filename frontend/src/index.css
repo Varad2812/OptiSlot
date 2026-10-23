@@ -22,6 +22,8 @@
   --ok: 34 197 94;
   --warn: 245 158 11;
   --err: 239 68 68;
+  --hover: 30 35 46;     /* menu / row hover tint (shadcn "accent") */
+  --accent-fg: 255 255 255;
   color-scheme: dark;
 }
 
@@ -36,7 +38,13 @@
   --ok: 22 163 74;
   --warn: 217 119 6;
   --err: 220 38 38;
+  --hover: 238 240 245;
+  --accent-fg: 255 255 255;
   color-scheme: light;
+}
+
+@layer base {
+  * { @apply border-border; }
 }
 
 html, body, #root { height: 100%; }

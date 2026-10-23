@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "types": "openapi-typescript ../backend/openapi.json -o src/api/types.ts",
+    "preshots": "npm run build",
     "shots": "node scripts/shots.mjs"
   },
   "dependencies": {
