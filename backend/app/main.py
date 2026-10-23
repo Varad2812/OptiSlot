@@ -17,8 +17,8 @@ from fastapi.staticfiles import StaticFiles
 from app.schemas import (
     AllocationResult, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, PlacementApplyRequest, PlacementApplyResult,
     PlacementChangeSet, PlacementCheck, PlacementCheckRequest, PlacementCommitRequest, PlacementCommitResult, PlacementState,
-    Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleDraft, RuleSet, RunRecord, SignalList, SignalRow,
-    StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
+    DataPatch, Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleDraft, RuleSet, RunRecord, SignalList, SignalPatchRequest,
+    SignalPatchResult, SignalRow, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
 )
 from app.service import DEMO_ID, Service
 from store.db import DEFAULT_DB, Store
@@ -225,7 +225,27 @@ def signals(pid: str, q: str | None = None, io_type: str | None = None, status: 
                         sort=sort, order=order, limit=limit, offset=offset)
 
 
-@app.get("/api/projects/{pid}/signals/{tag}", response_model=SignalRow)
+@app.post("/api/projects/{pid}/signals/{tag:path}/patch", response_model=SignalPatchResult)
+def signal_patch(pid: str, tag: str, req: SignalPatchRequest):
+    """Fix a signal's data (io_type, cable, pair, group, instrument_type …): the MDB cell is corrected, the row is
+    re-validated and placed if possible. `preview: true` shows the outcome without storing anything."""
+    from app.signalfix import patch_signal
+    return patch_signal(svc, pid, tag, req)
+
+
+@app.delete("/api/projects/{pid}/signals/{tag:path}/patch", response_model=SignalPatchResult)
+def signal_unpatch(pid: str, tag: str, row: int | None = None, who: str = "engineer"):
+    from app.signalfix import remove_patch
+    return remove_patch(svc, pid, tag, row, who)
+
+
+@app.get("/api/projects/{pid}/patches", response_model=list[DataPatch])
+def data_patches(pid: str):
+    from app.signalfix import list_patches
+    return list_patches(svc, pid)
+
+
+@app.get("/api/projects/{pid}/signals/{tag:path}", response_model=SignalRow)
 def signal(pid: str, tag: str, row: int | None = None):
     from app.signals import row_for
     st = svc.get(pid)

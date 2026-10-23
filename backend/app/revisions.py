@@ -14,10 +14,11 @@ from xio.gauntlet import build
 def _rev_a(svc: Service, st: ProjectState):
     """The Rev A run output (recomputed from stored inputs if needed)."""
     a = st.extra.get("rev_a_out")
-    if a is None or st.extra.get("rev_a_key") != (st.ruleset.version, st.settings.model_dump_json()):
-        a = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name)
+    key = (st.ruleset.version, st.settings.model_dump_json(), svc.patch_hash(st))
+    if a is None or st.extra.get("rev_a_key") != key:
+        a = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name, table=svc.table(st, "a"))
         st.extra["rev_a_out"] = a
-        st.extra["rev_a_key"] = (st.ruleset.version, st.settings.model_dump_json())
+        st.extra["rev_a_key"] = key
     return a
 
 
@@ -25,7 +26,7 @@ def _compute_b(svc: Service, st: ProjectState, record: bool = True) -> Computed:
     t0 = time.perf_counter()
     a = _rev_a(svc, st)
     revb: bytes = st.extra["mdb_b"]
-    out, impact = revise(revb, a, st.ruleset, st.settings, filename=st.extra.get("mdb_b_name", "RevB.xlsx"))
+    out, impact = revise(revb, a, st.ruleset, st.settings, filename=st.extra.get("mdb_b_name", "RevB.xlsx"), table=svc.table(st, "b"))
     from app.sandbox import apply_sandbox
     out = apply_sandbox(svc, st, out)
     comp = svc.certify(st, out, t0, impact)

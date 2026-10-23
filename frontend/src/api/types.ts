@@ -392,6 +392,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/signals/{tag}/patch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Signal Patch
+         * @description Fix a signal's data (io_type, cable, pair, group, instrument_type …): the MDB cell is corrected, the row is
+         *     re-validated and placed if possible. `preview: true` shows the outcome without storing anything.
+         */
+        post: operations["signal_patch_api_projects__pid__signals__tag__patch_post"];
+        /** Signal Unpatch */
+        delete: operations["signal_unpatch_api_projects__pid__signals__tag__patch_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/patches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Data Patches */
+        get: operations["data_patches_api_projects__pid__patches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/signals/{tag}": {
         parameters: {
             query?: never;
@@ -980,6 +1019,19 @@ export interface components {
             overridden: boolean;
             /** Needs Confirmation */
             needs_confirmation?: boolean;
+        };
+        /** DataPatch */
+        DataPatch: {
+            /** Key */
+            key: string;
+            /** Tag Key */
+            tag_key: string;
+            /** Row */
+            row?: number | null;
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
         };
         /** DecisionEntry */
         DecisionEntry: {
@@ -1837,6 +1889,55 @@ export interface components {
             charm_no: number;
             /** Slot Id */
             slot_id: string;
+        };
+        /** SignalPatchRequest */
+        SignalPatchRequest: {
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /** Row */
+            row?: number | null;
+            /**
+             * Preview
+             * @default false
+             */
+            preview: boolean;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /**
+             * Who
+             * @default engineer
+             */
+            who: string;
+        };
+        /** SignalPatchResult */
+        SignalPatchResult: {
+            /** Tag */
+            tag: string;
+            /** Applied */
+            applied: boolean;
+            /** Stored */
+            stored: boolean;
+            before?: components["schemas"]["SignalRow"] | null;
+            after?: components["schemas"]["SignalRow"] | null;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "placed" | "unallocated" | "quarantined" | "warning" | "unchanged";
+            /** Messages */
+            messages?: string[];
+            /** Diff */
+            diff?: components["schemas"]["SlotDiff"][];
+            kpis_before?: components["schemas"]["Kpis"] | null;
+            kpis_after?: components["schemas"]["Kpis"] | null;
+            report?: components["schemas"]["RuleCheckReport"] | null;
+            /** New Tqs */
+            new_tqs?: string[];
         };
         /** SignalRow */
         SignalRow: {
@@ -3143,6 +3244,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignalList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signal_patch_api_projects__pid__signals__tag__patch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+                tag: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalPatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signal_unpatch_api_projects__pid__signals__tag__patch_delete: {
+        parameters: {
+            query?: {
+                row?: number | null;
+                who?: string;
+            };
+            header?: never;
+            path: {
+                pid: string;
+                tag: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalPatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_patches_api_projects__pid__patches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataPatch"][];
                 };
             };
             /** @description Validation Error */

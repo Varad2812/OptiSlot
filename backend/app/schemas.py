@@ -791,3 +791,10 @@ class SignalPatchResult(Model):
 
 
 PlacementApplyResult.model_rebuild()
+
+
+class DataPatch(Model):
+    key: str                                   # tag key, or "<tag key>#<row>" when a duplicate tag needed the row
+    tag_key: str
+    row: int | None = None
+    fields: dict[str, str]

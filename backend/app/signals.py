@@ -316,3 +316,10 @@ def find_signal(comp, tag: str, row: int | None = None) -> Idx:
 def row_for(comp, tag: str, row: int | None = None) -> SignalRow:
     ix = find_signal(comp, tag, row)
     return to_row(ix, Ctx(comp))
+
+
+def row_by_number(comp, row: int) -> SignalRow:
+    ix = next((x for x in build_index(comp) if x.s.row == row), None)
+    if ix is None:
+        raise KeyError(f"MDB row {row}")
+    return to_row(ix, Ctx(comp))

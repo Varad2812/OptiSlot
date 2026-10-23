@@ -24,7 +24,8 @@ from store.db import Store
 from verify.certificate import certify, ruleset_hash
 from verify.checks import verify_rows
 from verify.xlsx import read_bom, verify_xlsx
-from xio.reader import SOURCE_COL, auto_map, merge_tables, read_table
+from xio.patches import apply_patches, patches_hash
+from xio.reader import SOURCE_COL, RawTable, auto_map, merge_tables, read_table
 from xio.reports import capacity_bom, revision_impact, rule_check_report, tq_register
 from xio.writer import write_allocation_safe, write_table
 from engine.failsafe import sys_tq
@@ -118,10 +119,33 @@ class Service:
                         self.recompute(st, record=False)
         return st
 
+    # ───────────── inputs ─────────────
+    def table(self, st: ProjectState, which: str = "active") -> RawTable | None:
+        """The MDB of Rev A ("a"), Rev B ("b") or the active revision, with the project's data patches applied. None when
+        the file cannot be read — callers pass that on, and `run` turns the read error into a SYS-read TQ."""
+        if which == "active":
+            which = "b" if st.project.revision == "B" and st.extra.get("mdb_b") else "a"
+        data = st.extra.get("mdb_b") if which == "b" else st.mdb
+        name = st.extra.get("mdb_b_name", "RevB.xlsx") if which == "b" else st.mdb_name
+        if not data:
+            return None
+        cache = st.extra.setdefault("_raw_tables", {})
+        key = (which, hashlib.sha256(data).hexdigest())
+        raw = cache.get(key)
+        if raw is None:
+            try:
+                raw = cache[key] = read_table(data, filename=name)
+            except Exception:
+                return None
+        return apply_patches(raw, self.store.get(st.project.id, "data_patches", {}) or {}, st.overrides or None)
+
+    def patch_hash(self, st: ProjectState) -> str:
+        return patches_hash(self.store.get(st.project.id, "data_patches", {}) or {})
+
     # ───────────── compute ─────────────
     def recompute(self, st: ProjectState, record: bool = True, kind: str = "allocate") -> Computed:
         t0 = time.perf_counter()
-        out = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name)
+        out = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name, table=self.table(st, "a"))
         from app.sandbox import apply_sandbox
         out = apply_sandbox(self, st, out)
         comp = self.certify(st, out, t0)
@@ -267,8 +291,8 @@ class Service:
             self.store.put_file(pid, "mdb_a", "mdb", hashlib.sha256(data).hexdigest(), data, ts)
             self.store.put(pid, "mdb_name", filename)
             self.store.put(pid, "overrides", {})
-            for key in ("sandbox_moves", "undo", "redo", "tq_ids", "tq_decisions"):
-                self.store.put(pid, key, {} if key in ("sandbox_moves", "tq_ids", "tq_decisions") else [])
+            for key in ("sandbox_moves", "undo", "redo", "tq_ids", "tq_decisions", "data_patches", "manual_overrides", "placement_draft"):
+                self.store.put(pid, key, [] if key in ("undo", "redo") else None if key == "placement_draft" else {})
             st.mdb, st.mdb_name, st.overrides = data, filename, {}
             st.project.mdb_file, st.project.revision, st.project.revisions = filename, "A", ["A"]
             st.extra.clear()

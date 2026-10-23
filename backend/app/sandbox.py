@@ -261,6 +261,11 @@ def _active_mdb(st: ProjectState) -> bytes:
     return st.extra.get("mdb_b") if st.project.revision == "B" and st.extra.get("mdb_b") else st.mdb  # type: ignore[return-value]
 
 
+def _active_table(svc: Service, st: ProjectState):
+    """The active revision's MDB table with data patches applied (None → `revise` reads the bytes itself)."""
+    return svc.table(st, "active")
+
+
 def _rev_no(st: ProjectState) -> str:
     return "01" if st.project.revision == "B" else st.settings.revision
 
@@ -280,7 +285,7 @@ def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput, rs: RuleSet | 
     stored = svc.store.get(st.project.id, "manual_overrides", {}) or {}      # remarks written by /placement/commit
     notes = {c: stored.get(c, "moved by the engineer in the What-if Sandbox (all hard rules re-checked)") for c in ok}
     out2, _ = revise(_active_mdb(st), out, rs or st.ruleset, settings or st.settings, from_rev=rev, to_rev=rev,
-                     rev_no=_rev_no(st), moves=ok, manual_notes=notes)
+                     rev_no=_rev_no(st), moves=ok, manual_notes=notes, table=_active_table(svc, st))
     out2.optimiser = out.optimiser
     return out2
 
@@ -299,7 +304,8 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
         moves[res[0]] = res[1]
     rev = st.project.revision
     if moves:
-        out, _ = revise(_active_mdb(st), comp.out, rs, ps, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves)
+        out, _ = revise(_active_mdb(st), comp.out, rs, ps, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves,
+                        table=_active_table(svc, st))
         for cable, (_, seq, local, bp, ch) in moves.items():
             b = next((x for x in out.alloc.blocks if x.cable == cable), None)
             if b is None or not b.pinned:
@@ -308,9 +314,9 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
                                     kpis=comp.kpis, report=comp.report, moves=0, diff=[])
     elif rev == "B":
         from app.revisions import _rev_a
-        out, _ = revise(st.extra["mdb_b"], _rev_a(svc, st), rs, ps)
+        out, _ = revise(st.extra["mdb_b"], _rev_a(svc, st), rs, ps, table=svc.table(st, "b"))
     else:
-        out = run(st.mdb, rs, ps, st.overrides or None, filename=st.mdb_name)
+        out = run(st.mdb, rs, ps, st.overrides or None, filename=st.mdb_name, table=svc.table(st, "a"))
         out = apply_sandbox(svc, st, out, rs, ps)   # committed moves stay in the preview, so the diff shows only this change
     rep = verify_rows(out.rows, out.signals, rs, ps, out.tqs)
     diff = _diff(comp.out, out)
@@ -369,6 +375,9 @@ def _restore(svc: Service, pid: str, entry: dict, which: str) -> None:
     st = svc.get(pid)
     if entry["kind"] == "moves":
         svc.store.put(pid, "sandbox_moves", entry[which])
+        svc.recompute_active(st)
+    elif entry["kind"] == "patches":
+        svc.store.put(pid, "data_patches", entry[which])
         svc.recompute_active(st)
     else:
         svc.put_rules(pid, RuleSet.model_validate(entry[which]), f"{'Undo' if which == 'before' else 'Redo'}: {entry['label']}")

@@ -1272,6 +1272,180 @@
     }
    }
   },
+  "/api/projects/{pid}/signals/{tag}/patch": {
+   "post": {
+    "summary": "Signal Patch",
+    "description": "Fix a signal's data (io_type, cable, pair, group, instrument_type \u2026): the MDB cell is corrected, the row is\nre-validated and placed if possible. `preview: true` shows the outcome without storing anything.",
+    "operationId": "signal_patch_api_projects__pid__signals__tag__patch_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "tag",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Tag"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SignalPatchRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignalPatchResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "summary": "Signal Unpatch",
+    "operationId": "signal_unpatch_api_projects__pid__signals__tag__patch_delete",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "tag",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Tag"
+      }
+     },
+     {
+      "name": "row",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Row"
+      }
+     },
+     {
+      "name": "who",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "engineer",
+       "title": "Who"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignalPatchResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/patches": {
+   "get": {
+    "summary": "Data Patches",
+    "operationId": "data_patches_api_projects__pid__patches_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DataPatch"
+         },
+         "title": "Response Data Patches Api Projects  Pid  Patches Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/projects/{pid}/signals/{tag}": {
    "get": {
     "summary": "Signal",
@@ -2736,6 +2910,44 @@
      "label"
     ],
     "title": "ColumnMapping"
+   },
+   "DataPatch": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "tag_key": {
+      "type": "string",
+      "title": "Tag Key"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "fields": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Fields"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "tag_key",
+     "fields"
+    ],
+    "title": "DataPatch"
    },
    "DecisionEntry": {
     "properties": {
@@ -4882,6 +5094,156 @@
      "slot_id"
     ],
     "title": "SignalLocation"
+   },
+   "SignalPatchRequest": {
+    "properties": {
+     "fields": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Fields"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "preview": {
+      "type": "boolean",
+      "title": "Preview",
+      "default": false
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "who": {
+      "type": "string",
+      "title": "Who",
+      "default": "engineer"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "fields"
+    ],
+    "title": "SignalPatchRequest"
+   },
+   "SignalPatchResult": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "applied": {
+      "type": "boolean",
+      "title": "Applied"
+     },
+     "stored": {
+      "type": "boolean",
+      "title": "Stored"
+     },
+     "before": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SignalRow"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "after": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SignalRow"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "placed",
+       "unallocated",
+       "quarantined",
+       "warning",
+       "unchanged"
+      ],
+      "title": "Verdict"
+     },
+     "messages": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Messages"
+     },
+     "diff": {
+      "items": {
+       "$ref": "#/components/schemas/SlotDiff"
+      },
+      "type": "array",
+      "title": "Diff"
+     },
+     "kpis_before": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "kpis_after": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Kpis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "report": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RuleCheckReport"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "new_tqs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "New Tqs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "applied",
+     "stored",
+     "verdict"
+    ],
+    "title": "SignalPatchResult"
    },
    "SignalRow": {
     "properties": {

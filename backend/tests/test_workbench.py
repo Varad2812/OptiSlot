@@ -321,3 +321,132 @@ def test_sandbox_survives_a_restart(c, tmp_path):
     assert st.depth == 1 and not st.stale
     ch = PlacementChangeSet.model_validate(c.get(P + "/placement/changes").json())
     assert len(ch.moves) == 4
+
+
+# ───────────────────────────── POST /signals/{tag}/patch ─────────────────────────────
+
+def _mini(c, extra=None):
+    """A tiny project with known data problems: unknown IO type, missing pair, duplicate pair, free pairs on the cable."""
+    import app.main as main
+    from tests.helpers import HEADERS, row
+    from xio.writer import write_table
+    rows = [row(f"M-{p}", "AI", "CB-1", p, 12, group="A") for p in (1, 2, 3, 6, 7)]
+    rows += [row("M-BADIO", "XX", "CB-1", 4, 12, group="A"),            # unknown IO type
+             row("M-NOPAIR", "AI", "CB-1", None, 12, group="A"),         # missing pair
+             row("M-DUP", "AI", "CB-1", 1, 12, group="A")]               # duplicate of pair 1
+    rows += [row(f"N-{p}", "DI", "CB-2", p, 6, group="B") for p in (1, 2, 3)]
+    rows += extra or []
+    main.svc.create_project("mini", "Mini", write_table(HEADERS, [[r.get(h, "") for h in HEADERS] for r in rows]), "mini.xlsx")
+    return SignalList.model_validate(c.get("/api/projects/mini/signals", params={"limit": 500}).json())
+
+
+def _row(c, tag: str) -> SignalRow:
+    return SignalRow.model_validate(c.get("/api/projects/mini/signals/" + tag).json())
+
+
+def test_patch_fixes_an_unknown_io_type_and_places_the_signal(c):
+    sl = _mini(c)
+    bad = next(x for x in sl.rows if x.tag == "M-BADIO")
+    assert bad.state == "quarantined" and bad.location is None
+    assert any(f.kind == "data_patch" and f.patch == {"fields": {"io_type": "AI"}} for f in bad.fixes)
+    free = next(x for x in sl.rows if x.tag == "M-NOPAIR")
+    assert any(f.patch == {"fields": {"pair": "4"}} for f in free.fixes), [f.label for f in free.fixes]
+
+    prev = c.post("/api/projects/mini/signals/M-BADIO/patch", json={"fields": {"io_type": "AI"}, "preview": True})
+    assert prev.status_code == 200, prev.text
+    p = prev.json()
+    assert p["verdict"] == "placed" and not p["stored"] and p["after"]["location"]
+    assert c.get("/api/projects/mini/patches").json() == []
+    assert _row(c, "M-BADIO").state == "quarantined", "a preview must not store anything"
+
+    r = c.post("/api/projects/mini/signals/M-BADIO/patch", json={"fields": {"io type": "AI"}, "reason": "typo in the MDB", "who": "varad"})
+    from app.schemas import SignalPatchResult
+    res = SignalPatchResult.model_validate(r.json())
+    assert res.applied and res.stored and res.verdict == "placed"
+    assert res.after and res.after.location
+    pair4 = next(x for x in c.get("/api/projects/mini/allocation").json()["slots"] if x["cable"] == "CB-1" and x["pair"] == 4)
+    assert res.after.location.slot_id == pair4["id"] and pair4["tag"] == "M-BADIO", "the corrected signal lands on its own pair position"
+    assert res.report and res.report.violations == 0 and res.kpis_after.allocated == res.kpis_before.allocated + 1
+    moved = [d for d in res.diff if d.change == "moved"]
+    assert moved == [], f"fixing one row must not move anyone: {moved}"
+    assert _row(c, "M-BADIO").state in ("allocated", "warning")
+    assert c.get("/api/projects/mini/patches").json()[0]["fields"] == {"io_type": "AI"}
+    assert any(d["who"] == "varad" and "Data patch" in d["why"] for d in c.get("/api/projects/mini/decisions").json())
+    # the certificate's MDB hash reflects the correction; undo takes it back
+    cert1 = c.get("/api/projects/mini/allocation").json()["certificate"]["mdb_sha256"]
+    assert c.post("/api/projects/mini/undo").status_code == 200
+    assert _row(c, "M-BADIO").state == "quarantined"
+    assert c.get("/api/projects/mini/allocation").json()["certificate"]["mdb_sha256"] != cert1
+    assert c.get("/api/projects/mini/patches").json() == []
+
+
+def test_patch_fills_a_missing_pair_with_a_free_one_and_the_row_keeps_its_cable_position(c):
+    _mini(c)
+    r = c.post("/api/projects/mini/signals/M-NOPAIR/patch", json={"fields": {"pair": "4"}})
+    j = r.json()
+    assert j["verdict"] == "placed", j
+    cable_slots = {s["pair"]: s["id"] for s in c.get("/api/projects/mini/allocation").json()["slots"] if s["cable"] == "CB-1"}
+    assert cable_slots[4] == j["after"]["location"]["slot_id"]
+    a = c.get("/api/projects/mini/allocation").json()
+    assert a["report"]["violations"] == 0
+
+
+def test_patch_input_errors_and_noops(c):
+    _mini(c)
+    P2 = "/api/projects/mini/signals"
+    assert c.post(P2 + "/NOPE/patch", json={"fields": {"pair": "3"}}).status_code == 404
+    assert c.post(P2 + "/M-1/patch", json={"fields": {}}).status_code == 422
+    r = c.post(P2 + "/M-1/patch", json={"fields": {"colour": "red"}})
+    assert r.status_code == 422 and "unknown field" in r.json()["detail"]
+    assert c.post(P2 + "/M-1/patch", json={"fields": {"pair": "x" * 500}}).status_code == 422
+    same = c.post(P2 + "/M-1/patch", json={"fields": {"pair": "Pair 1"}}).json()
+    assert same["verdict"] == "unchanged" and not same["stored"]
+    # a row with a duplicate tag needs `row`
+    dup = _mini_dup(c)
+    assert dup
+
+
+def _mini_dup(c):
+    import app.main as main
+    from tests.helpers import HEADERS, row
+    from xio.writer import write_table
+    rows = [row("D-1", "AI", "CB-1", 1, 12), row("D-1", "AI", "CB-1", 2, 12)]
+    main.svc.create_project("dup", "Dup", write_table(HEADERS, [[r.get(h, "") for h in HEADERS] for r in rows]), "dup.xlsx")
+    r = c.post("/api/projects/dup/signals/D-1/patch", json={"fields": {"tag": "D-2"}, "row": 3})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["verdict"] == "placed" and j["tag"] == "D-2", j["messages"]
+    assert c.get("/api/projects/dup/patches").json() == [{"key": "D-1#3", "tag_key": "D-1", "row": 3, "fields": {"tag": "D-2"}}]
+    return True
+
+
+def test_unpatch_and_determinism_after_a_restart(c):
+    import app.main as main
+    from app.service import Service
+    _mini(c)
+    assert c.post("/api/projects/mini/signals/M-BADIO/patch", json={"fields": {"io_type": "AI"}}).json()["stored"]
+    run1 = c.get("/api/projects/mini/allocation").json()["certificate"]
+    main.svc = Service(main.svc.store)
+    run2 = c.get("/api/projects/mini/allocation").json()["certificate"]
+    assert (run1["run_id"], run1["mdb_sha256"], run1["output_sha256"]) == (run2["run_id"], run2["mdb_sha256"], run2["output_sha256"])
+    r = c.delete("/api/projects/mini/signals/M-BADIO/patch").json()
+    assert r["stored"] and r["verdict"] == "quarantined"
+    assert c.get("/api/projects/mini/patches").json() == []
+
+
+def test_patch_that_adds_a_violation_is_refused(c, monkeypatch):
+    """The correction is re-verified; if the result is worse it is rolled back and nothing is stored."""
+    import app.signalfix as sf
+    _mini(c)
+    real = sf._quiet
+
+    def worse(svc, st):
+        comp = real(svc, st)
+        comp.report = comp.report.model_copy(update={"violations": comp.report.violations + 2})
+        return comp
+    monkeypatch.setattr(sf, "_quiet", worse)
+    j = c.post("/api/projects/mini/signals/M-BADIO/patch", json={"fields": {"io_type": "AI"}}).json()
+    assert not j["applied"] and not j["stored"] and any("Rejected" in m for m in j["messages"])
+    monkeypatch.setattr(sf, "_quiet", real)
+    assert c.get("/api/projects/mini/patches").json() == []
+    assert _row(c, "M-BADIO").state == "quarantined"
