@@ -1,0 +1,419 @@
+<!doctype html>
+<!--
+=====================================================================================
+ MARSHALLING ROOM - single-file base project (hand this to Claude Code and extend it)
+=====================================================================================
+WHAT IT IS
+  Cinematic 3D marshalling room. three.js r160 + camera-controls 2.8.5 (pinned, loaded via
+  importmap from cdn.jsdelivr.net). No build step. 1152 mock CHARMs.
+  Hierarchy: Room > Cabinet (3) > CIOC (4: 2 front, 2 rear) > Baseplate (8) > CHARM (12).
+
+RUN
+  ES modules need http(s), not file://:  python3 -m http.server 8080  -> http://localhost:8080
+  (internet needed for the CDN scripts; to go offline, download them and edit the importmap)
+
+FILE LAYOUT (top to bottom)
+  1. <style>            HUD, breadcrumbs, info panel, labels, tooltip, about panel, mobile rules
+  2. importmap          three, three/addons/, camera-controls
+  3. HUD markup         #tl title+breadcrumbs, #tr toolbar (search, buttons), #lg legend, #info, #about
+  4. <script module>    all logic, in this order:
+       data + constants -> renderer/composer/bloom -> camera-controls -> room -> cabinets, doors,
+       CIOCs, baseplates -> instanced CHARMs -> cable bundle -> labels -> selection + fade logic
+       -> input (click, hover, keys) -> light trails + Upload Dive -> UI extras -> render loop tick()
+
+DATA MODEL
+  Constants: C=3 cabinets, K=4 CIOCs, B=8 baseplates, M=12 CHARMs, N=1152.
+  idx(c,k,b,m) = ((c*K+k)*B+b)*M+m  is the flat index used by type[], val[], tgt[], cur[] and the
+  InstancedMesh instance id. type[i] = -1 (dark/spare) or 0..4 into IO[] (AI, AO, DI, DO, DO-ISO).
+  To use REAL data: replace the seeded generator that fills type[] and val[] (search "seed=11").
+
+KEY CONCEPTS
+  * Selection state: level (0 room,1 cabinet,2 CIOC,3 baseplate,4 CHARM) + sc, sk, sb, sm.
+    setSel(level,c,k,b,m) is the single entry point; it calls retarget() and focus() and ui().
+  * Fading: T(c,k,b,m,L) returns the target opacity for any object. Non-instanced materials are
+    registered in reg[]; CHARMs fade by scaling their per-instance colour (instanceColor) in tick().
+  * Bloom: UnrealBloomPass threshold is ~0.8, so lit CHARMs use colours multiplied above 1.0 and
+    toneMapped:false materials. Dark parts stay below the threshold so they do not glow.
+  * Spread: iocs[c][k].s animates 0..1 and updIoc(c,k) re-lays baseplates + CHARM matrices.
+  * Camera: focus() uses camera-controls rotateTo + fitToBox (smoothTime 0.6).
+  * Picking: hitAt(e) raycasts pick[] and only accepts hits on the current selection path.
+  * Upload Dive: dive() is an async timeline (sleep + setLookAt); trails are TubeGeometry with a
+    ShaderMaterial whose moving glow head is driven by the uT uniform.
+
+IDEAS TO BUILD NEXT
+  Real data feed (WebSocket/fetch) updating type[]/val[]; click-to-select with live values on the
+  panel; alarms (pulse red CHARMs); per-baseplate cable routing; VR/WebXR; load layout from JSON.
+
+GOTCHAS
+  * Keep script URLs pinned to exact versions (no @latest).
+  * Do not use localStorage-free assumptions in sandboxed hosts: storage calls should be try/catch.
+  * InstancedMesh raycasting uses instance bounding spheres; call computeBoundingSphere() if you
+    change instance matrices a lot and picking feels off.
+=====================================================================================
+-->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marshalling Room</title>
+<style>
+/* ===== STYLES: HUD, panels, labels, tooltip, mobile ===== */
+:root{--bg:#0A0D13;--ac:#7C5CFF;--tx:#E6E9F2;--mut:#8A93A8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+canvas{display:block;position:fixed;inset:0;touch-action:none}
+.hud{position:fixed;z-index:2;pointer-events:none}
+.hud>*{pointer-events:auto}
+#tl{left:16px;top:calc(14px + env(safe-area-inset-top,0px))}
+#tl h1{margin:0 0 6px;font-size:13px;letter-spacing:.18em;text-transform:uppercase;font-weight:600}
+#tl h1 b{color:var(--ac)}
+#crumbs span{color:var(--mut);cursor:pointer}#crumbs span:hover{color:var(--tx)}#crumbs span.cur{color:var(--tx);cursor:default}
+#crumbs i{color:#3a4256;font-style:normal;margin:0 6px}
+#tr{right:16px;top:calc(14px + env(safe-area-inset-top,0px));display:flex;gap:8px}
+button{font:inherit;color:var(--tx);background:rgba(20,24,34,.7);border:1px solid #2a3144;border-radius:8px;padding:8px 14px;cursor:pointer;backdrop-filter:blur(8px)}
+button:hover{border-color:var(--ac)}
+#dive{background:var(--ac);border-color:var(--ac);font-weight:600;box-shadow:0 0 22px rgba(124,92,255,.45)}
+#dive:disabled{opacity:.5;cursor:default}
+#lg{left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;gap:12px;flex-wrap:wrap;color:var(--mut);font-size:12px;max-width:60vw}
+#lg span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--c);box-shadow:0 0 8px var(--c)}
+#hint{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));color:var(--mut);font-size:12px}
+#info{right:16px;top:calc(70px + env(safe-area-inset-top,0px));width:250px;padding:16px;border-radius:12px;background:rgba(14,18,27,.78);border:1px solid #2a3144;backdrop-filter:blur(12px);opacity:0;transform:translateX(16px);transition:.4s;pointer-events:none}
+#info.on{opacity:1;transform:none}
+#info h2{margin:0 0 2px;font-size:15px}#info .tag{color:var(--mut);font-size:12px;margin-bottom:12px}
+#info dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px}#info dt{color:var(--mut)}#info dd{margin:0;text-align:right}
+.chip{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid var(--c);color:var(--c)}
+
+body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55))}
+#tr{flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 32px);align-items:center}
+#q{font:inherit;color:var(--tx);background:rgba(20,24,34,.7);border:1px solid #2a3144;border-radius:8px;padding:8px 12px;width:230px;outline:none;backdrop-filter:blur(8px)}
+#q:focus{border-color:var(--ac)}#q.bad{border-color:#F87171;animation:sh .3s}
+@keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#info{top:calc(116px + env(safe-area-inset-top,0px))}
+.lb,#tip{position:fixed;left:0;top:0;z-index:1;pointer-events:none;font-size:11px;letter-spacing:.14em;white-space:nowrap;color:var(--tx);padding:2px 9px;border:1px solid #3a3470;border-radius:99px;background:rgba(14,18,27,.65);opacity:0;transition:opacity .3s}
+#tip{z-index:3;letter-spacing:.04em;transition:opacity .15s}
+#about{left:16px;top:calc(76px + env(safe-area-inset-top,0px));width:300px;padding:14px 16px;border-radius:12px;background:rgba(14,18,27,.82);border:1px solid #2a3144;backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:.4s;transform:translateY(-8px)}
+#about.on{opacity:1;pointer-events:auto;transform:none}
+#about h3{margin:0 0 6px;font-size:13px;color:var(--ac);letter-spacing:.1em;text-transform:uppercase}#about p{margin:0 0 8px;color:var(--mut)}#about ul{margin:0;padding-left:18px;color:var(--mut)}#about li{margin:3px 0}#about b{color:var(--tx);font-weight:600}
+@media (max-width:640px){#q{width:100%;order:3}#lg{max-width:92vw;font-size:11px;bottom:calc(46px + env(safe-area-inset-bottom,0px))}#hint{display:none}#about{width:calc(100vw - 32px)}#info{width:auto;left:16px}}
+</style>
+<script type="importmap">{"imports":{
+"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+"camera-controls":"https://cdn.jsdelivr.net/npm/camera-controls@2.8.5/dist/camera-controls.module.js"}}</script>
+</head><body>
+<!-- ===== HUD MARKUP (canvas is prepended by main script) ===== -->
+<div class="hud" id="tl"><h1>Marshalling <b>Room</b></h1><div id="crumbs"></div></div>
+<div class="hud" id="tr">
+  <input id="q" placeholder="Go to tag, e.g. C2-IOC3-BP5-CH7" autocomplete="off" spellcheck="false">
+  <button id="abtn" title="How it works">ⓘ About</button><button id="zin" title="Zoom in">+</button><button id="zout" title="Zoom out">−</button>
+  <button id="back">← Back (Esc)</button><button id="dive">▶ Upload Dive</button>
+</div>
+<div class="hud" id="lg"></div>
+<div class="hud" id="hint">Click to zoom in · drag to orbit · scroll to dolly</div>
+<div class="hud" id="info"></div>
+<div class="hud on" id="about"><h3>How it works</h3>
+<p>A mock marshalling room: <b>3 cabinets</b> → <b>4 CIOCs</b> each (2 front, 2 rear) → <b>8 baseplates</b> → <b>12 CHARMs</b> = 1,152 modules. About 20% are lit by IO type; the data is seeded mock data.</p>
+<ul><li><b>Click</b> to zoom down a level, <b>Esc</b> to go back</li><li><b>Hover</b> to preview what you will open</li><li><b>Search</b> a tag (<b>2-3</b> opens a CIOC, <b>2-3-5-7</b> a CHARM)</li><li><b>Upload Dive</b> streams data from the junction box into the baseplates</li><li>All CHARMs are one instanced mesh, so a single draw call</li></ul></div>
+<div id="labels"></div><div id="tip"></div>
+<script type="module">
+/* Marshalling Room - main.js
+ * Hierarchy: Room > Cabinet (3) > CIOC (4) > Baseplate (8) > CHARM (12)  = 1152 CHARMs, mock data.
+ * Sections: renderer, room, cabinets/doors/CIOCs, instanced CHARMs, cable bundle, selection + fade logic,
+ * labels, input handling, light trails + Upload Dive, render loop.
+ */
+import * as THREE from 'three';
+import CameraControls from 'camera-controls';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+CameraControls.install({THREE:{Vector2:THREE.Vector2,Vector3:THREE.Vector3,Vector4:THREE.Vector4,Quaternion:THREE.Quaternion,Matrix4:THREE.Matrix4,Spherical:THREE.Spherical,Box3:THREE.Box3,Sphere:THREE.Sphere,Raycaster:THREE.Raycaster}});
+
+const C=3,K=4,B=8,M=12,N=C*K*B*M,CX=[-4.6,0,4.6],ACC=0x7C5CFF;
+const IO=[{n:'AI',c:0x4F8CFF},{n:'AO',c:0xA78BFA},{n:'DI',c:0x34D399},{n:'DO',c:0xFBBF24},{n:'DO-ISO',c:0xF87171}];
+const IOC=IO.map(o=>new THREE.Color(o.c));
+document.getElementById('lg').innerHTML=IO.map(o=>`<span style="--c:#${o.c.toString(16)}">${o.n}</span>`).join('');
+let seed=11;const rnd=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const type=new Int8Array(N),val=new Float32Array(N);
+for(let i=0;i<N;i++){type[i]=rnd()<.2?(rnd()*5|0):-1;val[i]=rnd();}
+const idx=(c,k,b,m)=>((c*K+k)*B+b)*M+m;
+const ixOf=k=>(k&1)?.72:-.72, zOf=k=>k<2?.38:-.38;
+const bpY=(s,b)=>1.6+(b-3.5)*(.34+.3*s);
+
+// ===== RENDERER: WebGL + MSAA render target + bloom post-processing =====
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);
+document.body.prepend(renderer.domElement);const cv=renderer.domElement;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0A0D13);scene.fog=new THREE.FogExp2(0x0A0D13,.014);
+const cam=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,.05,200);
+const rt=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:4});
+const composer=new EffectComposer(renderer,rt);composer.addPass(new RenderPass(scene,cam));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.8,.7,.8);composer.addPass(bloom);composer.addPass(new OutputPass());
+
+const ctrl=new CameraControls(cam,cv);
+let lastInput=0,fovT=40;ctrl.addEventListener('controlstart',()=>lastInput=el); // idle drift resumes 4s after last input
+ctrl.smoothTime=.6;ctrl.draggingSmoothTime=.12;ctrl.minDistance=.35;ctrl.maxDistance=60;ctrl.maxPolarAngle=1.55;
+ctrl.mouseButtons.right=CameraControls.ACTION.TRUCK;
+ctrl.setLookAt(0,7.5,23,0,1.4,0,false);
+
+// ===== ROOM: lights, image-based reflections, glossy floor, grid, back wall, junction box =====
+const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),.04).texture;
+scene.add(new THREE.HemisphereLight(0x8899cc,0x10131a,.9));
+const dl=new THREE.DirectionalLight(0xbfc8ff,1.2);dl.position.set(6,12,10);scene.add(dl);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x0c1019,roughness:.32,metalness:.65}));
+floor.rotation.x=-Math.PI/2;scene.add(floor);
+const grid=new THREE.GridHelper(60,60,ACC,0x1b2231);grid.position.y=.003;grid.material.transparent=true;grid.material.opacity=.55;scene.add(grid);
+const wall=new THREE.Mesh(new THREE.PlaneGeometry(60,20),new THREE.MeshStandardMaterial({color:0x0d1119,roughness:.9}));wall.position.set(0,10,-7.2);scene.add(wall);
+const jb=new THREE.Mesh(new THREE.BoxGeometry(1.8,1.2,.5),new THREE.MeshStandardMaterial({color:0x1a1f2b,emissive:ACC,emissiveIntensity:.15,metalness:.6,roughness:.4}));
+jb.position.set(0,5.2,-6.9);scene.add(jb);
+const jbLight=new THREE.PointLight(ACC,0,14);jbLight.position.set(0,5.2,-6);scene.add(jbLight);
+
+// ===== FADE REGISTRY: every non-instanced material is tracked so siblings can fade when a level is entered =====
+const reg=[];
+const reg1=(m,base,c,k,b,L)=>{m.transparent=true;m.opacity=base;reg.push({m,base,c,k,b,L,cur:1,t:1});return m};
+const pick=[],doors=[],cabs=[],iocs=[];
+const nop=()=>{};
+// soft accent light pool drawn on the floor under each cabinet
+const poolMat=(()=>{const cx=document.createElement('canvas');cx.width=cx.height=128;const g2=cx.getContext('2d'),gr=g2.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(124,92,255,.55)');gr.addColorStop(1,'rgba(124,92,255,0)');g2.fillStyle=gr;g2.fillRect(0,0,128,128);return new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cx),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})})();
+for(let c=0;c<C;c++){
+  const g=new THREE.Group();g.position.x=CX[c];scene.add(g);
+  const add=(geo,m,x,y,z)=>{const o=new THREE.Mesh(geo,reg1(m,1,c,-1,-1,1));o.position.set(x,y,z);o.userData={c};g.add(o);pick.push(o);return o};
+  const steel=()=>new THREE.MeshStandardMaterial({color:0x4d5666,metalness:.7,roughness:.45});
+  for(const sx of[-1,1])for(const sz of[-1,1])add(new THREE.BoxGeometry(.1,3.3,.1),steel(),sx*1.5,1.65,sz*.9);
+  for(const sz of[-1,1])add(new THREE.BoxGeometry(3.1,.08,.08),steel(),0,3.3,sz*.9);
+  for(const sx of[-1,1]){add(new THREE.BoxGeometry(.08,.08,1.8),steel(),sx*1.5,3.3,0);add(new THREE.BoxGeometry(.03,3.2,1.8),new THREE.MeshStandardMaterial({color:0x232a37,metalness:.5,roughness:.6}),sx*1.5,1.6,0)}
+  add(new THREE.BoxGeometry(3.1,.1,1.9),steel(),0,.05,0);
+  const dp=[];
+  for(const face of[1,-1])for(const side of[-1,1]){
+    const piv=new THREE.Group();piv.position.set(side*1.5,1.65,face*.9);g.add(piv);
+    const gl=new THREE.Mesh(new THREE.BoxGeometry(1.46,3.2,.03),reg1(new THREE.MeshPhysicalMaterial({color:0x9fb4d0,roughness:.05,depthWrite:false}),.16,c,-1,-1,1));
+    gl.position.x=-side*.75;gl.userData={c};piv.add(gl);pick.push(gl);
+    const ed=new THREE.LineSegments(new THREE.EdgesGeometry(gl.geometry),reg1(new THREE.LineBasicMaterial({color:ACC}),.85,c,-1,-1,1));ed.raycast=nop;gl.add(ed);
+    dp.push({piv,s:face*side});
+  }
+  doors.push({dp,o:0,t:0});
+  const pl=new THREE.PointLight(0xaabbff,7,9);pl.position.set(CX[c],2.2,0);scene.add(pl);cabs.push({light:pl,glow:0,gt:0});
+  const pool=new THREE.Mesh(new THREE.PlaneGeometry(6.5,4.2),poolMat);pool.rotation.x=-Math.PI/2;pool.position.set(CX[c],.012,0);scene.add(pool);
+  iocs.push([]);
+  for(let k=0;k<K;k++){
+    const ix=ixOf(k),z=zOf(k);
+    const frame=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.42,3.1,.5)),reg1(new THREE.LineBasicMaterial({color:ACC}),.4,c,k,-1,2));
+    frame.position.set(ix,1.6,z);frame.raycast=nop;g.add(frame);
+    const vol=new THREE.Mesh(new THREE.BoxGeometry(1.42,3.1,.5),new THREE.MeshBasicMaterial());vol.visible=false;vol.position.copy(frame.position);vol.userData={c,k};g.add(vol);pick.push(vol);
+    const bps=[];
+    for(let b=0;b<B;b++){
+      const bp=new THREE.Mesh(new THREE.BoxGeometry(1.2,.12,.3),reg1(new THREE.MeshStandardMaterial({color:0x2c3442,metalness:.6,roughness:.5}),1,c,k,b,3));
+      bp.userData={c,k,b};g.add(bp);pick.push(bp);bps.push(bp);
+    }
+    iocs[c].push({frame,vol,bps,s:0,t:0});
+  }
+}
+// ===== CHARMS: all 1152 modules in ONE InstancedMesh (one draw call); colour per instance carries IO type + fade =====
+const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(.082,.15,.2),new THREE.MeshBasicMaterial({toneMapped:false}),N);
+inst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(N*3),3);inst.instanceColor.setUsage(THREE.DynamicDrawUsage);
+inst.frustumCulled=false;scene.add(inst);pick.push(inst);
+const dm=new THREE.Object3D();
+/** Re-lay-out one CIOC: baseplate heights depend on its spread factor s (0 = packed, 1 = spread); CHARM instance matrices follow. */
+function updIoc(c,k){
+  const o=iocs[c][k],ix=ixOf(k),z=zOf(k);
+  for(let b=0;b<B;b++){
+    const y=bpY(o.s,b);o.bps[b].position.set(ix,y,z);
+    for(let m=0;m<M;m++){dm.position.set(CX[c]+ix+(m-5.5)*.098,y+.13,z);dm.updateMatrix();inst.setMatrixAt(idx(c,k,b,m),dm.matrix)}
+  }
+  const sy=(B*(.34+.3*o.s)+.3)/3.1;o.frame.scale.y=o.vol.scale.y=sy;
+  inst.instanceMatrix.needsUpdate=true;
+}
+for(let c=0;c<C;c++)for(let k=0;k<K;k++)updIoc(c,k);
+
+// ===== CABLE BUNDLE: one shared set of tubes, moved above whichever baseplate is selected =====
+const bundle=new THREE.Group(),bMats=[];
+for(let j=0;j<7;j++){
+  const x=(j-3)*.15,ex=(j-3)*.17;
+  const cv3=new THREE.CatmullRomCurve3([[x*.3,3.4,-.1],[x*.5,2.1,-.28],[x*.9,.8,-.24],[ex,.1,-.17]].map(p=>new THREE.Vector3(...p)));
+  const mt=new THREE.MeshStandardMaterial({color:j%3==0?0x3a2f6b:0x1c2029,roughness:.5,metalness:.3,transparent:true,opacity:0,emissive:j%3==0?ACC:0,emissiveIntensity:.5});
+  bMats.push(mt);bundle.add(new THREE.Mesh(new THREE.TubeGeometry(cv3,40,.03,8),mt));
+}
+bundle.visible=false;scene.add(bundle);let bCur=0,bT=0;
+
+// ===== IBL strength for every standard material (keeps the room dark but gives steel a sheen) =====
+scene.traverse(o=>{const m=o.material;if(m&&m.isMeshStandardMaterial)m.envMapIntensity=.35});
+// ===== FLOATING LABELS (HTML projected from 3D positions; each has a show() predicate) =====
+const labelsEl=document.getElementById('labels'),labels=[],tmpV=new THREE.Vector3();
+function addLabel(text,pos,show){const d=document.createElement('div');d.className='lb';d.textContent=text;labelsEl.appendChild(d);labels.push({el:d,pos,show})}
+for(let c=0;c<C;c++){
+  addLabel('CABINET '+(c+1),new THREE.Vector3(CX[c],3.9,0),()=>level==0||(level==1&&sc==c));
+  for(let k=0;k<K;k++){
+    addLabel('CIOC '+(k+1)+(k<2?' · FRONT':' · REAR'),new THREE.Vector3(CX[c]+ixOf(k),3.55,zOf(k)),()=>level==1&&sc==c);
+    for(let b=0;b<B;b++)addLabel('BP '+(b+1),new THREE.Vector3(CX[c]+ixOf(k)+.85,bpY(1,b),zOf(k)),()=>level==2&&sc==c&&sk==k);
+  }
+}
+// ===== SELECTION & FADE TARGETS =====
+let level=0,sc=-1,sk=-1,sb=-1,sm=-1,busy=false;
+const tgt=new Float32Array(N).fill(1),cur=new Float32Array(N).fill(1);
+/** Target opacity (0..1) of an object at depth L (1 cabinet, 2 CIOC, 3 baseplate, 4 CHARM) given the current selection. */
+function T(c,k,b,m,L){
+  if(level==0)return 1; if(c!==sc)return .07;
+  if(L==1)return level>1?.12:1; if(level<2)return 1;
+  if(k!==sk)return .08; if(L==2)return level>2?.15:1; if(level<3)return 1;
+  if(b!==sb)return .1; if(L==3)return level>3?.15:1; if(level<4)return 1;
+  return m!==sm?.25:1;
+}
+/** Push new fade / door / spread / bundle targets after the selection changed. */
+function retarget(){
+  for(const r of reg)r.t=T(r.c,r.k,r.b,0,r.L);
+  for(let i=0;i<N;i++){const m=i%M,b=(i/M|0)%B,k=(i/(M*B)|0)%K,c=i/(M*B*K)|0;tgt[i]=T(c,k,b,m,4)}
+  for(let c=0;c<C;c++){doors[c].t=(level>=1&&c===sc)?1:0;for(let k=0;k<K;k++)iocs[c][k].t=(level>=2&&c===sc&&k===sk)?1:0}
+  bT=level>=3?1:0;
+  if(level>=3){bundle.position.set(CX[sc]+ixOf(sk),bpY(1,sb),zOf(sk));bundle.visible=true}
+}
+const ray=new THREE.Raycaster(),nd=new THREE.Vector2();
+/** Raycast under the pointer; returns the deepest-allowed hit {c,k,b,m} that lies on the current selection path. */
+function hitAt(e){
+  const r=cv.getBoundingClientRect();nd.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(nd,cam);
+  const n=Math.min(level+1,4);
+  for(const h of ray.intersectObjects(pick,false)){
+    let i;
+    if(h.object===inst){const id=h.instanceId;i={c:id/(M*B*K)|0,k:(id/(M*B)|0)%K,b:(id/M|0)%B,m:id%M}}
+    else{const u=h.object.userData;i={c:u.c,k:u.k??-1,b:u.b??-1,m:-1}}
+    if(level>=1&&i.c!==sc)continue; if(level>=2&&i.k!==sk)continue; if(level>=3&&i.b!==sb)continue;
+    if(n>=2&&i.k<0)continue; if(n>=3&&i.b<0)continue; if(n>=4&&i.m<0)continue;
+    return i;
+  }
+}
+const bx=(x,y,z,w,h,d)=>new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x,y,z),new THREE.Vector3(w,h,d));
+/** Fly the camera to the current selection (fitToBox + rotate to front or rear). */
+function focus(){
+  if(level==0){ctrl.setLookAt(0,7.5,23,0,1.4,0,true);return}
+  let box,az=0,pol=1.4,pad=.25;
+  if(level==1){box=bx(CX[sc],1.7,0,3.4,3.6,2);az=.35;pol=1.3}
+  else{
+    const x=CX[sc]+ixOf(sk),z=zOf(sk);az=(sk>=2?Math.PI:0)+(sk&1?-.12:.12);
+    if(level==2){box=bx(x,1.6,z,1.5,5.4,.6);pol=1.45}
+    else if(level==3){box=bx(x,bpY(1,sb)+.5,z,1.5,1.5,.8)}
+    else{box=bx(x+(sm-5.5)*.098,bpY(1,sb)+.13,z,.12,.17,.22);pad=.9;pol=1.35}
+  }
+  const c0=ctrl.azimuthAngle;az+=Math.PI*2*Math.round((c0-az)/(Math.PI*2));
+  ctrl.rotateTo(az,pol,true);
+  ctrl.fitToBox(box,true,{paddingLeft:pad,paddingRight:pad,paddingTop:pad,paddingBottom:pad});
+}
+function setSel(l,c=-1,k=-1,b=-1,m=-1){document.getElementById('about').classList.remove('on');lastInput=el;level=l;sc=c;sk=k;sb=b;sm=m;retarget();focus();ui()}
+const goTo=l=>{if(l>=level)return;setSel(l,l>=1?sc:-1,l>=2?sk:-1,l>=3?sb:-1,-1)};
+const infoEl=document.getElementById('info'),crumbs=document.getElementById('crumbs');
+function ui(){
+  const p=['Room'];if(level>=1)p.push('Cabinet '+(sc+1));if(level>=2)p.push('CIOC '+(sk+1)+(sk<2?' (front)':' (rear)'));if(level>=3)p.push('Baseplate '+(sb+1));if(level>=4)p.push('CHARM '+(sm+1));
+  crumbs.innerHTML=p.map((t,i)=>`<span class="${i==level?'cur':''}" data-l="${i}">${t}</span>`).join('<i>›</i>');
+  document.getElementById('back').style.visibility=level?'visible':'hidden';
+  if(level==4){
+    const i=idx(sc,sk,sb,sm),t=type[i],v=val[i];
+    const col=t>=0?'#'+IO[t].c.toString(16):'#8A93A8';
+    const rd=t<0?'—':t==0?(v*100).toFixed(1)+' %':t==1?(v*20).toFixed(2)+' mA':t==2||t==3||t==4?(v>.5?'ON':'OFF'):'';
+    infoEl.innerHTML=`<h2>CHARM ${sm+1}</h2><div class="tag">C${sc+1}-IOC${sk+1}-BP${sb+1}-CH${sm+1}</div><dl><dt>Type</dt><dd><span class="chip" style="--c:${col}">${t>=0?IO[t].n:'Spare'}</span></dd><dt>Status</dt><dd>${t>=0?'Active':'Unassigned'}</dd><dt>Value</dt><dd>${rd}</dd><dt>Baseplate</dt><dd>${sb+1} / 8</dd><dt>CIOC</dt><dd>${sk+1} (${sk<2?'front':'rear'})</dd><dt>Cabinet</dt><dd>${sc+1}</dd></dl>`;
+    infoEl.classList.add('on');
+  }else infoEl.classList.remove('on');
+}
+crumbs.onclick=e=>{const l=e.target.dataset.l;if(l!==undefined&&!busy)goTo(+l)};
+document.getElementById('back').onclick=()=>{if(!busy)goTo(level-1)};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!busy&&level)goTo(level-1)});
+let pd=null;
+cv.addEventListener('pointerdown',e=>pd={x:e.clientX,y:e.clientY,t:performance.now()});
+cv.addEventListener('pointerup',e=>{
+  if(!pd||busy)return;const mv=Math.hypot(e.clientX-pd.x,e.clientY-pd.y),dt=performance.now()-pd.t;pd=null;
+  if(mv>5||dt>500)return;const h=hitAt(e);if(!h)return;
+  if(level==0)setSel(1,h.c);else if(level==1)setSel(2,sc,h.k);else if(level==2)setSel(3,sc,sk,h.b);else setSel(4,sc,sk,sb,h.m);
+});
+let lastHv=0;
+// hover: pointer cursor + tooltip describing what a click would open
+const tip=document.getElementById('tip');
+cv.addEventListener('pointermove',e=>{
+  const n=performance.now();if(n-lastHv<90||e.buttons)return;lastHv=n;
+  const h=busy?null:hitAt(e);cv.style.cursor=h?'pointer':'default';
+  if(!h){tip.style.opacity=0;return}
+  let t='Cabinet '+(h.c+1);if(level>=1&&h.k>=0)t+=' · CIOC '+(h.k+1);if(level>=2&&h.b>=0)t+=' · BP '+(h.b+1);
+  if(level>=3&&h.m>=0){const ty=type[idx(h.c,h.k,h.b,h.m)];t+=' · CH '+(h.m+1)+' · '+(ty>=0?IO[ty].n:'spare')}
+  tip.textContent=t;tip.style.opacity=1;tip.style.transform=`translate(${e.clientX+14}px,${e.clientY+14}px)`;
+});
+cv.addEventListener('pointerleave',()=>tip.style.opacity=0);
+
+// ===== LIGHT TRAILS: tubes along curves, junction box -> baseplates; a shader scrolls a glowing head along each tube =====
+const trails=[],tU={uT:{value:0}};
+const jPos=new THREE.Vector3(0,5.2,-6.6);
+const vs='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
+const fs='uniform float uT,uD,uA,uS;uniform vec3 uC;varying vec2 vUv;void main(){float on=smoothstep(uD,uD+.3,uT);float p=fract((uT-uD)*.4+uS);float d=p-vUv.x;float a=(d>0.&&d<.3)?pow(1.-d/.3,2.):0.;gl_FragColor=vec4(uC*(a*3.+.12),(a+.05)*uA*on);}';
+for(let c=0;c<C;c++)for(let k=0;k<K;k++)for(const b of[1,3,5,7]){
+  const x=CX[c]+ixOf(k),z=zOf(k),y=bpY(0,b);
+  const pts=[jPos,new THREE.Vector3(x*.4,6.2,-4.2),new THREE.Vector3(x,4.8,z*1.4-.4),new THREE.Vector3(x+(rnd()-.5)*.6,y+.6,z),new THREE.Vector3(x+(rnd()-.5)*.8,y+.12,z)];
+  const mt=new THREE.ShaderMaterial({vertexShader:vs,fragmentShader:fs,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    uniforms:{uT:tU.uT,uD:{value:c*1.1+k*.15+b*.03},uA:{value:0},uS:{value:rnd()},uC:{value:new THREE.Color(IO[(c+k+b)%5].c).lerp(new THREE.Color(ACC),.4)}}});
+  const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),64,.018,4),mt);m.visible=false;m.frustumCulled=false;scene.add(m);trails.push(m);
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let diveT=-1,diveBtn=document.getElementById('dive'),el=0,trailA=0,trailT=0;
+/** Upload Dive: fly in (wide FOV settles), cabinets light left to right, trails stream, camera sweeps + pushes through the room. */
+async function dive(){
+  if(busy)return;busy=true;diveBtn.disabled=true;
+  level=0;sc=sk=sb=sm=-1;retarget();ui();
+  trails.forEach(t=>t.visible=true);trailA=0;trailT=0;diveT=el;
+  cam.fov=80;cam.updateProjectionMatrix();fovT=40;ctrl.setLookAt(0,5,56,0,2,0,false);await sleep(80);
+  ctrl.smoothTime=1.4;ctrl.setLookAt(0,4.5,19,0,1.8,0,true);
+  trailT=1;
+  for(let c=0;c<C;c++){setTimeout(()=>cabs[c].gt=1,2200+c*1000)}
+  await sleep(3000);ctrl.setLookAt(-5.5,3,12.5,-2,1.8,0,true);
+  await sleep(3200);ctrl.setLookAt(5.5,3.5,12.5,2,1.8,0,true);
+  await sleep(3200);ctrl.setLookAt(0,1.6,9.5,0,1.7,0,true); // low push-through
+  await sleep(2800);ctrl.setLookAt(0,7,22,0,1.4,0,true);
+  await sleep(2200);trailT=0;cabs.forEach(c=>c.gt=0);
+  await sleep(1500);trails.forEach(t=>t.visible=false);ctrl.smoothTime=.6;busy=false;diveBtn.disabled=false;diveT=-1;
+}
+diveBtn.onclick=dive;ui();
+// ===== EXTRA UI: tag search, zoom buttons, about panel =====
+const flash=n=>{n.classList.add('bad');setTimeout(()=>n.classList.remove('bad'),500)};
+document.getElementById('q').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||busy)return;
+  const n=(e.target.value.match(/\d+/g)||[]).map(Number),lim=[C,K,B,M];   // "C2-IOC3-BP5-CH7" or "2-3-5-7" or "2-3"
+  if(!n.length||n.length>4||n.some((v,i)=>v<1||v>lim[i]))return flash(e.target);
+  e.target.blur();setSel(n.length,...n.map(v=>v-1));
+});
+document.getElementById('zin').onclick=()=>ctrl.dolly(ctrl.distance*.3,true);
+document.getElementById('zout').onclick=()=>ctrl.dolly(-ctrl.distance*.4,true);
+document.getElementById('abtn').onclick=()=>document.getElementById('about').classList.toggle('on');
+
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()});
+
+const clock=new THREE.Clock(),col=new THREE.Color();
+function tick(){
+  const dt=Math.min(clock.getDelta(),.05);el+=dt;const k=1-Math.exp(-dt*5);
+  if(level==0&&!busy&&el-lastInput>4)ctrl.rotate(dt*.07,0,true); // idle drift
+  if(Math.abs(fovT-cam.fov)>.01){cam.fov+=(fovT-cam.fov)*Math.min(1,dt*1.3);cam.updateProjectionMatrix()}
+  ctrl.update(dt);
+  for(const r of reg){r.cur+=(r.t-r.cur)*k;r.m.opacity=r.base*r.cur}
+  for(let c=0;c<C;c++){
+    const d=doors[c];d.o+=(d.t-d.o)*k*.6;const e=d.o*d.o*(3-2*d.o);
+    for(const p of d.dp)p.piv.rotation.y=p.s*e*1.9;
+    const cb=cabs[c];cb.glow+=(cb.gt-cb.glow)*Math.min(1,dt*3);cb.light.intensity=7+cb.glow*40;
+    for(let kk=0;kk<K;kk++){const o=iocs[c][kk];if(Math.abs(o.t-o.s)>.001){o.s+=(o.t-o.s)*k*.8;updIoc(c,kk)}}
+  }
+  trailA+=(trailT-trailA)*Math.min(1,dt*2.5);
+  for(const t of trails)t.material.uniforms.uA.value=trailA;
+  tU.uT.value=diveT<0?0:el-diveT;
+  const g=cabs.reduce((a,c)=>a+c.glow,0)/C;
+  bloom.strength=.8+g*.5;
+  jb.material.emissiveIntensity=.15+g*2.5;jbLight.intensity=g*30;
+  bCur+=(bT-bCur)*k;for(const m of bMats)m.opacity=bCur;if(bCur<.01&&bT==0)bundle.visible=false;
+  const ca=inst.instanceColor.array,sel=level==4?idx(sc,sk,sb,sm):-1;
+  for(let i=0;i<N;i++){
+    const a=cur[i]+=(tgt[i]-cur[i])*k,t=type[i],c3=i*3;
+    if(t<0){const v=(.07+val[i]*.04)*a;ca[c3]=v;ca[c3+1]=v*1.15;ca[c3+2]=v*1.5}
+    else{const cc=IOC[t],cab=cabs[i/(M*B*K)|0].glow,f=(1.5+.25*Math.sin(el*2+i)+cab*1.3+(i===sel?1.2:0))*a;ca[c3]=cc.r*f;ca[c3+1]=cc.g*f;ca[c3+2]=cc.b*f}
+  }
+  inst.instanceColor.needsUpdate=true;
+  cam.updateMatrixWorld();   // project labels with this frame's camera
+  for(const l of labels){
+    if(!l.show()){l.el.style.opacity=0;continue}
+    tmpV.copy(l.pos).project(cam);
+    if(tmpV.z>1){l.el.style.opacity=0;continue}
+    l.el.style.opacity=1;l.el.style.transform=`translate(${(tmpV.x*.5+.5)*innerWidth}px,${(-tmpV.y*.5+.5)*innerHeight}px) translate(-50%,-50%)`;
+  }
+  composer.render();requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body></html>
