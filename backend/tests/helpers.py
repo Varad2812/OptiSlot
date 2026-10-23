@@ -13,14 +13,14 @@ HEADERS = ["Technical Room (Signal Location 2)", "Design Area", "Tag Number", "I
 
 def row(tag: str, io: str, cable: str, pair: int | str | None, size: int = 24, group: str = "-", room: str = "PIB-30",
         area: str = "RA 320-01", inst: str = "PT", status: str = "New", equipment: str = "-", sig: str = "4-20 ma HART",
-        level: str = "2-Wire", spec: str | None = None) -> dict[str, str]:
+        level: str = "2-Wire", spec: str | None = None, is_type: str = "NON-IS") -> dict[str, str]:
     return {
         "Technical Room (Signal Location 2)": room, "Design Area": area, "Tag Number": tag, "Instrument Type": inst,
         "Equipment Name": equipment, "Status": status, "I/O Type Name": io, "Signal Type": sig, "Signal Level": level,
         "Multi-cable / Cable": spec if spec is not None else f"{size:02d}PX1MM2/FR/ARM/NIS", "Multipair Cable No.": cable,
         "Pair Number": "" if pair is None else (pair if isinstance(pair, str) else f"Pair {pair}"),
         "IO Grouping": group, "OA No.": "OA-11", "WBS": "320", "Tag Service 1 and 2": f"svc {tag}", "Location": "L",
-        "Execution": "NON-IS",
+        "Execution": is_type,
     }
 
 

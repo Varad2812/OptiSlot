@@ -9,7 +9,7 @@ from collections import Counter, defaultdict
 
 from app.schemas import ProjectSettings, Signal
 from engine.hardware import resolve, signal_ctx
-from engine.rules import Rules
+from engine.rules import Rules, seg_field, seg_value
 from engine.tqs import TQBook
 
 STANDARD_SIZES = (1, 2, 6, 12, 24, 36, 48)
@@ -121,9 +121,14 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
         sizes = {s.cable_size for s in sigs if s.cable_size}
         size = max(sizes) if sizes else None
         if len(sizes) > 1:
+            # one cable, one spec: every row carries the spec text of the size used, so the written Field Cable Size
+            # always agrees with the block the engine lays out
+            spec = next(s.cable_spec for s in sorted(sigs, key=lambda x: x.row) if s.cable_size == size)
             book.add("cable", "Cable spec mismatch", "medium",
-                     f"Cable {cable} has different sizes across its rows ({sorted(sizes)}) — using {size} pairs.",
+                     f"Cable {cable} has different sizes across its rows ({sorted(sizes)}) — using {size} pairs ({spec}) for every row.",
                      rows=_rows(sigs), field="Cable spec / size", confidence="candidate")
+            for s in sigs:
+                s.cable_spec = spec
         max_pair = max(s.pair or 0 for s in sigs)
         if size is None:
             size = next((n for n in STANDARD_SIZES if n >= max_pair), ((max_pair + 11) // 12) * 12)
@@ -170,7 +175,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
 
         fams = {s.family for s in ok} - {"-"}
         if {"A", "B"} <= fams:
-            seg = rules.rid("segregate") or "r-ab"
+            seg = rules.ab_rid or "r-ab"
             a_rows = [s.row for s in ok if s.family == "A"]
             b_rows = [s.row for s in ok if s.family == "B"]
             t = book.add("segregation", "A/B on one cable", "critical",
@@ -183,6 +188,34 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                                 {"label": "Accept the exception"}],
                          unchanged="Everything else unchanged.")
             exceptions[cable] = t.id
+
+    # 4b ── secondary segregation (e.g. IS / NON-IS): a blank or unrecognised value takes the rule's default family.
+    # ONE project-level TQ per rule and kind — never one per row (and no rows[]/tags[]: this TQ must not excuse a
+    # missing tag in the verifier).
+    for rule in rules.all("segregate"):
+        if rule is rules.primary_seg or not rule.params.get("default_family"):
+            continue
+        f, dflt = seg_field(rule), rule.params["default_family"]
+        label = rule.params.get("field_label") or f
+        known = {m.strip().upper() for ms in rule.params.get("families", {}).values() for m in ms}
+        live_ = [s for s in signals if s.live and not s.quarantined]
+        empty = [s for s in live_ if seg_value(s, f).upper() in ("", "-")]
+        odd = [s for s in live_ if seg_value(s, f).upper() not in known | {"", "-"}]
+        if empty:
+            book.add("project", f"{label} missing", "medium",
+                     f"{label} is blank for {len(empty)} signal(s) ({_span(_rows(empty))}) — treated as {dflt} under rule "
+                     f"{rule.id} ({rule.label}). Confirm, or fill the column in the MDB.",
+                     field=label, rules=[rule.id], confidence="candidate", key=f"segdefault:{rule.id}",
+                     fixes=[{"label": f"Fill {label} in the MDB and re-import"}, {"label": f"Accept {dflt}"}],
+                     unchanged=f"Allocation proceeds; these signals are segregated as {dflt}.")
+        if odd:
+            vals = sorted({seg_value(s, f) for s in odd})
+            book.add("project", f"Unrecognised {label}", "medium",
+                     f"{label} value(s) {', '.join(repr(v) for v in vals[:6])} on {len(odd)} signal(s) ({_span(_rows(odd))}) "
+                     f"match no family of rule {rule.id} — treated as {dflt}. Add them to the rule's families or fix the MDB.",
+                     field=label, rules=[rule.id], confidence="candidate", key=f"segunknown:{rule.id}",
+                     fixes=[{"label": f"Add {v!r} to a family of rule {rule.id}"} for v in vals[:3]] + [{"label": f"Accept {dflt}"}],
+                     unchanged=f"Allocation proceeds; these signals are segregated as {dflt}.")
 
     # 5 ── hardware: unknown DO types (allocated + TQ), unresolvable hardware (quarantined), PS conflicts
     hw_rule = rules.rid("hardware_map") or "r-hw"

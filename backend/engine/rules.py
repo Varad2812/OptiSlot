@@ -22,6 +22,30 @@ def load_ruleset(name_or_path: str | Path = "default") -> RuleSet:
     return RuleSet.model_validate_json(p.read_text())
 
 
+def seg_field(rule: Rule) -> str:
+    """The signal field a segregate rule splits on (default: the IO grouping)."""
+    return rule.params.get("field") or "group"
+
+
+def seg_level(rule: Rule) -> str:
+    return rule.params.get("level", "cioc")
+
+
+def seg_value(s, f: str) -> str:
+    v = getattr(s, f, None) if f in type(s).model_fields and f != "extra" else s.extra.get(f)
+    return "" if v is None else str(v).strip()
+
+
+def seg_family(rule: Rule, value: str) -> str | None:
+    """Family of a value under a segregate rule; a blank or unrecognised value falls back to `default_family`
+    (when the rule has one — preflight raises ONE TQ per rule for those rows)."""
+    g = (value or "").strip().upper()
+    for fam, members in rule.params.get("families", {}).items():
+        if g in {m.upper() for m in members}:
+            return fam
+    return rule.params.get("default_family")
+
+
 def ruleset_hash(rs: RuleSet) -> str:
     return hashlib.sha256(rs.model_dump_json().encode()).hexdigest()
 
@@ -43,6 +67,17 @@ class Rules:
     def params(self, rtype: str) -> dict[str, Any]:
         r = self.first(rtype)
         return r.params if r else {}
+
+    @property
+    def primary_seg(self) -> Rule | None:
+        """The A/B rule: the first segregate rule on the IO grouping at CIOC or cabinet level. It drives the A/B
+        family colouring; every other segregate rule (e.g. IS / NON-IS per baseplate) is a secondary rule."""
+        return next((r for r in self.all("segregate") if seg_field(r) == "group" and seg_level(r) != "baseplate"), None)
+
+    @property
+    def ab_rid(self) -> str | None:
+        r = self.primary_seg
+        return r.id if r else None
 
     @property
     def cioc_strategy(self) -> str:

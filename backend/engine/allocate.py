@@ -25,7 +25,7 @@ from app.schemas import (
     BaseplateInfo, CabinetInfo, CiocInfo, ProjectSettings, Signal, Slot, WhyStep,
 )
 from engine.hardware import resolve, signal_ctx, spare_slot_hw
-from engine.rules import Rules, catalog, derive, fmt
+from engine.rules import Rules, catalog, derive, first_match, fmt, seg_family, seg_field, seg_level, seg_value
 from engine.tqs import TQBook
 
 FAMILY_RANK = {"A": 0, "B": 1, "-": 2}
@@ -60,7 +60,7 @@ class Block:
     pinned: bool = False
     pin_pos: tuple[int, int, int, int] | None = None  # (cab seq, cioc local, bp, ch) for revisions
     move_reason: str | None = None
-    fams: dict[str, str] = field(default_factory=dict)   # rule id → family, for every segregate rule after the first
+    fams: dict[str, str] = field(default_factory=dict)   # rule id → family, for every segregate rule except the A/B one
     fam_exceptions: dict[str, str] = field(default_factory=dict)  # rule id → TQ id when one cable mixes families
 
     @property
@@ -101,6 +101,7 @@ class Geometry:
     bps: int
     chs: int
     whole_min: int
+    bp_seg: tuple[str, ...] = ()     # segregate rules at baseplate level (e.g. IS / NON-IS): enforced by layout()
 
     @property
     def per_cabinet(self) -> int:
@@ -126,6 +127,18 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
     largest-first into aligned channel runs. Returns {block_id: (bp, ch)} or None if they do not fit."""
     free = {bp: [True] * g.chs for bp in usable}
     out: dict[str, tuple[int, int]] = {}
+    bp_fam: dict[int, dict[str, str]] = defaultdict(dict)   # baseplate → {rule id: family} (baseplate-level rules)
+
+    def sig(b: Block) -> tuple:
+        return tuple(b.fams.get(r) or "" for r in g.bp_seg)
+
+    def mixes(bp: int, b: Block) -> bool:
+        return any(bp_fam[bp].get(r) not in (None, f) for r, f in b.fams.items() if r in g.bp_seg)
+
+    def mark(bp: int, b: Block) -> None:
+        for r, f in b.fams.items():
+            if r in g.bp_seg:
+                bp_fam[bp].setdefault(r, f)
 
     def take(bp: int, ch: int, n: int) -> bool:
         if bp not in free or ch - 1 + n > g.chs or not all(free[bp][ch - 1:ch - 1 + n]):
@@ -137,11 +150,16 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
     for b in blocks:
         if b.pinned and b.pin_pos:
             _, _, bp, ch = b.pin_pos
+            bps = [bp + k for k in range(b.span)] if b.span else [bp]
+            if any(mixes(x, b) for x in bps):
+                return None
             if b.span:
                 if not all(take(bp + k, 1, g.chs) for k in range(b.span)):
                     return None
             elif not take(bp, ch, b.foot):
                 return None
+            for x in bps:
+                mark(x, b)
             out[b.id] = (bp, ch)
     rest = [b for b in blocks if not (b.pinned and b.pin_pos)]
     for b in [b for b in rest if b.span]:
@@ -150,15 +168,20 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
             if len(run) == b.span and run == list(range(bp, bp + b.span)) and all(all(free[x]) for x in run):
                 for x in run:
                     take(x, 1, g.chs)
+                    mark(x, b)
                 out[b.id] = (bp, 1)
                 break
         else:
             return None
-    for b in sorted([b for b in rest if not b.span], key=lambda b: (-b.foot, b.sort_key)):
+    # small blocks: largest first; with baseplate-level segregation, one family at a time so families fill whole baseplates
+    for b in sorted([b for b in rest if not b.span], key=lambda b: (sig(b), -b.foot, b.sort_key)):
         done = False
         for bp in usable:
+            if mixes(bp, b):
+                continue
             for ch0 in range(0, g.chs - b.foot + 1, b.foot):
                 if take(bp, ch0 + 1, b.foot):
+                    mark(bp, b)
                     out[b.id] = (bp, ch0 + 1)
                     done = True
                     break
@@ -204,7 +227,8 @@ class Engine:
         self.baseline = baseline
         cc = rules.params("cable_contiguous")
         self.g = Geometry(settings.ciocs_per_cabinet, settings.baseplates_per_cioc, settings.channels_per_baseplate,
-                          int(cc.get("whole_baseplate_min_pairs", settings.channels_per_baseplate)) if cc else 10 ** 6)
+                          int(cc.get("whole_baseplate_min_pairs", settings.channels_per_baseplate)) if cc else 10 ** 6,
+                          tuple(r.id for r in rules.all("segregate") if seg_level(r) == "baseplate"))
         self.strategy = rules.cioc_strategy
         self.names = rules.params("naming_pattern")
         self.patterns = self.names.get("patterns", {})
@@ -215,22 +239,22 @@ class Engine:
         self.dorder: dict[str, int] = {}
         self.deleted_pairs = {(s.cable, s.pair): s for s in signals if not s.live and s.cable and s.pair}
 
-    # ── segregation (any number of rules; the first also drives the A/B colouring) ──
+    # ── segregation (any number of rules; the A/B one — rules.primary_seg — also drives the family colouring) ──
     @property
     def seg_rules(self):
         return self.rules.all("segregate")
 
     @staticmethod
-    def fam_in(rule, group: str) -> str | None:
-        g = (group or "").strip().upper()
-        for fam, members in rule.params.get("families", {}).items():
-            if g in {m.upper() for m in members}:
-                return fam
-        return None
+    def fam_in(rule, s: Signal) -> str | None:
+        return seg_family(rule, seg_value(s, seg_field(rule)))
 
     @staticmethod
     def scope(rule, local: int) -> int:
-        return 0 if rule.params.get("level", "cioc") == "cabinet" else local
+        return 0 if seg_level(rule) == "cabinet" else local
+
+    def locked_rules(self) -> dict:
+        """Segregate rules enforced by CIOC/cabinet locks (baseplate-level ones are enforced inside layout())."""
+        return {r.id: r for r in self.seg_rules if seg_level(r) != "baseplate"}
 
     # ── naming helpers ──
     def side(self, local: int) -> str:
@@ -340,11 +364,13 @@ class Engine:
                       members={s.pair: s for s in sigs if s.pair}, family=family, group=group,
                       group_rank=group_rank.get(group, 10 ** 6), domain=domain,
                       first_row=min(s.row for s in sigs), exception_tq=self.exceptions.get(cable))
-            primary = self.seg_rules[0] if self.seg_rules else None
-            if primary is not None and primary.params.get("level", "cioc") != "cioc" and family != "-":
+            primary = self.rules.primary_seg
+            if primary is not None and seg_level(primary) != "cioc" and family != "-":
                 b.fams[primary.id] = family
-            for rule in self.seg_rules[1:]:
-                found = sorted({f for f in (self.fam_in(rule, s.group) for s in sigs) if f})
+            for rule in self.seg_rules:
+                if rule is primary:
+                    continue
+                found = sorted({f for f in (self.fam_in(rule, s) for s in sigs) if f})
                 if found:
                     b.fams[rule.id] = found[0]
                 if len(found) > 1:
@@ -369,13 +395,11 @@ class Engine:
         return sorted([c for c in self.cabs if c.ns == ns and c.domain == domain], key=lambda c: c.seq)
 
     def compatible(self, cab: Cab, local: int, b: Block) -> bool:
-        seg = self.seg_rules
-        if not seg:
-            return True
-        if b.family != "-" and seg[0].params.get("level", "cioc") == "cioc" and cab.family.get(local) not in (None, b.family):
+        primary = self.rules.primary_seg
+        if primary and b.family != "-" and seg_level(primary) == "cioc" and cab.family.get(local) not in (None, b.family):
             return False
-        rules = {r.id: r for r in seg}
-        return all(cab.locks.get((rid, self.scope(rules[rid], local))) in (None, f) for rid, f in b.fams.items())
+        rules = self.locked_rules()
+        return all(cab.locks.get((rid, self.scope(rules[rid], local))) in (None, f) for rid, f in b.fams.items() if rid in rules)
 
     def fits(self, cab: Cab, local: int, b: Block) -> bool:
         return layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is not None
@@ -387,7 +411,7 @@ class Engine:
             cab.family.setdefault(local, b.family)
             if cab.family[local] is None:
                 cab.family[local] = b.family
-        rules = {r.id: r for r in self.seg_rules}
+        rules = self.locked_rules()
         for rid, f in b.fams.items():
             if rid in rules:
                 cab.locks.setdefault((rid, self.scope(rules[rid], local)), f)
@@ -590,7 +614,7 @@ class Engine:
         cab.alarms = keep
         counts = Counter(s.family for s in keep if s.family in ("A", "B"))
         fams = set(counts)
-        if fams and self.rules.first("segregate"):
+        if fams and self.rules.primary_seg:
             minority = min(("A", "B"), key=lambda f: (counts[f], f != "B"))
             cab.family[local] = ("A" if minority == "B" else "B") if fams == {"A", "B"} else next(iter(fams))
             cab.alarm_lock[local] = cab.family[local]
@@ -600,15 +624,24 @@ class Engine:
                                   f"Cabinet alarms of both A and B families in {self.name('marshalling', cab)} share the reserved "
                                   f"baseplate — the {minority} alarms are kept there as a TQ-covered exception. Fix: re-tag the alarms.",
                                   rows=[s.row for s in keep], tags=[s.tag for s in keep if s.family == minority],
-                                  rules=[self.rules.rid("segregate") or "r-ab", rule.id])
+                                  rules=[self.rules.ab_rid or "r-ab", rule.id])
                 cab.alarm_exception = t.id
+
+    @staticmethod
+    def alarm_remark(rule, s: Signal) -> str:
+        """`remarks` is a string (every alarm) or a first-match table [{when, value}] over the signal's fields."""
+        r = rule.params.get("remarks", "Internal Cabinet Alarm.")
+        if isinstance(r, list):
+            hit = first_match(r, signal_ctx(s))
+            return str(hit.get("value", "-")) if hit else "-"
+        return str(r)
 
     # ── revisions ──
     def pin_blocks(self, domain: str, blocks: list[Block]) -> None:
         """Freeze every cable that existed before at its exact position — unless a hard rule now forbids it,
         in which case it is left unpinned (the engine moves it) and the reason is recorded."""
         assert self.baseline is not None
-        seg = self.rules.rid("segregate") or "r-ab"
+        seg = self.rules.ab_rid or "r-ab"
         for b in sorted(blocks, key=lambda b: b.sort_key):
             pos = self.baseline.blocks.get(b.cable)
             if not pos:
@@ -632,14 +665,16 @@ class Engine:
                         reason = (f"the cable is now {b.family}-family but CIOC {self.cioc_seq(cab, local):03d} holds "
                                   f"{cab.family[local]}-family signals (rule {seg})")
                     else:
+                        locked = self.locked_rules()
                         rid = next(r for r, f in b.fams.items()
-                                   if cab.locks.get((r, self.scope(next(x for x in self.seg_rules if x.id == r), local))) not in (None, f))
+                                   if r in locked and cab.locks.get((r, self.scope(locked[r], local))) not in (None, f))
                         reason = f"its segregation family under rule {rid} now clashes with its neighbours"
                 else:
                     b.pinned = True
                     if layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is None:
                         b.pinned = False
-                        reason = "its previous position now overlaps another cable"
+                        reason = ("its previous position now overlaps another cable or mixes segregation families on a "
+                                  "baseplate" + (f" (rule {', '.join(self.g.bp_seg)})" if self.g.bp_seg else ""))
             if reason:
                 b.pinned = False
                 b.move_reason = reason
@@ -745,7 +780,7 @@ class Engine:
                             continue
                         why = [
                             WhyStep(rule_id=None, text=f"Controller domain {cab.domain} → {slot.controller}"),
-                            WhyStep(rule_id=self.rules.rid("segregate"),
+                            WhyStep(rule_id=self.rules.ab_rid,
                                     text=f"Cable is {fam_txt} (group {b.group}) → CIOC {slot.cioc_seq:03d}"
                                          + (f" locked to {b.family}" if b.family != "-" else " (neutral can share any CIOC)")),
                             WhyStep(rule_id=self.rules.rid("group_together"),
@@ -755,16 +790,20 @@ class Engine:
                                           if b.span else f"{b.size}-pair cable packed in BP {b.bp} ch {b.ch}–{b.ch + b.foot - 1}")
                                          + f"; pair {pair} → BP {bp} ch {ch}"),
                         ]
+                        for rid in self.g.bp_seg:
+                            if rid in b.fams:
+                                why.append(WhyStep(rule_id=rid, text=f"{b.fams[rid]} cable → baseplate {b.bp} holds only "
+                                                                    f"{b.fams[rid]} signals"))
                         if s.io_type_raw.upper() != s.io_type:
                             why.insert(0, WhyStep(rule_id=self.rules.rid("io_type_map"), text=f"IO type {s.io_type_raw} → {s.io_type}"))
                         if b.exception_tq and s.family == "B":
                             slot.tq_ids.append(b.exception_tq)
                             slot.remarks = f"Excepted by {b.exception_tq}: A/B on one cable"
-                            why.append(WhyStep(rule_id=self.rules.rid("segregate"),
+                            why.append(WhyStep(rule_id=self.rules.ab_rid,
                                                text=f"A/B clash on {b.cable} — placed on an A CIOC, covered by {b.exception_tq}"))
                         for rid, tq_id in b.fam_exceptions.items():
                             rule = next((r for r in self.seg_rules if r.id == rid), None)
-                            if rule and self.fam_in(rule, s.group) not in (None, b.fams.get(rid)):
+                            if rule and self.fam_in(rule, s) not in (None, b.fams.get(rid)):
                                 slot.tq_ids.append(tq_id)
                                 slot.remarks = f"Excepted by {tq_id}: segregation clash on one cable"
                         remarks = slot.remarks
@@ -784,7 +823,7 @@ class Engine:
                         WhyStep(rule_id=alarm_rule.id, text=f"Internal cabinet signal → reserved BP {bp} of CIOC {local}"),
                         WhyStep(rule_id=alarm_rule.id, text=cab.alarm_why.get(s.row, "")),
                     ])
-                    slot.remarks = alarm_rule.params.get("remarks", "Internal Cabinet Alarm.")
+                    slot.remarks = self.alarm_remark(alarm_rule, s)
                     if cab.alarm_exception and s.family == cab.alarm_minority:
                         slot.tq_ids.append(cab.alarm_exception)
                         slot.remarks = f"Excepted by {cab.alarm_exception}: A/B cabinet alarms"
@@ -803,6 +842,17 @@ class Engine:
         return slots
 
     # ── wired spares ──
+    def spare_model(self, b: Block, io: str) -> Signal:
+        """The member a wired spare copies (hardware, IS status, …): the lowest pair of that IO type, preferring members
+        that are NOT a TQ-excepted segregation clash, so a spare pair carries the family its cable was placed with."""
+        rules = {r.id: r for r in self.seg_rules}
+
+        def off(m: Signal) -> int:
+            n = sum(1 for rid, f in b.fams.items() if rid in b.fam_exceptions and rid in rules and self.fam_in(rules[rid], m) != f)
+            return n + (1 if b.exception_tq and m.family == "B" else 0)
+
+        return min((m for m in b.members.values() if m.io_type == io), key=lambda m: (off(m) > 0, m.pair or 0))
+
     def wired_spares(self, slots: list[Slot]) -> None:
         rule = self.rules.first("wired_spare_pct")
         if not rule:
@@ -834,7 +884,7 @@ class Engine:
                         if slot is None or b is None or not any(m.io_type == io for m in b.members.values()):
                             continue
                         used.add(slot.id)
-                        tmpl = min((m for m in b.members.values() if m.io_type == io), key=lambda m: m.pair or 0)
+                        tmpl = self.spare_model(b, io)
                         self.make_spare(slot, tmpl, io, ctrl, field[io], target, pct, got, rule.id, b, kept=True)
                         got += 1
                 cables = []
@@ -856,7 +906,7 @@ class Engine:
                         slot = free[0]
                         used.add(slot.id)
                         b = blocks_by_id[bid]
-                        tmpl = min((m for m in b.members.values() if m.io_type == io), key=lambda m: m.pair or 0)
+                        tmpl = self.spare_model(b, io)
                         self.make_spare(slot, tmpl, io, ctrl, field[io], target, pct, got, rule.id, b)
                         got += 1
                         progress = True

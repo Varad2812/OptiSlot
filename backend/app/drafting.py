@@ -20,7 +20,7 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 
 RULE_TYPES = ["segregate", "reserve_baseplate", "wired_spare_pct", "future_spare_pct", "custom_expr", "group_together"]
 GUIDE = """You turn an engineer's sentence into ONE OptiSlot allocation rule. Allowed types and params:
-- segregate: {"level": "cioc"|"cabinet", "field": "group", "families": {"<NAME>": ["<IO grouping code>", ...], ...}}
+- segregate: {"level": "baseplate"|"cioc"|"cabinet", "field": "group"|"is_type", "families": {"<NAME>": ["<value>", ...], ...}, "default_family": "<NAME>" (optional: blank/unknown values)}
 - reserve_baseplate: {"purpose": "cabinet_alarm", "cioc": <int>, "baseplate": <int>, "exclusive": true, "match_any": [{"cable": "~(?i)^internal\\\\s*wiring$"}]}
 - wired_spare_pct: {"pct": <number>, "rounding": "ceil", "per": ["controller", "io_type"]}
 - future_spare_pct: {"pct": <number>, "rounding": "ceil"}
@@ -66,6 +66,10 @@ def _validate(raw: dict, rs: RuleSet) -> Rule:
         fams = p.get("families")
         if not isinstance(fams, dict) or len(fams) < 2 or not all(isinstance(v, list) and v for v in fams.values()):
             raise ValueError("segregate needs at least two families, each a non-empty list of codes")
+        if p.get("level", "cioc") not in ("baseplate", "cioc", "cabinet"):
+            raise ValueError("segregate level must be baseplate, cioc or cabinet")
+        if p.get("default_family") is not None and p["default_family"] not in fams:
+            raise ValueError("default_family must be one of the families")
     elif t in ("wired_spare_pct", "future_spare_pct"):
         if not 0 <= float(p.get("pct", -1)) <= 100:
             raise ValueError("pct must be between 0 and 100")
@@ -118,6 +122,14 @@ def _templates(text: str) -> dict | None:
     low = t.lower()
     num = lambda s: float(s) if "." in s else int(s)  # noqa: E731
 
+    m = re.search(r"(?:never (?:put|mix|place) )?(?:is|i\.s\.) (?:and|with|from) non[- ]?is(?: signals)?(?: never)? "
+                  r"(?:on|in|share|sharing)? ?(?:the )?(?:same |a )?(baseplate|cioc|cabinet)", low)
+    if m:
+        lvl = m.group(1)
+        return {"type": "segregate", "label": f"IS and NON-IS never share a {lvl if lvl != 'cioc' else 'CIOC'}", "severity": "hard",
+                "params": {"level": lvl, "field": "is_type", "field_label": "NON-IS / IS",
+                           "families": {"IS": ["IS", "EX I", "EX-I", "EX IA", "EX IB"], "NON-IS": ["NON-IS", "NIS", "NON IS"]},
+                           "default_family": "NON-IS"}}
     m = re.search(r"never (?:put|mix|place) ([\w\-]+) (?:and|with) ([\w\-]+)(?: signals)? (?:on|in) (?:the )?same (cioc|cabinet)", low)
     if m:
         a, b, lvl = m.group(1).upper(), m.group(2).upper(), m.group(3)

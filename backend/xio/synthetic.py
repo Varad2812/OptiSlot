@@ -1,7 +1,11 @@
 """Synthetic IO MDBs for stress tests and hidden-test drills (deterministic per seed).
 
+~15% of the analog/DI cables are intrinsically safe (Execution "IS"), drawn from a separate RNG so the rest of the
+stream is the same for a given seed.
+
 nasty=True adds the hidden-test traps: renamed/reordered columns, blank rows, unknown IO types,
-A+B on one cable, oversize pairs, duplicate tags and pairs, missing pairs, unknown DO types, junk text.
+A+B on one cable, IS+NON-IS on one cable, blank/unknown IS status, oversize pairs, duplicate tags and pairs,
+missing pairs, unknown DO types, junk text.
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ DOMAINS = [("PIB-30", "RA 320-01", "OA-11", "320"), ("PIB-24", "RA 500-02", "OA-
 
 def generate(n: int = 10000, seed: int = 7, nasty: bool = False, domains: int = 3) -> tuple[list[str], list[list[str]]]:
     rnd = random.Random(seed)
+    rnd_is = random.Random(seed * 7919 + 1)   # IS / NON-IS only: keeps the main stream unchanged
     rows: list[dict[str, str]] = []
     doms = DOMAINS[:max(1, min(domains, len(DOMAINS)))]
     cable_no = 0
@@ -41,7 +46,10 @@ def generate(n: int = 10000, seed: int = 7, nasty: bool = False, domains: int = 
         prefix = "CS" if is_do else "CE"
         cable_no += 1
         cable = f"{unit}-{prefix}-{cable_no:05d}"
-        spec = f"{size:02d}PX{'2.5' if is_do else '1'}MM2/FR/ARM/NIS" if size > 1 else "1TX1.3MM2/FR/OS/NIS"
+        is_ = not is_do and rnd_is.random() < 0.15
+        spec = (f"{size:02d}PX{'2.5' if is_do else '1'}MM2/FR/ARM/NIS" if size > 1 else "1TX1.3MM2/FR/OS/NIS")
+        if is_:
+            spec = spec.replace("/NIS", "/IS")
         fam = rnd.choices(["A", "B", "-"], weights=[25, 20, 55])[0]
         used = max(1, int(size * rnd.uniform(0.55, 0.95)))
         pairs = sorted(rnd.sample(range(1, size + 1), used))
@@ -56,7 +64,7 @@ def generate(n: int = 10000, seed: int = 7, nasty: bool = False, domains: int = 
                 "OA No.": oa, "Technical Room (Signal Location 2)": room, "Design Area": area,
                 "Tag Number": f"{unit}-{inst:<4}-{num:05d}", "Instrument Type": inst, "Instrument Type Description": desc,
                 "Equipment Name": "-", "WBS": unit, "Status": rnd.choice(["New", "New", "Modified"]), "Location": "L",
-                "I/O Type Name": io_t + ("R" if rnd.random() < 0.4 else ""), "Signal Type": SIG[io_t], "Execution": "NON-IS",
+                "I/O Type Name": io_t + ("R" if rnd.random() < 0.4 else ""), "Signal Type": SIG[io_t], "Execution": "IS" if is_ else "NON-IS",
                 "External Power Supply": "-", "Signal Level": LEVEL[io_t], "Multi-cable / Cable": spec,
                 "Multipair Cable No.": cable, "Pair Number": f"{'Triad' if size == 1 else 'Pair'} {p}", "IO Grouping": grp,
                 "Tag Service 1 and 2": f"SERVICE {num}", "Loop Name": f"{unit}-{inst[0]} -{num:05d}", "Old Tag Number": "-",
@@ -84,6 +92,12 @@ def generate(n: int = 10000, seed: int = 7, nasty: bool = False, domains: int = 
         rows[1]["Multipair Cable No."] = rows[0]["Multipair Cable No."]
         rows[1]["Pair Number"] = "Pair " + str(int(rows[0]["Pair Number"].split()[-1]) + 1 if "Pair" in rows[0]["Pair Number"] else 2)
         rows[1]["Multi-cable / Cable"] = rows[0]["Multi-cable / Cable"]
+        # IS + NON-IS on one cable: two later rows that already share a (non-DO) cable get opposite IS status
+        i = next((i for i in range(8, k - 1) if rows[i]["Multipair Cable No."] == rows[i + 1]["Multipair Cable No."]
+                  and rows[i]["I/O Type Name"][:2] != "DO"), None)
+        if i is not None:
+            rows[i]["Execution"], rows[i + 1]["Execution"] = "IS", "NON-IS"
+        rows[4]["Execution"], rows[6]["Execution"] = "", "Ex-q"   # blank and unrecognised IS status
         traps = [
             {"Pair Number": "Pair 99"}, {"Tag Number": rows[10]["Tag Number"]},
             {"Multipair Cable No.": rows[20]["Multipair Cable No."], "Pair Number": rows[20]["Pair Number"]},

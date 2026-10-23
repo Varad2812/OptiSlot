@@ -30,6 +30,7 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules) -> list[
     out_map = rules.params("output_map")
     colmap: dict[str, str] = out_map.get("columns", {})
     consts: dict[str, str] = out_map.get("constants", {})
+    blank_for: dict[str, list[str]] = out_map.get("blank_for", {})   # Tag Status → columns NOT copied for that status
     pats = rules.params("naming_pattern").get("patterns", {})
     dst_pat = pats.get("dst", "{tag_nodash}_")
     vis_pat = pats.get("visualization", "{dcm}({side})")
@@ -44,8 +45,9 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules) -> list[
         r = {c: DASH for c in cols}
         src = by_row.get(sl.source_row) if sl.source_row else None
         if sl.status in ("Field", "Cabinet Alarm") and src:
+            skip = set(blank_for.get(sl.status, []))
             for c, f in colmap.items():
-                if c in r:
+                if c in r and c not in skip:
                     r[c] = _field_value(src, f)
         elif sl.status == "Wired Spare" and src:
             for c, f in colmap.items():

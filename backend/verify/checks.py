@@ -49,6 +49,12 @@ def mdb_index(signals: list[Signal], deleted: set[str] | None = None) -> dict[st
     return out
 
 
+def ab_rule(rs: RuleSet):
+    """The A/B segregate rule: the first enabled one on the IO grouping at CIOC or cabinet level."""
+    return next((r for r in rs.rules if r.type == "segregate" and r.enabled and (r.params.get("field") or "group") == "group"
+                 and r.params.get("level", "cioc") != "baseplate"), None)
+
+
 def pattern_parser(pattern: str) -> re.Pattern:
     """Pattern with {tokens} → regex with named groups (repeated tokens become back-references)."""
     out, seen = [], set()
@@ -144,7 +150,7 @@ def parse_rows(raw: list[dict[str, str]], ctx_settings: ProjectSettings, rs: Rul
     pats = next((r.params for r in rs.rules if r.type == "naming_pattern" and r.enabled), {}).get("patterns", {})
     cioc_rx = pattern_parser(pats.get("cioc", "{loc}DCIOC{area4}{cioc3}"))
     bp_rx = pattern_parser(pats.get("baseplate", "{cioc3}-CBP-{bp}"))
-    seg = next((r.params for r in rs.rules if r.type == "segregate" and r.enabled), {})
+    seg = ab.params if (ab := ab_rule(rs)) else {}
     fam_of = {m.upper(): f for f, ms in seg.get("families", {}).items() for m in ms}
     out = []
     for i, d in enumerate(raw, start=2):
@@ -290,20 +296,40 @@ def c_cable(ctx: Ctx) -> CheckResult:
 
 
 def c_segregation(ctx: Ctx) -> list[CheckResult]:
-    """One check per segregate rule, at that rule's level (CIOC or cabinet)."""
+    """One check per segregate rule, at that rule's level (baseplate, CIOC or cabinet) and on that rule's field
+    (default: the IO grouping). A field value is read from the MDB for the row's tag, else from the row's own column
+    (wired spares); a blank or unrecognised value takes the rule's `default_family`."""
     out = []
     rules = [r for r in ctx.rs.rules if r.type == "segregate" and r.enabled]
+    colmap = {f: c for c, f in ctx.params("output_map").get("columns", {}).items()}
+    by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
     for n, rule in enumerate(rules):
         c = Check("C07" if n == 0 else f"C07.{n + 1}", rule.label or "Segregation", None, ctx)
         c.rule = rule
         c.res.rule_id, c.res.severity = rule.id, rule.severity
-        fam_of = {m.upper(): f for f, ms in rule.params.get("families", {}).items() for m in ms}
-        cabinet = rule.params.get("level", "cioc") == "cabinet"
+        fam_of = {m.strip().upper(): f for f, ms in rule.params.get("families", {}).items() for m in ms}
+        dflt = rule.params.get("default_family")
+        fld = rule.params.get("field") or "group"
+        level = rule.params.get("level", "cioc")
+        noun = {"cabinet": "cabinet", "baseplate": "baseplate"}.get(level, "CIOC")
+
+        def value(r: Row) -> str:
+            if fld == "group":
+                return r.seg
+            s = by_key.get(r.key) if r.status in ("Field", "Cabinet Alarm") else None
+            if s is not None:
+                v = getattr(s, fld, None) if fld in Signal.model_fields and fld != "extra" else s.extra.get(fld)
+                return str(v or "").strip()
+            return (r.d.get(colmap.get(fld, ""), "") or "").strip()
+
         by: dict[tuple, list[tuple[Row, str]]] = defaultdict(list)
         for r in ctx.rows:
-            f = fam_of.get(r.seg.upper())
-            if r.status in ("Field", "Wired Spare", "Cabinet Alarm") and f:
-                by[(r.cab,) if cabinet else (r.cab, r.cioc)].append((r, f))
+            if r.status not in ("Field", "Wired Spare", "Cabinet Alarm"):
+                continue
+            f = fam_of.get(value(r).upper()) or dflt
+            if f:
+                key = (r.cab,) if level == "cabinet" else (r.cab, r.cioc, r.baseplate) if level == "baseplate" else (r.cab, r.cioc)
+                by[key].append((r, f))
         for key, rs_ in by.items():
             where = key[-1]
             if len({f for _, f in rs_}) < 2:
@@ -315,7 +341,7 @@ def c_segregation(ctx: Ctx) -> list[CheckResult]:
                 m = re.search(r"(TQ-[A-Z]+-\d+)", remark)
                 (excused if m and "except" in remark.lower() else rest).append((r, f, m.group(1) if m else None))
             for r, f, tq in excused:
-                c.excuse(r.v(f"{f} signal on {where} with another family — excepted by {tq}"))
+                c.excuse(r.v(f"{f} signal on {noun} {where} with another family — excepted by {tq}"))
             fams = Counter(f for _, f, _ in rest)
             if len(fams) < 2:
                 c.ok()
@@ -324,8 +350,8 @@ def c_segregation(ctx: Ctx) -> list[CheckResult]:
             others = ", ".join(f"{fams[f]} {f}" for f in sorted(fams) if f != minority)
             for r, f, _ in rest:
                 if f == minority:
-                    c.fail(r.v(f"{f}-family {r.tag} shares {'cabinet' if cabinet else 'CIOC'} {where} with {others}-family "
-                               f"signal(s) — rule {rule.id}"))
+                    c.fail(r.v(f"{f}{'-family' if fld == 'group' else ''} {r.tag} shares {noun} {where} with {others}"
+                               f"{'-family' if fld == 'group' else ''} signal(s) — rule {rule.id}"))
         out.append(c.res)
     return out
 
@@ -385,71 +411,104 @@ def _mapped_io(ctx: Ctx, raw: str) -> str:
     return m.get(raw.upper().replace(" ", ""), "") if ctx.rule("io_type_map") else raw.upper()
 
 
-def c_hardware(ctx: Ctx) -> CheckResult:
-    c = Check("C09", "CHARM / terminal block match the hardware map", "hardware_map", ctx)
-    if c.skip:
-        return c.res
-    cat = catalog()
+HW_COLS = {"charm": "CHARM Type", "tb": "CHARM TB Part No", "loop_typical": "HW Loop Typical"}
+TERM_COLS = {"tb1": "CHARM TB1", "tb2": "CHARM TB2", "tb3": "CHARM TB3"}
+
+
+def _sig_ctx(ctx: Ctx, s: Signal, kind: str) -> dict:
+    return {"io_type": _mapped_io(ctx, s.io_type_raw), "signal_type": s.signal_type, "signal_level": s.signal_level,
+            "instrument_type": s.instrument_type, "instrument_desc": s.instrument_desc, "equipment": s.equipment,
+            "kind": kind, "cable": s.cable, "group": s.group, "tag": s.tag, "room": s.room, "area": s.area, **s.extra}
+
+
+def _expected_hw(ctx: Ctx) -> Callable[[Row], tuple[dict | None, str, str | None]]:
+    """Row → (expected hardware incl. terminals, description, error). Spare slots → the protection cover, no terminals.
+    A wired spare is modelled on the first field signal of its IO type on its cable (skipping TQ-excepted clash rows),
+    re-derived from the MDB so a tampered field row cannot cascade."""
     spare = ctx.params("hardware_map").get("spare_slot", {"charm": "SE6103", "tb": "SE4501"})
     by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
     field_on_cable: dict[tuple[str, str], list[Row]] = defaultdict(list)
     for r in ctx.rows:
         if r.status == "Field" and r.cable != DASH:
             field_on_cable[(r.cable, r.io)].append(r)
-    cols = {"charm": "CHARM Type", "tb": "CHARM TB Part No", "tb1": "CHARM TB1", "tb2": "CHARM TB2", "tb3": "CHARM TB3",
-            "loop_typical": "HW Loop Typical"}
 
-    def compare(r: Row, exp: dict[str, str], what: str) -> None:
-        got = {k: (r.d.get(col, "") or DASH).strip() or DASH for k, col in cols.items()}
-        diff = [f"{cols[k]} '{got[k]}' ≠ '{exp[k]}'" for k in cols if exp.get(k) is not None and got[k] != str(exp[k])]
+    def expect(r: Row) -> tuple[dict | None, str, str | None]:
+        if r.status in ("Field", "Cabinet Alarm"):
+            s = by_key.get(r.key)
+            if s is None:
+                return None, "", None  # reported by C01
+            sctx = _sig_ctx(ctx, s, "cabinet_alarm" if r.status == "Cabinet Alarm" else "field")
+            exp = _hardware(ctx, sctx)
+            if exp is None:
+                return None, "", f"no hardware-map row matches IO type {sctx['io_type']}"
+            return exp, f"{r.tag} ({sctx['io_type']}, {s.instrument_type}, {s.signal_type}, {s.signal_level})", None
+        if r.status == "Wired Spare":
+            # modelled on the lowest pair of that IO type, preferring rows that are not a TQ-excepted clash
+            tmpl = sorted(field_on_cable.get((r.cable, r.io), []),
+                          key=lambda x: ("except" in (x.d.get("Remarks", "") or "").lower(), x.pair or 0))
+            if not tmpl:
+                return None, "", f"wired spare {r.tag} is {r.io} but cable {r.cable} carries no {r.io} field signal"
+            t = tmpl[0]
+            s = by_key.get(t.key)
+            cols = {**HW_COLS, **TERM_COLS}
+            exp = ({k: (t.d.get(col, "") or DASH).strip() or DASH for k, col in cols.items()} if s is None
+                   else _hardware(ctx, _sig_ctx(ctx, s, "field")) or {})
+            return exp, f"wired spare {r.tag} (modelled on {t.tag})", None
+        if r.status == "Spare Slot":
+            return {"charm": spare.get("charm"), "tb": spare.get("tb"), "tb1": DASH, "tb2": DASH, "tb3": DASH}, "spare slot", None
+        return None, "", None
+
+    return expect
+
+
+def _diffs(r: Row, exp: dict, cols: dict[str, str]) -> list[str]:
+    got = {k: (r.d.get(col, "") or DASH).strip() or DASH for k, col in cols.items()}
+    return [f"{cols[k]} '{got[k]}' ≠ '{exp[k]}'" for k in cols if exp.get(k) is not None and got[k] != str(exp[k])]
+
+
+def c_hardware(ctx: Ctx) -> CheckResult:
+    c = Check("C09", "CHARM / terminal block match the hardware map", "hardware_map", ctx)
+    if c.skip:
+        return c.res
+    cat = catalog()
+    expect = _expected_hw(ctx)
+    for r in ctx.rows:
+        exp, what, err = expect(r)
+        if err:
+            c.fail(r.v(err))
+            continue
+        if exp is None:
+            continue
+        cols = {k: v for k, v in HW_COLS.items() if r.status != "Spare Slot" or k != "loop_typical"}
+        diff = _diffs(r, exp, cols)
         dc = (r.d.get("Charm Description", "") or "").strip()
         dt = (r.d.get("CHARM TB Description", "") or "").strip()
-        if exp.get("charm") in cat["charms"] and dc != cat["charms"][exp["charm"]]:
+        if r.status != "Spare Slot" and exp.get("charm") in cat["charms"] and dc != cat["charms"][exp["charm"]]:
             diff.append(f"Charm Description '{dc}' ≠ catalogue '{cat['charms'][exp['charm']]}'")
-        if exp.get("tb") in cat["terminal_blocks"] and dt != cat["terminal_blocks"][exp["tb"]]:
+        if r.status != "Spare Slot" and exp.get("tb") in cat["terminal_blocks"] and dt != cat["terminal_blocks"][exp["tb"]]:
             diff.append(f"TB Description '{dt}' ≠ catalogue '{cat['terminal_blocks'][exp['tb']]}'")
         if diff:
             c.fail(r.v(f"{what}: " + "; ".join(diff)))
         else:
             c.ok()
+    return c.res
 
+
+def c_terminals(ctx: Ctx) -> CheckResult:
+    """CHARM TB1/TB2/TB3 follow the terminal table (IO type × signal type × signal level × TB), re-derived from the MDB."""
+    c = Check("C20", "CHARM TB terminals match the terminal table", "hardware_map", ctx)
+    if c.skip:
+        return c.res
+    expect = _expected_hw(ctx)
     for r in ctx.rows:
-        if r.status in ("Field", "Cabinet Alarm"):
-            s = by_key.get(r.key)
-            if s is None:
-                continue  # reported by C01
-            sctx = {"io_type": _mapped_io(ctx, s.io_type_raw), "signal_type": s.signal_type, "signal_level": s.signal_level,
-                    "instrument_type": s.instrument_type, "instrument_desc": s.instrument_desc, "equipment": s.equipment,
-                    "kind": "cabinet_alarm" if r.status == "Cabinet Alarm" else "field", "cable": s.cable, "group": s.group,
-                    "tag": s.tag, "room": s.room, "area": s.area, **s.extra}
-            exp = _hardware(ctx, sctx)
-            if exp is None:
-                c.fail(r.v(f"no hardware-map row matches IO type {sctx['io_type']}"))
-            else:
-                compare(r, exp, f"{r.tag} ({sctx['io_type']}, {s.instrument_type})")
-        elif r.status == "Wired Spare":
-            tmpl = sorted(field_on_cable.get((r.cable, r.io), []), key=lambda x: x.pair or 0)
-            if not tmpl:
-                c.fail(r.v(f"wired spare {r.tag} is {r.io} but cable {r.cable} carries no {r.io} field signal"))
-                continue
-            t = tmpl[0]
-            s = by_key.get(t.key)
-            if s is None:
-                exp = {k: (t.d.get(col, "") or DASH).strip() or DASH for k, col in cols.items()}
-            else:  # expectation re-derived from the MDB, so a tampered field row cannot cascade
-                exp = _hardware(ctx, {"io_type": _mapped_io(ctx, s.io_type_raw), "signal_type": s.signal_type,
-                                      "signal_level": s.signal_level, "instrument_type": s.instrument_type,
-                                      "instrument_desc": s.instrument_desc, "equipment": s.equipment, "kind": "field",
-                                      "cable": s.cable, "group": s.group, "tag": s.tag, "room": s.room, "area": s.area,
-                                      **s.extra}) or {}
-            compare(r, exp, f"wired spare {r.tag} (modelled on {t.tag})")
-        elif r.status == "Spare Slot":
-            got = (r.d.get("CHARM Type", "") or "").strip(), (r.d.get("CHARM TB Part No", "") or "").strip()
-            terms = [(r.d.get(x, "") or DASH).strip() or DASH for x in ("CHARM TB1", "CHARM TB2", "CHARM TB3")]
-            if got != (spare.get("charm"), spare.get("tb")) or any(t != DASH for t in terms):
-                c.fail(r.v(f"spare slot hardware {got[0]} / {got[1]} (terminals {terms}) ≠ {spare.get('charm')} / {spare.get('tb')}, no terminals"))
-            else:
-                c.ok()
+        exp, what, err = expect(r)
+        if err or exp is None:
+            continue  # reported by C09 / C01
+        diff = _diffs(r, exp, TERM_COLS)
+        if diff:
+            c.fail(r.v(f"{what}: " + "; ".join(diff)))
+        else:
+            c.ok()
     return c.res
 
 
@@ -702,16 +761,21 @@ def c_output(ctx: Ctx) -> CheckResult:
     c = Check("C17", "Engineering columns copied from the MDB", "output_map", ctx)
     if c.skip:
         return c.res
-    cols: dict[str, str] = ctx.params("output_map").get("columns", {})
+    p = ctx.params("output_map")
+    cols: dict[str, str] = p.get("columns", {})
+    blank_for: dict[str, list[str]] = p.get("blank_for", {})
     by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
     for r in ctx.rows:
-        if r.status != "Field" or r.key not in by_key:
+        if r.status not in ("Field", "Cabinet Alarm") or r.key not in by_key:
             continue
         s = by_key[r.key]
         diffs = []
         for col, f in cols.items():
-            exp = getattr(s, f, None) if f in Signal.model_fields and f != "extra" else s.extra.get(f)
-            exp = (str(exp).strip() if exp is not None else "") or DASH
+            if col in blank_for.get(r.status, []):
+                exp = DASH
+            else:
+                exp = getattr(s, f, None) if f in Signal.model_fields and f != "extra" else s.extra.get(f)
+                exp = (str(exp).strip() if exp is not None else "") or DASH
             got = (r.d.get(col, "") or "").strip() or DASH
             if col in r.d and got != exp:
                 diffs.append(f"{col} '{got}' ≠ MDB '{exp}'")
@@ -739,7 +803,7 @@ def c_capacity(ctx: Ctx) -> CheckResult:
 
 CHECKS: list[Callable[[Ctx], Any]] = [
     c_tags, c_unique_address, c_unique_pair, c_formula, c_bp_prefix, c_cable, c_segregation, c_group, c_hardware,
-    c_names, c_wired, c_future, c_grid, c_status, c_alarm, c_io_map, c_output, c_capacity, c_cioc_count,
+    c_terminals, c_names, c_wired, c_future, c_grid, c_status, c_alarm, c_io_map, c_output, c_capacity, c_cioc_count,
 ]
 
 

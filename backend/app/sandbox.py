@@ -104,8 +104,8 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
         return f"{b.cable} belongs to controller domain {b.domain}; {mv.target_cioc} is in {cab.domain}"
     local = tgt.cioc_local
     seg_rules = rules.all("segregate")
-    if seg_rules and b.family != "-" and seg_rules[0].params.get("level", "cioc") == "cioc":
-        seg = seg_rules[0]
+    seg = rules.primary_seg
+    if seg is not None and b.family != "-" and seg.params.get("level", "cioc") == "cioc":
         others = {o.family for o in cab.blocks.get(local, []) if o is not b and o.family != "-"}
         lock = cab.alarm_lock.get(local)
         others |= {lock} if lock else set()
@@ -117,7 +117,10 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
         f = b.fams.get(rule.id)
         if not f:
             continue
-        cabinet = rule.params.get("level", "cioc") == "cabinet"
+        level = rule.params.get("level", "cioc")
+        if level == "baseplate":
+            continue  # checked below, once the target baseplate(s) are known
+        cabinet = level == "cabinet"
         scope = [o for l, bl in cab.blocks.items() for o in bl] if cabinet else cab.blocks.get(local, [])
         clash = {o.fams.get(rule.id) for o in scope if o is not b} - {None, f}
         if clash:
@@ -143,6 +146,10 @@ def resolve_move(out: RunOutput, rs: RuleSet, mv: Move) -> tuple[str, tuple] | s
         occ = {(o.bp + k, c) for k in range(max(1, o.span)) for c in (range(1, n_ch + 1) if o.span else range(o.ch, o.ch + o.foot))}
         if want & occ:
             return f"target channels are occupied by cable {o.cable}"
+        for rule in seg_rules:
+            f, g_ = b.fams.get(rule.id), o.fams.get(rule.id)
+            if rule.params.get("level") == "baseplate" and f and g_ and f != g_ and {x for x, _ in want} & {x for x, _ in occ}:
+                return (f"{f} cable {b.cable} cannot share a baseplate with {g_} cable {o.cable} — rule {rule.id}: {rule.label}")
     alarm_local = int(rules.params("reserve_baseplate").get("cioc", 1)) if rules.first("reserve_baseplate") else None
     if local == alarm_local and any(pos in want for pos in cab.alarm_pos.values()):
         return "target channels hold cabinet alarms"

@@ -49,7 +49,7 @@ def parse_pair(p: str) -> int | None:
 
 
 def family_of(group: str, rules: Rules) -> str:
-    seg = rules.first("segregate")
+    seg = rules.primary_seg
     if not seg:
         return "-"
     g = (group or "").strip().upper()
@@ -117,6 +117,7 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
         s.group = clean(col(rec, "group"))
         s.family = family_of(s.group, rules)  # type: ignore[assignment]
         s.extra = {f: clean(col(rec, f)) for f in PASSTHROUGH}
+        s.extra["cable_raw"] = s.cable or "-"   # kept for rules even when the cable is blanked below
 
         # location prefix + area code (with project defaults and ONE TQ each when underivable)
         loc = derive(names.get("loc"), s.room)

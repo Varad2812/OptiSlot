@@ -127,17 +127,24 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             for i in cand[b.id]:
                 by_cioc[i].append(b)
         used = [m.NewBoolVar(f"u{i}") for i in range(n)]
-        seg_on = engine.rules.first("segregate") is not None and \
-            engine.rules.first("segregate").params.get("level", "cioc") == "cioc"
+        primary = engine.rules.primary_seg
+        seg_on = primary is not None and primary.params.get("level", "cioc") == "cioc"
+        bp_seg = engine.g.bp_seg
         for i, (cab, local) in enumerate(seq):
             bl = by_cioc.get(i, [])
             usable = len(engine.usable(cab, local))
             big = [b for b in bl if b.span]
             small = [b for b in bl if not b.span]
-            k = m.NewIntVar(0, usable, f"k{i}")
-            if small:
-                m.Add(engine.g.chs * k >= sum(b.foot * x[(b.id, i)] for b in small))
-            m.Add(sum(b.span * x[(b.id, i)] for b in big) + k <= usable)
+            # small blocks need whole baseplates per baseplate-segregation signature (one signature when there is none)
+            sigs: dict[tuple, list[Block]] = defaultdict(list)
+            for b in small:
+                sigs[tuple(b.fams.get(r) or "" for r in bp_seg)].append(b)
+            ks = []
+            for j, (_, sb) in enumerate(sorted(sigs.items())):
+                k = m.NewIntVar(0, usable, f"k{i}_{j}")
+                m.Add(engine.g.chs * k >= sum(b.foot * x[(b.id, i)] for b in sb))
+                ks.append(k)
+            m.Add(sum(b.span * x[(b.id, i)] for b in big) + sum(ks) <= usable)
             for b in bl:
                 m.AddImplication(x[(b.id, i)], used[i])
             if not bl:
@@ -159,6 +166,8 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
         cab_of = [cab_ids.index(id(c)) for c, _ in seq]
         # every further segregate rule (or a cabinet-level primary): one family per scope (CIOC or cabinet)
         for rule in engine.seg_rules:
+            if rule.id in bp_seg:
+                continue  # baseplate level: enforced by the layout capacity above and by layout()
             fams = sorted({b.fams[rule.id] for b in placed if rule.id in b.fams})
             if not fams:
                 continue
