@@ -71,6 +71,7 @@ class ProjectSettings(Model):
     max_cabinets_per_controller: int = 1
     max_cabinets_per_domain: int = 99
     revision: str = "00"
+    deleted_statuses: list[str] = Field(default_factory=lambda: ["DELETED", "DELETE", "REMOVED", "VOID"])
     cpsat_enabled: bool = True
     cpsat_time_limit_s: float = 2.0
 

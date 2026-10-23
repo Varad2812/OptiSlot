@@ -912,6 +912,8 @@ export interface components {
              * @default 00
              */
             revision: string;
+            /** Deleted Statuses */
+            deleted_statuses?: string[];
             /**
              * Cpsat Enabled
              * @default true

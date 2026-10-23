@@ -2207,6 +2207,13 @@
       "title": "Revision",
       "default": "00"
      },
+     "deleted_statuses": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Deleted Statuses"
+     },
      "cpsat_enabled": {
       "type": "boolean",
       "title": "Cpsat Enabled",
