@@ -70,9 +70,8 @@ export function worldModel(a: AllocationResult, dims: Dims): WorldModel {
     arr.push(s);
     if (s.group && s.group !== "-") groups.add(s.group);
   }
-  const cabinets = [...a.cabinets]
-    .sort((x, y) => x.seq - y.seq || x.name.localeCompare(y.name))
-    .map((info, index) => buildCabinet(info, index, perCab.get(info.name) ?? [], dims));
+  // The engine returns cabinets in physical order (the export's row order) — keep it.
+  const cabinets = a.cabinets.map((info, index) => buildCabinet(info, index, perCab.get(info.name) ?? [], dims));
   const model: WorldModel = {
     cabinets,
     bySlotId,

@@ -5,7 +5,7 @@ export const SLOT_W = 34;
 export const SLOT_H = 22;
 export const SLOT_PITCH = 36;
 export const ROW_PITCH = 28;
-export const BP_LABEL = 52;
+export const BP_LABEL = 64;
 export const GUTTER = 104;     // cable labels to the right of each baseplate row
 export const CIOC_HEAD = 42;
 export const CIOC_GAP = 26;
@@ -102,12 +102,12 @@ export function fit(r: Rect, vw: number, vh: number, ins: Insets, maxS = 6): Cam
 export function plantRect(n: number, d: Dims): Rect {
   const last = cabinetBounds(Math.max(0, n - 1), d);
   const first = cabinetBounds(0, d);
-  return { x: first.x - 60, y: first.y - 40, w: last.x + last.w - first.x + 120, h: first.h + 120 };
+  return { x: first.x - 60, y: first.y - 40, w: last.x + last.w - first.x + 120, h: first.h + 170 };
 }
 
 /** The Cabinet level's thresholds, relative to the cabinet fit (scale-independent of the viewport). */
 export function tierOf(s: number, cabinetS: number): "plant" | "cabinet" | "detail" {
-  if (s < cabinetS * 0.6) return "plant";
+  if (s < cabinetS * 0.85) return "plant";
   if (s < cabinetS * 1.5) return "cabinet";
   return "detail";
 }

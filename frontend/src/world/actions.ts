@@ -1,9 +1,9 @@
 import type { AllocationResult, Slot } from "@/api/hooks";
 import { useUi } from "@/store/ui";
 
-/** Cabinet order used by the World (seq, then name). */
+/** Cabinet order used by the World: the engine's physical order. */
 export function cabinetOrder(a: AllocationResult) {
-  return [...a.cabinets].sort((x, y) => x.seq - y.seq || x.name.localeCompare(y.name)).map((c) => c.name);
+  return a.cabinets.map((c) => c.name);
 }
 
 /** Point the Explorer camera at a slot (its cabinet, side and CIOC) and open the Inspector on it. */

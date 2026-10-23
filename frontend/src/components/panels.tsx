@@ -203,7 +203,7 @@ export function RunsPanel({ delay }: { delay?: number }) {
   const { data: runs } = useRuns();
   return (
     <Panel title="Run history" delay={delay} aside={<span className="text-[11px] text-muted-foreground">same inputs → same hash</span>}>
-      {!runs ? <Loading /> : (
+      {!runs ? <Loading /> : !runs.length ? <p className="text-muted-foreground">No runs recorded yet in this session — press <kbd className="rounded-[4px] border border-border px-1 font-mono text-[11px]">A</kbd> to allocate and hash a run.</p> : (
         <table className="w-full text-[12px]">
           <tbody>
             {runs.slice(0, 8).map((r) => (
