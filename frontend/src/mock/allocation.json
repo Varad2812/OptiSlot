@@ -1,7 +1,7 @@
 {
  "project_id": "demo",
  "revision": "A",
- "run_id": "run-2a87b8bc147a",
+ "run_id": "run-5bb7af9ec592",
  "cabinets": [
   {
    "name": "P30-DCM-32001-01",
@@ -1094,7 +1094,7 @@
    "revision": "00",
    "change_type": "-",
    "old_tag": "-",
-   "remarks": "Internal Cabinet Alarm.",
+   "remarks": "-",
    "pinned": false,
    "tq_ids": [],
    "why": [
@@ -1157,7 +1157,7 @@
    "revision": "00",
    "change_type": "-",
    "old_tag": "-",
-   "remarks": "Internal Cabinet Alarm.",
+   "remarks": "-",
    "pinned": false,
    "tq_ids": [],
    "why": [
@@ -1220,7 +1220,7 @@
    "revision": "00",
    "change_type": "-",
    "old_tag": "-",
-   "remarks": "Internal Cabinet Alarm.",
+   "remarks": "-",
    "pinned": false,
    "tq_ids": [],
    "why": [
@@ -1634,6 +1634,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 1 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -1707,6 +1711,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 2 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -1843,6 +1851,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 4 → BP 2 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -1920,6 +1932,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 5 → BP 2 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -2001,6 +2017,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 6 → BP 2 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2076,6 +2096,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 7 → BP 2 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2149,6 +2173,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 8 → BP 2 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -2230,6 +2258,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 9 → BP 2 ch 9"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2303,6 +2335,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 10 → BP 2 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -2380,6 +2416,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 11 → BP 2 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2455,6 +2495,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 12 → BP 2 ch 12"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2528,6 +2572,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 13 → BP 3 ch 1"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -2609,6 +2657,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 14 → BP 3 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2688,6 +2740,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 15 → BP 3 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2765,6 +2821,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 16 → BP 3 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -2909,6 +2969,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 18 → BP 3 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -2984,6 +3048,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 19 → BP 3 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -3057,6 +3125,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 20 → BP 3 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -6662,6 +6734,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -6735,6 +6811,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -6812,6 +6892,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -6885,6 +6969,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -6962,6 +7050,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7035,6 +7127,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -7112,6 +7208,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 7 → BP 1 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7185,6 +7285,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -7266,6 +7370,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 9 → BP 1 ch 9"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7343,6 +7451,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 10 → BP 1 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -7424,6 +7536,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 11 → BP 1 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7503,6 +7619,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7576,6 +7696,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 13 → BP 2 ch 1"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -7653,6 +7777,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7728,6 +7856,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -7801,6 +7933,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -7882,6 +8018,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 17 → BP 2 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -7961,6 +8101,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 18 → BP 2 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -8038,6 +8182,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 19 → BP 2 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -12366,6 +12514,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -12445,6 +12597,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -12518,6 +12674,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -12599,6 +12759,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -12672,6 +12836,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -12749,6 +12917,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -12824,6 +12996,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 7 → BP 1 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -12897,6 +13073,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -12978,6 +13158,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 9 → BP 1 ch 9"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -13051,6 +13235,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 10 → BP 1 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -13132,6 +13320,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 11 → BP 1 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -13209,6 +13401,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -13290,6 +13486,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 13 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -13367,6 +13567,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -13448,6 +13652,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -13527,6 +13735,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -13602,6 +13814,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 17 → BP 2 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -13675,6 +13891,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 18 → BP 2 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -13754,6 +13974,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 19 → BP 2 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -14118,6 +14342,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 1 → BP 3 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -14260,6 +14488,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 3 → BP 3 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -14337,6 +14569,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 4 → BP 3 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -14418,6 +14654,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 5 → BP 3 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -14497,6 +14737,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 6 → BP 3 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -14572,6 +14816,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 7 → BP 3 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -14645,6 +14893,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 8 → BP 3 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -14726,6 +14978,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 9 → BP 3 ch 9"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -14803,6 +15059,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 3 ch 1; pair 10 → BP 3 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -18361,6 +18621,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -18434,6 +18698,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -18511,6 +18779,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -18586,6 +18858,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -18659,6 +18935,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -24374,6 +24654,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 1 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -24451,6 +24735,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 2 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -24532,6 +24820,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 3 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -24607,6 +24899,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 4 → BP 2 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -24680,6 +24976,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 5 → BP 2 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -24761,6 +25061,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 6 → BP 2 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -24834,6 +25138,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 7 → BP 2 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -24911,6 +25219,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 8 → BP 2 ch 8"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -24984,6 +25296,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 9 → BP 2 ch 9"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -25061,6 +25377,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 10 → BP 2 ch 10"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -25134,6 +25454,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 11 → BP 2 ch 11"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -25211,6 +25535,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 12 → BP 2 ch 12"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -25284,6 +25612,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 13 → BP 3 ch 1"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -25361,6 +25693,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 14 → BP 3 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -25434,6 +25770,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 15 → BP 3 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -25511,6 +25851,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 16 → BP 3 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -25584,6 +25928,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 17 → BP 3 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -25661,6 +26009,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 18 → BP 3 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -25734,6 +26086,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 2 ch 1; pair 19 → BP 3 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -29402,6 +29758,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -29475,6 +29835,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -29552,6 +29916,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -29625,6 +29993,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -29702,6 +30074,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -29775,6 +30151,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -29852,6 +30232,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 7 → BP 1 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -29925,6 +30309,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -30002,6 +30390,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 9 → BP 1 ch 9"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -30075,6 +30467,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 10 → BP 1 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -30152,6 +30548,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 11 → BP 1 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument ZYV)"
     },
@@ -30225,6 +30625,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -30302,6 +30706,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 13 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument ZYV)"
     },
@@ -30375,6 +30783,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -30452,6 +30864,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument ZYV)"
     },
@@ -30525,6 +30941,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -30602,6 +31022,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 17 → BP 2 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument ZYV)"
     },
@@ -30675,6 +31099,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 18 → BP 2 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -31098,6 +31526,10 @@
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 1 → BP 3 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -31173,6 +31605,10 @@
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 2 → BP 3 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -31246,6 +31682,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 3 → BP 3 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -31325,6 +31765,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 4 → BP 3 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -35150,6 +35594,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -35229,6 +35677,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -35302,6 +35754,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -35383,6 +35839,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -35462,6 +35922,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -35535,6 +35999,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -35612,6 +36080,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 7 → BP 1 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -35687,6 +36159,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -35760,6 +36236,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 9 → BP 1 ch 9"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -35841,6 +36321,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 10 → BP 1 ch 10"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -35916,6 +36400,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 11 → BP 1 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -35989,6 +36477,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -36070,6 +36562,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 13 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -36145,6 +36641,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -36218,6 +36718,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -36299,6 +36803,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -36376,6 +36884,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 17 → BP 2 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -36457,6 +36969,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 18 → BP 2 ch 6"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -36534,6 +37050,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 19 → BP 2 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -40870,6 +41390,10 @@
      "text": "6-pair cable packed in BP 1 ch 1–6; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -40943,6 +41467,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 1 ch 1–6; pair 2 → BP 1 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -41020,6 +41548,10 @@
      "text": "6-pair cable packed in BP 1 ch 1–6; pair 3 → BP 1 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T02 + SE4502 (instrument XYV)"
     },
@@ -41093,6 +41625,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 1 ch 1–6; pair 4 → BP 1 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -46926,6 +47462,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 1 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -47003,6 +47543,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 2 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -47084,6 +47628,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 3 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -47161,6 +47709,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 4 → BP 2 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -47242,6 +47794,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 5 → BP 2 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -47319,6 +47875,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 2 ch 1; pair 6 → BP 2 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 2 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -47738,6 +48298,10 @@
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 1 → BP 3 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -47815,6 +48379,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 2 → BP 3 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -47896,6 +48464,10 @@
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 3 → BP 3 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -47973,6 +48545,10 @@
     {
      "rule_id": "r-cable",
      "text": "6-pair cable packed in BP 3 ch 1–6; pair 4 → BP 3 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 3 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -51802,6 +52378,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -51879,6 +52459,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -51960,6 +52544,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -52033,6 +52621,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -52110,6 +52702,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -52183,6 +52779,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -52264,6 +52864,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 7 → BP 1 ch 7"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -52341,6 +52945,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -52548,6 +53156,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 11 → BP 1 ch 11"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -52625,6 +53237,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -52706,6 +53322,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 13 → BP 2 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -52783,6 +53403,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -52864,6 +53488,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AOR → SE4304T01 + SE4501"
     },
@@ -52937,6 +53565,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -53134,6 +53766,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 19 → BP 2 ch 7"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -57450,6 +58086,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument XA)"
     },
@@ -57529,6 +58169,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument XA)"
     },
@@ -57606,6 +58250,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -57750,6 +58398,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument MXL)"
     },
@@ -57827,6 +58479,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 6 → BP 1 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -57963,6 +58619,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 8 → BP 1 ch 8"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument ZLO)"
     },
@@ -58095,6 +58755,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 10 → BP 1 ch 10"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -58231,6 +58895,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 12 → BP 1 ch 12"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument ZLO)"
     },
@@ -58365,6 +59033,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 14 → BP 2 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument ZLO)"
     },
@@ -58442,6 +59114,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 15 → BP 2 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -58523,6 +59199,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 16 → BP 2 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument MXA)"
     },
@@ -58602,6 +59282,10 @@
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 17 → BP 2 ch 5"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DOR → SE4302T01 + SE4501 (instrument MHL)"
     },
@@ -58679,6 +59363,10 @@
     {
      "rule_id": "r-cable",
      "text": "24-pair cable takes 2 whole baseplate(s) from BP 1 ch 1; pair 18 → BP 2 ch 6"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -63046,6 +63734,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 1 → BP 1 ch 1"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -63121,6 +63813,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 2 → BP 1 ch 2"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "DIR → SE4301T02 + SE4501"
     },
@@ -63194,6 +63890,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 3 → BP 1 ch 3"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -63275,6 +63975,10 @@
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 4 → BP 1 ch 4"
     },
     {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
+    },
+    {
      "rule_id": "r-hw",
      "text": "AIR → SE4303T01 + SE4501"
     },
@@ -63352,6 +64056,10 @@
     {
      "rule_id": "r-cable",
      "text": "12-pair cable takes 1 whole baseplate(s) from BP 1 ch 1; pair 5 → BP 1 ch 5"
+    },
+    {
+     "rule_id": "r-is",
+     "text": "NON-IS cable → baseplate 1 holds only NON-IS signals"
     },
     {
      "rule_id": "r-hw",
@@ -68701,6 +69409,17 @@
     "exceptions": []
    },
    {
+    "id": "C07.2",
+    "label": "IS and NON-IS never share a baseplate",
+    "rule_id": "r-is",
+    "severity": "hard",
+    "passed": 26,
+    "failed": 0,
+    "excepted": 0,
+    "violations": [],
+    "exceptions": []
+   },
+   {
     "id": "C08",
     "label": "Each IO grouping kept together, in consecutive cabinets",
     "rule_id": "r-group",
@@ -68714,6 +69433,17 @@
    {
     "id": "C09",
     "label": "CHARM / terminal block match the hardware map",
+    "rule_id": "r-hw",
+    "severity": "hard",
+    "passed": 1152,
+    "failed": 0,
+    "excepted": 0,
+    "violations": [],
+    "exceptions": []
+   },
+   {
+    "id": "C20",
+    "label": "CHARM TB terminals match the terminal table",
     "rule_id": "r-hw",
     "severity": "hard",
     "passed": 1152,
@@ -68804,7 +69534,7 @@
     "label": "Engineering columns copied from the MDB",
     "rule_id": "r-out",
     "severity": "soft",
-    "passed": 177,
+    "passed": 189,
     "failed": 0,
     "excepted": 0,
     "violations": [],
@@ -68833,23 +69563,23 @@
     "exceptions": []
    }
   ],
-  "checks_total": 20,
-  "checks_passed": 20,
+  "checks_total": 22,
+  "checks_passed": 22,
   "violations": 0,
   "warnings": 0,
   "excepted": 0,
   "verdict": "PASS"
  },
  "certificate": {
-  "run_id": "run-2a87b8bc147a",
-  "timestamp": "2026-10-23T13:08:30Z",
+  "run_id": "run-5bb7af9ec592",
+  "timestamp": "2026-10-23T18:38:08Z",
   "engine_version": "optislot-0.1.0",
   "mdb_sha256": "a0f9035042fe3804d8dde17d20035ece6af684d02400643b40a9e8c3a8b6a6a1",
-  "ruleset_hash": "89917bb1559bc625c712ffb29cb100d8ab858a47af3f7e40019f0973083a7ce9",
-  "output_sha256": "579a04de2042358c80c72b28d6a556b4e6f081f807dd0b9f223d080d184e815e",
+  "ruleset_hash": "4ddba9724071a5fcf28ab83dadef73be67f1dc69d3afab3fe612c57cf8ffe16a",
+  "output_sha256": "a5aeff40bd2d7e57d40ad28f1f114e2c3a77f514e78f82220b4d32d03a13f62f",
   "verdict": "PASS",
-  "checks_passed": 20,
-  "checks_total": 20,
+  "checks_passed": 22,
+  "checks_total": 22,
   "violations": 0
  },
  "optimiser": {
@@ -68858,23 +69588,23 @@
   "cpsat_ciocs": 12,
   "adopted": true,
   "status": "OPTIMAL",
-  "time_ms": 186.7,
+  "time_ms": 190.9,
   "note": "CP-SAT adopted (balanced) — IO groups tighter (spread 1 → 0)"
  },
- "runtime_ms": 1437.4,
+ "runtime_ms": 1465.9,
  "activity": [
   {
-   "ts": "2026-10-23T13:08:30Z",
+   "ts": "2026-10-23T18:38:08Z",
    "kind": "verify",
-   "text": "Verifier on the exported file: PASS · 20/20 checks"
+   "text": "Verifier on the exported file: PASS · 22/22 checks"
   },
   {
-   "ts": "2026-10-23T13:08:30Z",
+   "ts": "2026-10-23T18:38:08Z",
    "kind": "allocate",
-   "text": "Allocated 189/189 signals into 3 cabinets in 1437 ms · 0 violations"
+   "text": "Allocated 189/189 signals into 3 cabinets in 1466 ms · 0 violations"
   },
   {
-   "ts": "2026-10-23T13:08:27Z",
+   "ts": "2026-10-23T18:38:05Z",
    "kind": "import",
    "text": "Created project 'Demo — VIT Sample' from Sample_IO_MDB_VIT_v2_1.xlsx"
   }

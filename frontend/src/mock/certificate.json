@@ -1,12 +1,12 @@
 {
- "run_id": "run-2a87b8bc147a",
- "timestamp": "2026-10-23T13:08:30Z",
+ "run_id": "run-5bb7af9ec592",
+ "timestamp": "2026-10-23T18:38:08Z",
  "engine_version": "optislot-0.1.0",
  "mdb_sha256": "a0f9035042fe3804d8dde17d20035ece6af684d02400643b40a9e8c3a8b6a6a1",
- "ruleset_hash": "89917bb1559bc625c712ffb29cb100d8ab858a47af3f7e40019f0973083a7ce9",
- "output_sha256": "579a04de2042358c80c72b28d6a556b4e6f081f807dd0b9f223d080d184e815e",
+ "ruleset_hash": "4ddba9724071a5fcf28ab83dadef73be67f1dc69d3afab3fe612c57cf8ffe16a",
+ "output_sha256": "a5aeff40bd2d7e57d40ad28f1f114e2c3a77f514e78f82220b4d32d03a13f62f",
  "verdict": "PASS",
- "checks_passed": 20,
- "checks_total": 20,
+ "checks_passed": 22,
+ "checks_total": 22,
  "violations": 0
 }

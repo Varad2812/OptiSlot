@@ -91,6 +91,17 @@
    "exceptions": []
   },
   {
+   "id": "C07.2",
+   "label": "IS and NON-IS never share a baseplate",
+   "rule_id": "r-is",
+   "severity": "hard",
+   "passed": 26,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
    "id": "C08",
    "label": "Each IO grouping kept together, in consecutive cabinets",
    "rule_id": "r-group",
@@ -104,6 +115,17 @@
   {
    "id": "C09",
    "label": "CHARM / terminal block match the hardware map",
+   "rule_id": "r-hw",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C20",
+   "label": "CHARM TB terminals match the terminal table",
    "rule_id": "r-hw",
    "severity": "hard",
    "passed": 1152,
@@ -194,7 +216,7 @@
    "label": "Engineering columns copied from the MDB",
    "rule_id": "r-out",
    "severity": "soft",
-   "passed": 177,
+   "passed": 189,
    "failed": 0,
    "excepted": 0,
    "violations": [],
@@ -223,8 +245,8 @@
    "exceptions": []
   }
  ],
- "checks_total": 20,
- "checks_passed": 20,
+ "checks_total": 22,
+ "checks_passed": 22,
  "violations": 0,
  "warnings": 0,
  "excepted": 0,

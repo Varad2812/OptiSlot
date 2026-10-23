@@ -66,6 +66,45 @@
    }
   },
   {
+   "id": "r-is",
+   "type": "segregate",
+   "enabled": true,
+   "severity": "hard",
+   "label": "IS and NON-IS never share a baseplate",
+   "params": {
+    "level": "baseplate",
+    "field": "is_type",
+    "field_label": "NON-IS / IS",
+    "families": {
+     "IS": [
+      "IS",
+      "I.S.",
+      "EX I",
+      "EX-I",
+      "EXI",
+      "EX IA",
+      "EX-IA",
+      "EX IB",
+      "EX-IB",
+      "INTRINSICALLY SAFE"
+     ],
+     "NON-IS": [
+      "NON-IS",
+      "NON IS",
+      "NONIS",
+      "NIS",
+      "NON-I.S.",
+      "EX D",
+      "EX-D",
+      "EX E",
+      "EX-E",
+      "SAFE AREA"
+     ]
+    },
+    "default_family": "NON-IS"
+   }
+  },
+  {
    "id": "r-group",
    "type": "group_together",
    "enabled": true,
@@ -97,6 +136,14 @@
      },
      {
       "equipment": "~(?i)-DC[MS]-"
+     }
+    ],
+    "remarks": [
+     {
+      "when": {
+       "cable_raw": "~(?i)^internal\\s*wiring$"
+      },
+      "value": "Internal Cabinet Alarm."
      }
     ]
    }
@@ -213,6 +260,107 @@
     "terminals": [
      {
       "when": {
+       "io_type": "AIR",
+       "signal_type": "4-20 ma HART",
+       "signal_level": "2-Wire"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "-",
+      "learned": 70
+     },
+     {
+      "when": {
+       "io_type": "AIR",
+       "signal_type": "4-20 ma HART",
+       "signal_level": "4-Wire"
+      },
+      "tb1": "-",
+      "tb2": "2",
+      "tb3": "4",
+      "learned": 7
+     },
+     {
+      "when": {
+       "io_type": "AIR",
+       "signal_type": "4-20 ma",
+       "signal_level": "4-Wire"
+      },
+      "tb1": "-",
+      "tb2": "2",
+      "tb3": "4",
+      "learned": 1
+     },
+     {
+      "when": {
+       "io_type": "AIR",
+       "signal_type": "RTD",
+       "signal_level": "3-Wire"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "4",
+      "learned": 4
+     },
+     {
+      "when": {
+       "io_type": "AOR",
+       "signal_type": "4-20 ma HART",
+       "signal_level": "2-Wire"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "-",
+      "learned": 14
+     },
+     {
+      "when": {
+       "io_type": "AOR",
+       "signal_type": "4-20 ma",
+       "signal_level": "2-Wire"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "-",
+      "learned": 12
+     },
+     {
+      "when": {
+       "io_type": "DIR",
+       "signal_type": "-",
+       "signal_level": "Voltfree-contact"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "-",
+      "learned": 55
+     },
+     {
+      "when": {
+       "io_type": "DOR",
+       "signal_type": "-",
+       "signal_level": "Volt-contact",
+       "tb": "SE4502"
+      },
+      "tb1": "-",
+      "tb2": "2",
+      "tb3": "4",
+      "learned": 32
+     },
+     {
+      "when": {
+       "io_type": "DOR",
+       "signal_type": "-",
+       "signal_level": "Volt-contact",
+       "tb": "SE4501"
+      },
+      "tb1": "1",
+      "tb2": "2",
+      "tb3": "-",
+      "learned": 16
+     },
+     {
+      "when": {
        "tb": "SE4502"
       },
       "tb1": "-",
@@ -221,7 +369,7 @@
      },
      {
       "when": {
-       "signal_level": "~(?i)^4-?wire"
+       "signal_level": "~(?i)^4\\s*-?\\s*wire"
       },
       "tb1": "-",
       "tb2": "2",
@@ -229,7 +377,7 @@
      },
      {
       "when": {
-       "signal_level": "~(?i)^3-?wire"
+       "signal_level": "~(?i)^3\\s*-?\\s*wire"
       },
       "tb1": "1",
       "tb2": "2",
@@ -313,7 +461,8 @@
       }
      ],
      "message": "PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush."
-    }
+    },
+    "terminals_note": "Rows with 'learned' = (IO type, signal type, signal level[, TB]) → TB1/TB2/TB3 as seen in the reference allocation (row count); the rest are generic fallbacks. First match wins."
    }
   },
   {
@@ -393,6 +542,12 @@
     },
     "constants": {
      "BATCH": "B1"
+    },
+    "blank_for": {
+     "Cabinet Alarm": [
+      "Instrument type",
+      "Loop Name"
+     ]
     }
    }
   },
