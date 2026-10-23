@@ -216,7 +216,7 @@ def test_engine_and_verifier_agree(m, ab_clash, strategy):
 junk = st.text(alphabet=st.characters(blacklist_categories=("Cs",)), max_size=10)
 
 
-@settings(max_examples=int(os.environ.get("JUNK_EXAMPLES", 150)), deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=int(os.environ.get("JUNK_EXAMPLES", 500)), deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(st.lists(st.fixed_dictionaries({
     "tag": st.one_of(junk, st.sampled_from(["", "T-1", "T-2"])), "io": st.sampled_from(["AI", "AO", "DI", "DO", "XX", ""]),
     "cable": st.one_of(junk, st.sampled_from(["C-1", "C-2", "Internal Wiring", ""])),
