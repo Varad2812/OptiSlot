@@ -2,13 +2,15 @@
 //   routes:  every route × {1440×900, 1920×1080} × {dark, light}          → /shots/<route>__<vp>__<theme>.png
 //   motion:  Upload Dive + cabinet glide frozen at 0/25/50/75/100 %        → /shots/motion/<seq>__p<NNN>__<theme>.png
 //            Rev B diff (inject silently, then scrub) at 0/50/100 %          → /shots/motion/revb__p<NNN>__<theme>.png
+//            Verify scan at 0/50/100 % + the tampered-export demo            → /shots/motion/verify__p<NNN>__<theme>.png, tamper__{mid,end}__<theme>.png
+//            Mission Control strip click → zoom → Explorer arrival           → /shots/motion/mission-dive__{mid,end}__<theme>.png
 //   stress:  the 10k project in the Explorer (stills + glide FPS)          → /shots/stress/*.png
 //   npm run shots                      builds the frontend, serves it with the real API (temp DB, seeds stress10k), captures
 //   SHOTS_URL=http://127.0.0.1:8000 …  reuse an already-running `make demo` / `make dev` instead
 //   SHOTS_ROUTES=/explorer,/tqs …      capture a subset of routes
 //   SHOTS_MOTION_ONLY=1                skip the route pass · SHOTS_NO_STRESS=1 skip the 10k pass
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,6 +81,7 @@ async function context(theme, vp, motion = "cinematic") {
       localStorage.setItem("optislot-theme", t);
       localStorage.setItem("optislot-motion", m);
       sessionStorage.setItem("optislot-dive-seen", "1"); // no autoplay during stills
+      sessionStorage.setItem("optislot-scan-seen", "1");
     } catch { /* ignore */ }
   }, [theme, motion]);
   return ctx;
@@ -234,6 +237,80 @@ try {
     await toRevA(); // leave the project on Rev A for whatever runs next (or for the reused server)
   }
 
+  // ───── 2d. Proof Center: verify-scan frames, then the tampered-export demo (the "red pulse on the exact slot" check) ─────
+  {
+    // The project's own export, then a copy with ONE CHARM Type changed (scripts/make_tampered.py).
+    const tmp = mkdtempSync(path.join(tmpdir(), "optislot-tamper-"));
+    const good = path.join(tmp, "IO_Allocation_export.xlsx");
+    const bad = path.join(tmp, "IO_Allocation_tampered.xlsx");
+    writeFileSync(good, Buffer.from(await (await fetch(`${projectApi}/export/allocation`)).arrayBuffer()));
+    const mk = spawnSync("uv", ["run", "--project", "backend", "python", "scripts/make_tampered.py", good, bad], { cwd: root, stdio: "inherit" });
+    if (mk.status !== 0) problems.push("make_tampered.py failed");
+    else {
+      for (const theme of THEMES) {
+        const ctx = await context(theme, VIEWPORTS[0]);
+        const page = await ctx.newPage();
+        watch(page, `proof ${theme}`);
+        await page.goto(`${base}/proof?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
+        await page.waitForFunction(() => !!window.__optislot?.verify, null, { timeout: 60_000 });
+        await settle(page, 900);
+        for (const p of [0, 0.5, 1]) {
+          await page.evaluate((v) => window.__optislot.verify.seek(v), p);
+          await raf2(page);
+          await sleep(160);
+          await page.screenshot({ path: path.join(outDir, "motion", `verify__p${pct(p)}__${theme}.png`) });
+          count++;
+        }
+        // wait for the upload to start (state leaves "done"), then for the scan + camera flight to finish
+        const finish = async () => {
+          await page.waitForFunction(() => window.__optislot.verify.state() !== "done", null, { timeout: 4000 }).catch(() => undefined);
+          await page.waitForFunction(() => window.__optislot.verify.state() === "done", null, { timeout: 30_000 });
+        };
+        // an untouched export passes and is byte-identical to the certified output
+        await page.setInputFiles("[data-testid=verify-file-input]", good);
+        await finish();
+        await sleep(500);
+        if (!/PASS/.test(await page.locator("[data-testid=verdict-chip]").innerText())) problems.push(`proof ${theme}: the untouched export did not PASS`);
+        if (!(await page.getByText("Byte-identical to the certified output").count())) problems.push(`proof ${theme}: the untouched export is not byte-identical to the certified output`);
+        // the tampered copy fails: red markers on the slot, the failing check expanded, the camera on the slot
+        await page.setInputFiles("[data-testid=verify-file-input]", bad);
+        await sleep(1900); // mid-scan: the beam, the checks ticking
+        await page.screenshot({ path: path.join(outDir, "motion", `tamper__mid__${theme}.png`) });
+        await finish();
+        await sleep(1900); // the camera has flown in and the pulses have run
+        await page.screenshot({ path: path.join(outDir, "motion", `tamper__end__${theme}.png`) });
+        count += 2;
+        const markers = await page.locator("[data-testid=fail-marker]").count();
+        const failRows = await page.locator("[data-testid=check-row][data-failed]").count();
+        const tier = await page.evaluate(() => document.querySelector("[data-testid=world]")?.getAttribute("data-tier"));
+        if (markers < 1) problems.push(`proof ${theme}: tampered export shows no red marker on the plant`);
+        if (failRows < 1) problems.push(`proof ${theme}: tampered export shows no failing check`);
+        if (tier !== "detail") problems.push(`proof ${theme}: the camera did not fly in to the slot (tier ${tier})`);
+        await page.close();
+        await ctx.close();
+      }
+    }
+  }
+
+  // ───── 2e. Mission Control: click a cabinet in the strip → the strip zooms → the Explorer dives in ─────
+  {
+    const ctx = await context("dark", VIEWPORTS[0]);
+    const page = await ctx.newPage();
+    watch(page, "mission dive");
+    await page.goto(`${base}/?project=demo`, { waitUntil: "networkidle" });
+    await settle(page, 1400);
+    const box = await page.locator("[data-testid=plant-strip]").boundingBox();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    await sleep(230);
+    await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__mid__dark.png") });
+    await sleep(1700);
+    await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__end__dark.png") });
+    count += 2;
+    if (!page.url().includes("/explorer")) problems.push("mission dive: clicking a cabinet did not open the Explorer");
+    await page.close();
+    await ctx.close();
+  }
+
   // ───── 3. stress project (10k) ─────
   if (!noStress) {
     const ctx = await context("dark", VIEWPORTS[0]);
@@ -256,6 +333,14 @@ try {
     await settle(page);
     const nav = Date.now() - t0;
     perf.push({ project: "stress10k", glide: fps, gridNavMs: nav });
+    for (const route of ["/", "/proof"]) {
+      const t1 = Date.now();
+      await page.goto(`${base}${route}?project=stress10k`, { waitUntil: "networkidle" });
+      await settle(page, 1200);
+      perf.at(-1)[`${slug(route)}Ms`] = Date.now() - t1;
+      await page.screenshot({ path: path.join(outDir, "stress", `${slug(route)}__dark.png`) });
+      count++;
+    }
     await page.close();
     await ctx.close();
   }
@@ -265,7 +350,7 @@ try {
 }
 console.log(`${count} screenshots → ${outDir}`);
 for (const p of perf) {
-  console.log(`FPS ${p.project}: ` + p.glide.map((g) => `avg ${g.avg} fps · p95 ${g.p95} ms · worst ${g.worst} ms`).join("  |  ") + (p.gridNavMs ? `  · grid nav ${p.gridNavMs} ms` : ""));
+  console.log(`FPS ${p.project}: ` + p.glide.map((g) => `avg ${g.avg} fps · p95 ${g.p95} ms · worst ${g.worst} ms`).join("  |  ") + (p.gridNavMs ? `  · grid nav ${p.gridNavMs} ms` : "") + (p["mission-controlMs"] ? `  · mission control ${p["mission-controlMs"]} ms · proof ${p.proofMs} ms (10k, incl. 1.2 s settle)` : ""));
   if (p.glide.some((g) => g.avg < 50)) console.warn(`  ⚠ ${p.project}: glide below 50 fps`);
 }
 if (problems.length) {

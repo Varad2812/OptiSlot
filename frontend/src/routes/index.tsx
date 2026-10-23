@@ -6,10 +6,11 @@ import { SCREENS } from "@/shell/routes";
 import Explorer from "./Explorer";
 import Lab from "./Lab";
 import MissionControl from "./MissionControl";
+import Proof from "./Proof";
 import Revisions from "./Revisions";
 import ScreenPreview from "./ScreenPreview";
 
-const ELEMENTS: Record<string, JSX.Element> = { "/": <MissionControl />, "/explorer": <Explorer />, "/lab": <Lab />, "/revisions": <Revisions /> };
+const ELEMENTS: Record<string, JSX.Element> = { "/": <MissionControl />, "/explorer": <Explorer />, "/lab": <Lab />, "/proof": <Proof />, "/revisions": <Revisions /> };
 
 // Route table = CLAUDE.md §10.2 sidebar (src/shell/routes.ts). scripts/shots.mjs captures the same paths.
 export function AppRoutes() {

@@ -17,7 +17,7 @@ export const SCREENS: Screen[] = [
   { path: "/", title: "Mission Control", icon: LayoutDashboard, group: "story", blurb: "The whole project at a glance — every tile is live data." },
   { path: "/explorer", title: "Cabinet Explorer", icon: Boxes, group: "story", blurb: "Walk the marshalling room: every slot of every cabinet, and why it is there." },
   { path: "/lab", title: "Try-out Lab", icon: FlaskConical, group: "story", blurb: "Move slots, toggle rules and see the impact before you commit.", phase: "U3" },
-  { path: "/proof", title: "Proof Center", icon: ShieldCheck, group: "story", blurb: "An independent verifier re-reads the output. A tampered copy fails.", phase: "U2" },
+  { path: "/proof", title: "Proof Center", icon: ShieldCheck, group: "story", blurb: "An independent verifier re-reads the output. A tampered copy fails." },
   { path: "/revisions", title: "Revision Center", icon: GitCompareArrows, group: "story", blurb: "Rev B moves only what changed — and every move has a reason.", phase: "U3" },
   { path: "/import", title: "Import & Mapping", icon: FileUp, group: "work", blurb: "Any IO MDB, zero code: columns auto-mapped, bad rows quarantined.", phase: "U4" },
   { path: "/rules", title: "Rules Studio", icon: SlidersHorizontal, group: "work", blurb: "Rules are data — edit them live or describe them in plain English.", phase: "U4" },

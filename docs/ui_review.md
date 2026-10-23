@@ -80,8 +80,44 @@ Design notes worth knowing:
 - A what-if returns only changed slots, so toggles/sliders that alter wired-spare counts update the Impact numbers but not the
   proposed World's hatched slots (moves and strategy do show on the World).
 
+## U2 — Mission Control + Proof Center (2 rounds, 0 browser errors)
+Captures: `/` and `/proof` × 1440/1920 × dark/light, the verify scan frozen at 0/50/100 % (`motion/verify__p*`), the tampered-export demo
+(`motion/tamper__{mid,end}__*`), the Mission Control strip dive (`motion/mission-dive__*`), and both screens on the 10k project (`stress/`).
+`npm run shots` now *asserts* the demo: an untouched export PASSes and is byte-identical to the certified output; the tampered copy
+(`scripts/make_tampered.py`: one CHARM Type changed) shows a red marker on the slot, a failing check, and the camera at detail zoom.
+Behaviour checked against the real API (scratch Playwright, temp DB):
+- Tampered export → `FAIL · 1 violation · 21/22`, check "CHARM / terminal block match the hardware map", **row 196**, slot
+  `P30-DCM-32001-01/003/1/3`; the camera glides to the rear side of cabinet 1, flies in, and the slot + its list row pulse red three times.
+- The MDB, a text file renamed .xlsx and the blank template all come back as a failed report (never a crash); the UI shows it.
+- `V` replays the scan (ticks 40 ms apart, stamp lands last); Calm mode drops the beam and sets the camera directly; ←/→ move between
+  cabinets; "Fly to slot" works from the list; verifier unreachable → toast, page stays alive, Re-verify replays the cached report.
+- Two engine runs with identical inputs carry identical hashes → the second is tagged "reproduced" in the run history.
+- 10k project: Mission Control 2.1 s and Proof 2.2 s including a 1.2 s settle; glide still 59–60 fps.
+
+| # | Where | Issue | Fix | Status |
+|---|---|---|---|---|
+| U2.1 | Mission Control | Certificate card left a blank half-column next to the strip | Certificate + stability stack beside the strip; activity timeline spans the bottom in two columns | fixed |
+| U2.2 | Mission Control | Stack content overflowed its card (flex children allowed to shrink) | Natural height, no `min-h-0` | fixed |
+| U2.3 | Mission Control | "Inject Rev B" button ran into the caption text | Button on its own line | fixed |
+| U2.4 | Proof | Stamp card collapsed to its header while the checks list scrolled | Stamp pinned above a scrolling region (`shrink-0`) | fixed |
+| U2.5 | Proof | Beam parked at the far edge by 50 % (ease-out) | Smoothstep sweep | fixed |
+| U2.6 | Proof | Result toast covered the ticking rows | No toast on a file verdict — stamp, chip and banner say it | fixed |
+| U2.7 | Proof | New verdict was on screen while the camera glided to the failing cabinet, then the scan restarted | Sequence reset to 0 before the glide | fixed |
+| U2.8 | Proof | Stale scroll position after a result with nothing to fly to | Checks list scrolls to the top on every new report | fixed |
+| U2.9 | Proof | A Re-verify landing after a file drop replaced the file result | Drops are refused (toast) while a Re-verify is in flight | fixed |
+| U2.10 | Proof | Seal crowded the verdict line; header "22/22" gave the result away before the ticks | Smaller seal, 23 px verdict line; the header count climbs with the ticks | fixed |
+| U2.11 | Proof / shots | `/proof` route still shot mid-scan (it autoplays once per session) | `optislot-scan-seen` set in the shots context | fixed |
+| U2.12 | Run history | "reproduced" appeared on repeated uploads of the same file (trivially true) | Only engine runs (allocate / revision) are tagged | fixed |
+
+Notes:
+- The Scoreboard strip in the shell is Mission Control's first tile (it is on every screen); the page itself starts below it.
+- A click on a Mission Control cabinet zooms the strip's camera into it (420 ms), then the Explorer opens with a Plant → cabinet dive
+  (`store.arriveFrom`, one-shot, Calm = no dive). A deliberate dive counts as the session's Upload Dive.
+- The scan autoplays once per session on the first Proof visit (not in `?demo=1`); any key finishes it.
+- Before a revision exists the stability tile shows the baseline and an "Inject Rev B" button — never an invented percentage.
+
 ### Still open (for U2–U5)
-- Mission Control, Proof, Lab, Revisions, Import, Rules, TQ, Grid and Export are real-data previews built from shared
-  panels (`src/components/panels.tsx`); the full screens arrive in U2–U4 (dev-only "Arrives in" chip).
+- Import, Rules, TQ, Grid and Export are real-data previews built from shared panels (`src/components/panels.tsx`);
+  the full screens arrive in U4 (dev-only "Arrives in" chip).
 - Flip is a whole-World `rotateY`; at Plant level all cabinets flip together (fine for now; U5 may flip only the active one).
 - 10k: switching to the stress project downloads ~13 MB of allocation JSON (gzipped on the wire); first paint ~1.4 s.
