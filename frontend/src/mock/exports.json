@@ -3,12 +3,12 @@
   "kind": "allocation",
   "filename": "IO_Allocation_demo_RevA.xlsx",
   "rows": 1152,
-  "sha256": "486cd8a4a23fbb4aa6c7773ce7420cfebb88242c9e4bc6f6921714f64021d5ad"
+  "sha256": "579a04de2042358c80c72b28d6a556b4e6f081f807dd0b9f223d080d184e815e"
  },
  {
   "kind": "rule_check",
   "filename": "Rule_Check_Report.xlsx",
-  "rows": 19,
+  "rows": 20,
   "sha256": null
  },
  {

@@ -22,7 +22,7 @@ from engine.rules import load_ruleset
 from store.db import Store
 from verify.certificate import certify, ruleset_hash
 from verify.checks import verify_rows
-from verify.xlsx import verify_xlsx
+from verify.xlsx import read_bom, verify_xlsx
 from xio.reader import auto_map, read_table
 from xio.reports import capacity_bom, revision_impact, rule_check_report, tq_register
 from xio.writer import write_allocation
@@ -138,13 +138,20 @@ class Service:
             out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
         xlsx = write_allocation(out.rows)
         tqs = self.decorate_tqs(st.project.id, out.tqs)
-        report = verify_xlsx(xlsx, out.signals, st.ruleset, st.settings, tqs, filename="(exported allocation)")
+        report = verify_xlsx(xlsx, out.signals, st.ruleset, st.settings, tqs, filename="(exported allocation)",
+                             claims=self.claims(out))
         cert = certify(out.table.sha256, st.ruleset, xlsx, report, st.settings.model_dump_json())
         opt = getattr(out, "optimiser", None) or OptimiserInfo(method="greedy", greedy_ciocs=out.kpis.ciocs, status="greedy only")
         kpis = out.kpis.model_copy(update={"violations": report.violations, "tqs_open": sum(t.status == "open" for t in tqs),
                                            "stability_pct": impact.stability_pct if impact else None})
         return Computed(out=out, report=report, cert=cert, xlsx=xlsx, optimiser=opt,
                         runtime_ms=(time.perf_counter() - t0) * 1e3, tqs=tqs, kpis=kpis, impact=impact)
+
+    @staticmethod
+    def claims(out: RunOutput) -> dict:
+        """What the exported BOM and the KPIs say about the CIOCs — the verifier checks the rows agree with both."""
+        bom, _ = capacity_bom(out.alloc.cabinets, out.alloc.slots, out.kpis)
+        return {"kpi_ciocs": out.kpis.ciocs, "bom": read_bom(bom)}
 
     def record_run(self, st: ProjectState, comp: Computed, kind: str) -> None:
         rr = RunRecord(run_id=comp.cert.run_id, project_id=st.project.id, timestamp=comp.cert.timestamp, revision=st.project.revision,
@@ -309,7 +316,8 @@ class Service:
     def verify(self, pid: str) -> RuleCheckReport:
         st = self.get(pid)
         c = st.current or self.recompute(st)
-        rep = verify_xlsx(c.xlsx, c.out.signals, st.ruleset, st.settings, c.tqs, filename=self.export_name(st, "allocation"))
+        rep = verify_xlsx(c.xlsx, c.out.signals, st.ruleset, st.settings, c.tqs, filename=self.export_name(st, "allocation"),
+                          claims=self.claims(c.out))
         self.activity(pid, "verify", f"Re-verified exported file: {rep.verdict} · {rep.checks_passed}/{rep.checks_total} checks")
         return rep
 

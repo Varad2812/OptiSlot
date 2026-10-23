@@ -44,6 +44,10 @@ class Rules:
         r = self.first(rtype)
         return r.params if r else {}
 
+    @property
+    def cioc_strategy(self) -> str:
+        return self.rs.settings.cioc_strategy
+
     def rid(self, rtype: str) -> str | None:
         r = self.first(rtype)
         return r.id if r else None

@@ -3,6 +3,9 @@
  "name": "VIT project default",
  "version": 1,
  "description": "Default OptiSlot rule set learned from the VIT sample. Every value here is editable; no project values live in code.",
+ "settings": {
+  "cioc_strategy": "balanced"
+ },
  "rules": [
   {
    "id": "r-io-map",

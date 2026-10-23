@@ -46,8 +46,26 @@ def read_allocation(src: str | Path | bytes) -> tuple[list[dict[str, str]], list
     raise ValueError("no sheet with a 'Tag Status' header found")
 
 
+def read_bom(src: str | Path | bytes) -> dict:
+    """Capacity_BOM.xlsx → {"ciocs": [(cabinet, CIOC)], "cabinet_total": Σ 'CIOCs' on the Cabinets sheet}."""
+    try:
+        data = src if isinstance(src, bytes) else Path(src).read_bytes()
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+
+        def table(name: str) -> list[dict[str, str]]:
+            it = wb[name].iter_rows(values_only=True)
+            hdr = [_text(h) for h in next(it)]
+            return [dict(zip(hdr, (_text(v) for v in r))) for r in it if any(v is not None for v in r)]
+
+        ciocs = [(r.get("Cabinet", ""), r.get("CIOC", "")) for r in table("CIOCs")]
+        total = sum(int(r.get("CIOCs") or 0) for r in table("Cabinets"))
+        return {"ciocs": ciocs, "cabinet_total": total}
+    except Exception as e:  # an unreadable BOM is a failed agreement, never a crash
+        return {"ciocs": [], "cabinet_total": None, "error": f"{type(e).__name__}: {e}"}
+
+
 def verify_xlsx(src: str | Path | bytes, signals: list[Signal], rs: RuleSet, settings: ProjectSettings,
-                tqs: list[TQ] | None = None, filename: str | None = None) -> RuleCheckReport:
+                tqs: list[TQ] | None = None, filename: str | None = None, claims: dict | None = None) -> RuleCheckReport:
     name = filename or (Path(src).name if not isinstance(src, bytes) else "upload.xlsx")
     try:
         rows, missing, _, _ = read_allocation(src)
@@ -56,4 +74,4 @@ def verify_xlsx(src: str | Path | bytes, signals: list[Signal], rs: RuleSet, set
             id="C00", label="Workbook is a readable allocation", failed=1,
             violations=[Violation(message=f"cannot read workbook: {e}")])], checks_total=1, checks_passed=0,
             violations=1, verdict="FAIL")
-    return verify_rows(rows, signals, rs, settings, tqs, source="file", file=name, missing_columns=missing)
+    return verify_rows(rows, signals, rs, settings, tqs, source="file", file=name, missing_columns=missing, claims=claims)

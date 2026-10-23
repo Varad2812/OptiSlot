@@ -6,17 +6,17 @@
  "tqs_open": 1,
  "violations": 0,
  "cabinets": 3,
- "ciocs": 5,
+ "ciocs": 12,
  "baseplates_used": 26,
- "fill_pct": 18.3,
- "wired_spares": 22,
- "wired_target": 22,
+ "fill_pct": 18.5,
+ "wired_spares": 24,
+ "wired_target": 24,
  "stability_pct": null,
  "status_counts": {
   "Cabinet Alarm": 12,
-  "Spare Slot": 941,
+  "Spare Slot": 939,
   "Field": 177,
-  "Wired Spare": 22
+  "Wired Spare": 24
  },
  "tq_by_category": {
   "DO hardware conflict": 1
@@ -61,37 +61,73 @@
   {
    "controller": "P30DPK320101",
    "io_type": "AIR",
-   "field": 66,
-   "wired": 7,
-   "target": 7,
-   "pct": 10.6,
+   "field": 45,
+   "wired": 5,
+   "target": 5,
+   "pct": 11.1,
    "ok": true
   },
   {
    "controller": "P30DPK320101",
    "io_type": "AOR",
-   "field": 12,
-   "wired": 2,
-   "target": 2,
-   "pct": 16.7,
+   "field": 10,
+   "wired": 1,
+   "target": 1,
+   "pct": 10.0,
    "ok": true
   },
   {
    "controller": "P30DPK320101",
    "io_type": "DIR",
-   "field": 29,
-   "wired": 3,
-   "target": 3,
-   "pct": 10.3,
+   "field": 10,
+   "wired": 1,
+   "target": 1,
+   "pct": 10.0,
    "ok": true
   },
   {
    "controller": "P30DPK320101",
    "io_type": "DOR",
-   "field": 27,
+   "field": 5,
+   "wired": 1,
+   "target": 1,
+   "pct": 20.0,
+   "ok": true
+  },
+  {
+   "controller": "P30DPK320102",
+   "io_type": "AIR",
+   "field": 21,
    "wired": 3,
    "target": 3,
-   "pct": 11.1,
+   "pct": 14.3,
+   "ok": true
+  },
+  {
+   "controller": "P30DPK320102",
+   "io_type": "AOR",
+   "field": 2,
+   "wired": 1,
+   "target": 1,
+   "pct": 50.0,
+   "ok": true
+  },
+  {
+   "controller": "P30DPK320102",
+   "io_type": "DIR",
+   "field": 19,
+   "wired": 2,
+   "target": 2,
+   "pct": 10.5,
+   "ok": true
+  },
+  {
+   "controller": "P30DPK320102",
+   "io_type": "DOR",
+   "field": 22,
+   "wired": 3,
+   "target": 3,
+   "pct": 13.6,
    "ok": true
   }
  ],
@@ -99,22 +135,22 @@
   {
    "cabinet": "P30-DCM-32001-01",
    "controller": "P30DPK320101",
-   "used": 140,
-   "wired_spares": 15,
-   "spare_slots": 229,
-   "empty_baseplates": 15,
+   "used": 76,
+   "wired_spares": 8,
+   "spare_slots": 300,
+   "empty_baseplates": 23,
    "future_baseplates": 4,
-   "fill_pct": 36.5
+   "fill_pct": 19.8
   },
   {
    "cabinet": "P30-DCM-32001-04",
    "controller": "P30DPK320102",
-   "used": 3,
-   "wired_spares": 0,
-   "spare_slots": 381,
-   "empty_baseplates": 31,
+   "used": 67,
+   "wired_spares": 9,
+   "spare_slots": 308,
+   "empty_baseplates": 23,
    "future_baseplates": 4,
-   "fill_pct": 0.8
+   "fill_pct": 17.4
   },
   {
    "cabinet": "P24-DCM-50002-01",
@@ -130,12 +166,12 @@
  "hardware_bom": {
   "SE4303T03": 4,
   "SE4301T02": 54,
-  "SE6103": 941,
-  "SE4303T01": 79,
+  "SE6103": 939,
+  "SE4303T01": 80,
   "SE4304T01": 28,
-  "SE4302T02": 30,
+  "SE4302T02": 31,
   "SE4302T01": 16,
-  "SE4501": 181,
-  "SE4502": 30
+  "SE4501": 182,
+  "SE4502": 31
  }
 }

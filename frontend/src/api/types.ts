@@ -1198,8 +1198,24 @@ export interface components {
              * @default
              */
             description: string;
+            settings?: components["schemas"]["RulesetSettings"];
             /** Rules */
             rules: components["schemas"]["Rule"][];
+        };
+        /**
+         * RulesetSettings
+         * @description Rule-set-wide choices that are not a single rule.
+         *
+         *     cioc_strategy: balanced = every CIOC of every instantiated cabinet is installed and cable blocks are spread
+         *     over them (even headroom); compact = fewest CIOCs, and only CIOCs that hold signals are instantiated.
+         */
+        RulesetSettings: {
+            /**
+             * Cioc Strategy
+             * @default balanced
+             * @enum {string}
+             */
+            cioc_strategy: "balanced" | "compact";
         };
         /** RunRecord */
         RunRecord: {

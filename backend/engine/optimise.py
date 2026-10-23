@@ -6,7 +6,10 @@ independent verifier passes.
 
     hard:  capacity in pair units (≥12-pair blocks take whole baseplates; small blocks fill 12·k ≥ units),
            reserved baseplates, A/B families never on one CIOC (alarm locks included), pinned blocks fixed
-    min:   cabinets holding field cables → CIOCs → IO groups spread → sequence inversions → moves → compactness
+    min (cioc_strategy compact):   cabinets holding field cables → CIOCs → IO groups spread → sequence inversions
+                                   → moves → compactness
+    min (cioc_strategy balanced):  IO groups spread (at the group rule's level) → max CIOC fill → moves vs the
+                                   pinned baseline → sequence inversions
 """
 from __future__ import annotations
 
@@ -29,8 +32,14 @@ class DomainScore:
     group_spread: int
     inversions: int
     compactness: int     # sum of CIOC positions (lower = filled from the front)
+    strategy: str = "compact"
+    max_fill: int = 0    # ‰ of the fullest CIOC's usable channels (balanced)
+    group_scope_spread: int = 0  # group spread at the group rule's level (balanced)
+    moves: int = 0       # blocks off their pinned-baseline CIOC (balanced)
 
     def key(self) -> tuple:
+        if self.strategy == "balanced":
+            return (self.group_scope_spread, self.max_fill, self.moves, self.inversions)
         return (self.cabinets, self.ciocs, self.group_spread, self.inversions, self.compactness)
 
 
@@ -61,14 +70,31 @@ def score(engine: Engine, domain: str, ns, blocks: list[Block]) -> DomainScore:
             groups[b.group].add(pos[b.id])
     order = [b for b in sorted(blocks, key=lambda b: b.sort_key) if b.id in pos]
     inv = sum(max(0, pos[a.id] - pos[b.id]) for a, b in zip(order, order[1:]))
-    return DomainScore(len(used_cabs), len(used), sum(len(v) - 1 for v in groups.values()), inv, sum(pos.values()))
+    sc = DomainScore(len(used_cabs), len(used), sum(len(v) - 1 for v in groups.values()), inv, sum(pos.values()))
+    if getattr(engine, "strategy", "compact") == "balanced":
+        cabinet = group_level(engine) == "cabinet"
+        scopes: dict[str, set] = defaultdict(set)
+        for b in blocks:
+            if b.group not in ("", "-") and b.cab is not None:
+                scopes[b.group].add(id(b.cab) if cabinet else (id(b.cab), b.cioc))
+        sc.strategy = "balanced"
+        sc.group_scope_spread = sum(len(v) - 1 for v in scopes.values())
+        sc.max_fill = max((engine.fill_permille(c, l) for c, l in seq), default=0)
+        sc.moves = sum(1 for b in blocks if b.pin_pos and not b.pinned and b.cab is not None
+                       and (b.cab.seq, b.cioc) != b.pin_pos[:2])
+    return sc
+
+
+def group_level(engine: Engine) -> str:
+    return engine.rules.params("group_together").get("level", "cabinet") if engine.rules.first("group_together") else "cabinet"
 
 
 def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptReport | None = None):
     report = report if report is not None else OptReport()
 
     def assign(engine: Engine, domain: str, ns, blocks: list[Block]) -> None:
-        Engine.assign_greedy(engine, domain, ns, blocks)
+        balanced = engine.strategy == "balanced"
+        (Engine.assign_balanced if balanced else Engine.assign_greedy)(engine, domain, ns, blocks)
         placed = [b for b in blocks if b.cab is not None]
         g_score = score(engine, domain, ns, placed)
         info = {"greedy": g_score.__dict__, "cpsat": None, "adopted": False, "status": "skipped"}
@@ -80,6 +106,7 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
         seq = seq_of(engine, domain, ns)
         n = len(seq)
         greedy_pos = {b.id: next(i for i, (c, l) in enumerate(seq) if c is b.cab and l == b.cioc) for b in placed}
+        reach = max(window, 8) if balanced else window  # balanced may move a block across the whole cabinet row
         m = cp_model.CpModel()
         x: dict[tuple[str, int], cp_model.IntVar] = {}
         cand: dict[str, list[int]] = {}
@@ -87,7 +114,7 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             if b.pinned:
                 cand[b.id] = [greedy_pos[b.id]]
             else:
-                lo, hi = max(0, greedy_pos[b.id] - window), min(n - 1, greedy_pos[b.id] + window)
+                lo, hi = max(0, greedy_pos[b.id] - reach), min(n - 1, greedy_pos[b.id] + reach)
                 cand[b.id] = [i for i in range(lo, hi + 1)
                               if layout([b], engine.usable(seq[i][0], seq[i][1]), engine.g) is not None]
                 if greedy_pos[b.id] not in cand[b.id]:
@@ -128,7 +155,7 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
                         m.AddImplication(x[(b.id, i)], fa)
                     elif b.family == "B":
                         m.AddImplication(x[(b.id, i)], fb)
-        cab_ids = sorted({id(c) for c, _ in seq})
+        cab_ids = list(dict.fromkeys(id(c) for c, _ in seq))  # physical order (never memory addresses: reproducible)
         cab_of = [cab_ids.index(id(c)) for c, _ in seq]
         # every further segregate rule (or a cabinet-level primary): one family per scope (CIOC or cabinet)
         for rule in engine.seg_rules:
@@ -176,9 +203,36 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             v = m.NewIntVar(0, n, f"inv{a.id}")
             m.Add(v >= pos[a.id] - pos[b.id])
             inv.append(v)
-        moves = [1 - x[(b.id, greedy_pos[b.id])] for b in placed if b.pin_pos and not b.pinned]
-        m.Minimize(W_CAB * sum(cab_used) + W_CIOC * sum(used) + W_GROUP * sum(spread) + W_INV * sum(inv)
-                   + W_MOVE * sum(moves) + W_POS * sum(pos.values()))
+        if balanced:
+            # groups together at the group rule's level → lowest max CIOC fill → fewest moves vs the pinned
+            # baseline → sequence. Weights are sized from the bounds of each lower term, so the order is strict.
+            scope_of = (lambda i: cab_of[i]) if group_level(engine) == "cabinet" else (lambda i: i)
+            g_spread = []
+            for gname, gb in groups.items():
+                z = {k: m.NewBoolVar(f"G{gname}{k}") for k in sorted({scope_of(i) for b in gb for i in cand[b.id]})}
+                for b in gb:
+                    for i in cand[b.id]:
+                        m.AddImplication(x[(b.id, i)], z[scope_of(i)])
+                g_spread.append(sum(z.values()))
+            max_fill = m.NewIntVar(0, 1000, "max_fill")
+            for i, (cab, local) in enumerate(seq):
+                cap = engine.cap_units(cab, local)
+                if cap and by_cioc.get(i):
+                    m.Add(1000 * sum(b.foot * x[(b.id, i)] for b in by_cioc[i]) <= cap * max_fill)
+            index = {(c.seq, l): i for i, (c, l) in enumerate(seq)}
+            b_moves = []
+            for b in placed:
+                home = index.get(b.pin_pos[:2]) if b.pin_pos and not b.pinned else None
+                if home is not None and home in cand[b.id]:
+                    b_moves.append(1 - x[(b.id, home)])
+            w_move = n * len(placed) + 1
+            w_fill = w_move * (len(placed) + 1)
+            w_group = w_fill * 1001
+            m.Minimize(w_group * sum(g_spread) + w_fill * max_fill + w_move * sum(b_moves) + sum(inv))
+        else:
+            moves = [1 - x[(b.id, greedy_pos[b.id])] for b in placed if b.pin_pos and not b.pinned]
+            m.Minimize(W_CAB * sum(cab_used) + W_CIOC * sum(used) + W_GROUP * sum(spread) + W_INV * sum(inv)
+                       + W_MOVE * sum(moves) + W_POS * sum(pos.values()))
         for b in placed:
             for i in cand[b.id]:
                 m.AddHint(x[(b.id, i)], 1 if i == greedy_pos[b.id] else 0)

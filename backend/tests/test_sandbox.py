@@ -46,8 +46,11 @@ def test_single_pair_of_a_cable_must_move_as_a_block(c):
 
 def test_reserved_baseplate_is_blocked(c):
     a = alloc(c)
-    s = next(s for s in a.slots if s.reserved == "future")
-    cable = next(x.block_id for x in a.slots if x.status == "Field" and x.family == "-" and x.cable_size == 6)
+    fam_blocks = {x.block_id for x in a.slots if x.block_id and x.family in ("A", "B")}
+    fam_ciocs = {x.cioc for x in a.slots if x.family in ("A", "B")}
+    s, cable = next((s, x.block_id) for s in a.slots if s.reserved == "future" and s.cioc not in fam_ciocs
+                    for x in a.slots if x.status == "Field" and x.block_id not in fam_blocks and x.cable_size == 6
+                    and x.domain == s.domain)
     r = WhatIfResult.model_validate(c.post("/api/projects/demo/whatif", json={
         "moves": [{"block_id": cable, "target_cioc": s.cioc, "target_bp": s.bp, "target_ch": 1}]}).json())
     assert not r.allowed and "r-future" in r.blocked_reason

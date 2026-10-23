@@ -29,3 +29,10 @@ def table(rows: list[dict[str, str]], headers: list[str] | None = None) -> RawTa
     data = [(i + 2, {h: str(r.get(h, "")) for h in headers}) for i, r in enumerate(rows)]
     sha = hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
     return RawTable(file="synthetic.xlsx", sheet="MDB", header_row=1, headers=headers, rows=data, sha256=sha)
+
+
+def with_strategy(rs, strategy: str):
+    """A copy of a rule set with settings.cioc_strategy set ('balanced' | 'compact')."""
+    rs = rs.model_copy(deep=True)
+    rs.settings.cioc_strategy = strategy
+    return rs

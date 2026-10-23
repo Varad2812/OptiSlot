@@ -66,18 +66,40 @@ def test_bad_upload_is_a_clean_error(c):
 def test_rules_versioned_and_reallocate(c):
     rs = RuleSet.model_validate(c.get("/api/projects/demo/rules").json())
     v0 = len(c.get("/api/projects/demo/rules/versions").json())
+    spares0 = AllocationResult.model_validate(c.get("/api/projects/demo/allocation").json()).kpis.wired_spares
     for r in rs.rules:
         if r.type == "wired_spare_pct":
             r.params["pct"] = 20
     a = AllocationResult.model_validate(c.put("/api/projects/demo/rules?why=test 20%", json=rs.model_dump()).json())
-    assert a.kpis.wired_spares > 22 and a.report.verdict == "PASS"
+    assert a.kpis.wired_spares > spares0 and a.report.verdict == "PASS"
     assert len(c.get("/api/projects/demo/rules/versions").json()) == v0 + 1
     assert c.get("/api/projects/demo/decisions").json()[0]["why"] == "test 20%"
     for r in rs.rules:
         if r.type == "wired_spare_pct":
             r.params["pct"] = 10
     a = AllocationResult.model_validate(c.put("/api/projects/demo/rules?why=back to 10%", json=rs.model_dump()).json())
-    assert a.kpis.wired_spares == 22
+    assert a.kpis.wired_spares == spares0
+
+
+def test_cioc_strategy_through_the_api(c):
+    """PUT the rule set with settings.cioc_strategy: the rows, BOM and scoreboard follow, and the verifier agrees."""
+    rs = RuleSet.model_validate(c.get("/api/projects/demo/rules").json())
+    assert rs.settings.cioc_strategy == "balanced"
+    seen = {}
+    for strategy in ("compact", "balanced"):
+        rs.settings.cioc_strategy = strategy
+        a = AllocationResult.model_validate(c.put(f"/api/projects/demo/rules?why=cioc {strategy}", json=rs.model_dump()).json())
+        assert a.report.verdict == "PASS" and a.report.violations == 0
+        c19 = next(x for x in a.report.checks if x.id == "C19")
+        assert c19.failed == 0 and c19.passed >= 2  # rows ↔ KPIs and rows ↔ BOM
+        ciocs = {(s.cabinet, s.cioc) for s in a.slots}
+        assert a.kpis.ciocs == len(ciocs) == sum(len(x.ciocs) for x in a.cabinets) and len(a.slots) == 96 * len(ciocs)
+        bom = openpyxl.load_workbook(io.BytesIO(c.get("/api/projects/demo/export/capacity_bom").content), read_only=True)
+        assert sum(1 for r in bom["CIOCs"].iter_rows(min_row=2, values_only=True) if r[0]) == len(ciocs)
+        seen[strategy] = (a.kpis.ciocs, a.certificate.output_sha256)
+    assert seen["compact"][0] == 5 and seen["balanced"][0] == 12
+    a = AllocationResult.model_validate(c.post("/api/projects/demo/allocate").json())
+    assert a.certificate.output_sha256 == seen["balanced"][1]
 
 
 def test_why_and_rows(c):

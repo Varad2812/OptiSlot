@@ -14,7 +14,7 @@ from app.schemas import ProjectSettings
 from engine.allocate import Block, Geometry, footprint, layout
 from engine.pipeline import run
 from engine.rules import load_ruleset
-from tests.helpers import row, table
+from tests.helpers import row, table, with_strategy
 
 ROOT = Path(__file__).resolve().parents[2]
 MDB = ROOT / "data" / "Sample_IO_MDB_VIT_v2_1.xlsx"
@@ -30,7 +30,14 @@ def sample():
 def assert_structure(out) -> None:
     """Invariants every allocation must satisfy, independent of the data."""
     slots = out.alloc.slots
-    assert len(slots) == 384 * len(out.alloc.cabinets), "full grid"
+    ciocs = {(c.name, ci.seq) for c in out.alloc.cabinets for ci in c.ciocs}
+    assert len(slots) == 96 * len(ciocs), "full grid of every instantiated CIOC"
+    assert {(s.cabinet, s.cioc_seq) for s in slots} == ciocs and out.kpis.ciocs == len(ciocs), "rows, cabinets and KPIs agree"
+    if out.rules.cioc_strategy == "balanced":
+        assert len(slots) == 384 * len(out.alloc.cabinets), "balanced: every CIOC of every cabinet"
+    else:
+        held = {(s.cabinet, s.cioc_seq) for s in slots if s.status != "Spare Slot"}
+        assert held == ciocs, "compact: only CIOCs that hold signals are instantiated"
     addr = Counter((s.cabinet, s.cioc_seq, s.bp, s.ch) for s in slots)
     assert max(addr.values(), default=1) == 1, "a slot is used twice"
     pairs = Counter((s.cable, s.pair) for s in slots if s.cable not in ("-", "") and s.pair)
@@ -75,7 +82,9 @@ def test_sample_counts(sample):
     assert k.signals == 189
     assert k.allocated == 189
     assert k.allocated_pct == 100.0
-    assert k.status_counts == {"Field": 177, "Wired Spare": 22, "Cabinet Alarm": 12, "Spare Slot": 941}
+    # balanced (default): 3 cabinets × 4 CIOCs; controller 02 now carries field cables, so it gets its own spares
+    assert k.status_counts == {"Field": 177, "Wired Spare": 24, "Cabinet Alarm": 12, "Spare Slot": 939}
+    assert k.ciocs == 12 and len(sample.rows) == 1152
     assert len(sample.alloc.cabinets) == 3
     assert [c.name for c in sample.alloc.cabinets] == ["P30-DCM-32001-01", "P30-DCM-32001-04", "P24-DCM-50002-01"]
 
@@ -289,8 +298,9 @@ def test_junk_rows_never_crash(rows):
 
 def test_cpsat_never_worse_than_greedy_and_greedy_alone_is_valid():
     from engine.optimise import score
-    a = run(MDB)
-    g = run(MDB, settings=ProjectSettings(cpsat_enabled=False))
+    rs = with_strategy(load_ruleset(), "compact")
+    a = run(MDB, rs)
+    g = run(MDB, rs, settings=ProjectSettings(cpsat_enabled=False))
     assert g.optimiser.method == "greedy" and g.kpis.allocated == 189
     assert_structure(g)
     assert a.optimiser.cpsat_ciocs <= a.optimiser.greedy_ciocs
@@ -307,6 +317,7 @@ def _eng(out):
     class E:
         pass
     e = E()
+    e.strategy = "compact"
     e.cabs = out.alloc.cabs
     e.g = Geometry(4, 8, 12, 12)
     return e
@@ -319,7 +330,60 @@ def test_cpsat_matches_or_beats_greedy_on_random_mixes(mix):
     for c, (size, grp, io, fill) in enumerate(mix):
         for p in range(1, max(1, int(size * fill)) + 1):
             rows.append(row(f"T{c}-{p}", io, f"CB-{c:03d}", p, size, group=grp, inst="XYV" if io == "DO" else "PT"))
-    a = run(b"", table=table(rows))
-    g = run(b"", table=table(rows), settings=ProjectSettings(cpsat_enabled=False))
+    rs = with_strategy(load_ruleset(), "compact")
+    a = run(b"", rs, table=table(rows))
+    g = run(b"", rs, table=table(rows), settings=ProjectSettings(cpsat_enabled=False))
     assert a.kpis.cabinets <= g.kpis.cabinets and a.kpis.ciocs <= g.kpis.ciocs
     assert_structure(a)
+    b = run(b"", table=table(rows))  # balanced: CP-SAT is never worse on (groups together, max CIOC fill)
+    bg = run(b"", table=table(rows), settings=ProjectSettings(cpsat_enabled=False))
+    assert b.kpis.cabinets == bg.kpis.cabinets and balanced_key(b) <= balanced_key(bg)
+    assert_structure(b)
+    assert_structure(bg)
+
+
+# ───────────────────────── CIOC strategy ─────────────────────────
+
+def max_fill(out) -> float:
+    """Fullest CIOC, as field-cable channels over the channels its unreserved baseplates offer."""
+    load: Counter = Counter()
+    for b in out.alloc.blocks:
+        if b.cab is not None:
+            load[(id(b.cab), b.cioc)] += b.foot
+    cap = {(id(c), l): 12 * sum(1 for bp in range(1, 9) if (l, bp) not in c.reserved) for c in out.alloc.cabs for l in range(1, 5)}
+    return max((load[k] / cap[k] for k in load), default=0.0)
+
+
+def balanced_key(out) -> tuple:
+    """(cabinets each IO grouping spills into beyond its first, max CIOC fill) — the head of the balanced objective."""
+    cabs: dict[str, set] = defaultdict(set)
+    for b in out.alloc.blocks:
+        if b.cab is not None and b.group not in ("", "-"):
+            cabs[b.group].add(id(b.cab))
+    return sum(len(v) - 1 for v in cabs.values()), round(max_fill(out), 3)
+
+
+@pytest.fixture(scope="module")
+def compact():
+    return run(MDB, with_strategy(load_ruleset(), "compact"))
+
+
+def test_compact_instantiates_only_ciocs_with_signals(compact):
+    assert_structure(compact)
+    k = compact.kpis
+    assert k.status_counts == {"Field": 177, "Wired Spare": 22, "Cabinet Alarm": 12, "Spare Slot": 269}
+    assert k.ciocs == 5 and len(compact.rows) == 5 * 96
+    assert [len(c.ciocs) for c in compact.alloc.cabinets] == [3, 1, 1]
+    assert all(ci.used for c in compact.alloc.cabinets for ci in c.ciocs)
+
+
+def test_balanced_spreads_over_every_cioc(sample, compact):
+    assert all(len(c.ciocs) == 4 for c in sample.alloc.cabinets)
+    assert all(ci.used for c in sample.alloc.cabinets for ci in c.ciocs), "every CIOC carries signals on the sample"
+    assert max_fill(sample) < max_fill(compact)
+    assert balanced_key(sample)[0] == 0, "each cable's IO grouping stays in one cabinet on the sample"
+
+
+def test_both_strategies_reproducible(compact):
+    rs = with_strategy(load_ruleset(), "compact")
+    assert run(MDB, rs).rows == compact.rows

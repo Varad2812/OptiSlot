@@ -101,6 +101,11 @@ class Ctx:
     settings: ProjectSettings
     tqs: list[TQ]
     rules: dict[str, Any] = field(default_factory=dict)
+    claims: dict[str, Any] = field(default_factory=dict)  # CIOC counts other artefacts claim (BOM, KPIs)
+
+    @property
+    def compact(self) -> bool:
+        return self.rs.settings.cioc_strategy == "compact"
 
     def rule(self, rtype: str):
         return next((r for r in self.rs.rules if r.type == rtype and r.enabled), None)
@@ -563,18 +568,62 @@ def c_future(ctx: Ctx) -> CheckResult:
 
 
 def c_grid(ctx: Ctx) -> CheckResult:
-    c = Check("C13", "Full physical grid present for every cabinet", "capacity", ctx, always=True)
+    """balanced: every CIOC position of every cabinet is present. compact: every CIOC that appears is complete."""
+    label = "Full physical grid present for every " + ("instantiated CIOC" if ctx.compact else "cabinet")
+    c = Check("C13", label, "capacity", ctx, always=True)
     n_c, n_b, n_ch = ctx.settings.ciocs_per_cabinet, ctx.settings.baseplates_per_cioc, ctx.settings.channels_per_baseplate
-    by: dict[str, set] = defaultdict(set)
-    first: dict[str, Row] = {}
+    by: dict[tuple, set] = defaultdict(set)
+    first: dict[tuple, Row] = {}
     for r in ctx.rows:
-        by[r.cab].add((r.local, r.bp, r.ch))
-        first.setdefault(r.cab, r)
-    full = {(cl, b, ch) for cl in range(1, n_c + 1) for b in range(1, n_b + 1) for ch in range(1, n_ch + 1)}
-    for cab, got in by.items():
+        k = (r.cab, r.cioc) if ctx.compact else (r.cab,)
+        by[k].add((r.local, r.bp, r.ch))
+        first.setdefault(k, r)
+    for k, got in by.items():
+        locals_ = [first[k].local] if ctx.compact else range(1, n_c + 1)
+        full = {(cl, b, ch) for cl in locals_ for b in range(1, n_b + 1) for ch in range(1, n_ch + 1)}
         miss = full - got
         if miss:
-            c.fail(first[cab].v(f"{cab}: {len(miss)} of {len(full)} slots missing from the grid"))
+            c.fail(first[k].v(f"{' '.join(k)}: {len(miss)} of {len(full)} slots missing from the grid"))
+        else:
+            c.ok()
+    return c.res
+
+
+def c_cioc_count(ctx: Ctx) -> CheckResult:
+    """The allocation rows, the Capacity/BOM workbook and the KPIs must name the same CIOCs. In compact mode an
+    instantiated CIOC must hold at least one signal; in balanced mode C13 already demands every CIOC position."""
+    c = Check("C19", "CIOC count agrees: allocation rows · BOM · KPIs", "capacity", ctx, always=True)
+    ciocs: dict[tuple[str, str], list[Row]] = defaultdict(list)
+    for r in ctx.rows:
+        ciocs[(r.cab, r.cioc)].append(r)
+    if ctx.compact:
+        for (cab, cioc), rs_ in ciocs.items():
+            if any(r.status in ("Field", "Wired Spare", "Cabinet Alarm") for r in rs_):
+                c.ok()
+            else:
+                c.fail(rs_[0].v(f"CIOC {cioc} in {cab} is instantiated but holds no signal "
+                                f"(cioc_strategy compact instantiates only CIOCs with signals)"))
+    n = len(ciocs)
+    kpi = ctx.claims.get("kpi_ciocs")
+    if kpi is not None:
+        if kpi == n:
+            c.ok()
+        else:
+            c.fail(Violation(message=f"KPIs claim {kpi} CIOC(s) but the allocation rows instantiate {n}"))
+    bom = ctx.claims.get("bom")
+    if bom is not None and bom.get("error"):
+        c.fail(Violation(message=f"Capacity/BOM workbook could not be read: {bom['error']}"))
+    elif bom is not None:
+        listed = set(bom.get("ciocs", []))
+        rows_ = set(ciocs)
+        total = bom.get("cabinet_total")
+        if listed != rows_:
+            extra, missing = sorted(listed - rows_), sorted(rows_ - listed)
+            c.fail(Violation(message=f"BOM lists {len(listed)} CIOC(s), the allocation rows {n}"
+                             + (f"; only in BOM: {', '.join(f'{a} {b}' for a, b in extra[:4])}" if extra else "")
+                             + (f"; missing from BOM: {', '.join(f'{a} {b}' for a, b in missing[:4])}" if missing else "")))
+        elif total is not None and total != n:
+            c.fail(Violation(message=f"BOM 'Cabinets' sheet totals {total} CIOC(s), the allocation rows {n}"))
         else:
             c.ok()
     return c.res
@@ -690,15 +739,16 @@ def c_capacity(ctx: Ctx) -> CheckResult:
 
 CHECKS: list[Callable[[Ctx], Any]] = [
     c_tags, c_unique_address, c_unique_pair, c_formula, c_bp_prefix, c_cable, c_segregation, c_group, c_hardware,
-    c_names, c_wired, c_future, c_grid, c_status, c_alarm, c_io_map, c_output, c_capacity,
+    c_names, c_wired, c_future, c_grid, c_status, c_alarm, c_io_map, c_output, c_capacity, c_cioc_count,
 ]
 
 
 def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleSet, settings: ProjectSettings,
                 tqs: list[TQ] | None = None, source: str = "memory", file: str | None = None,
-                missing_columns: list[str] | None = None) -> RuleCheckReport:
+                missing_columns: list[str] | None = None, claims: dict[str, Any] | None = None) -> RuleCheckReport:
+    """claims: optional CIOC counts from the other artefacts — {"kpi_ciocs": int, "bom": read_bom(...)}."""
     rows = parse_rows(raw_rows, settings, rs)
-    ctx = Ctx(rows=rows, signals=signals, rs=rs, settings=settings, tqs=tqs or [])
+    ctx = Ctx(rows=rows, signals=signals, rs=rs, settings=settings, tqs=tqs or [], claims=claims or {})
     results: list[CheckResult] = []
     if missing_columns is not None:
         res = CheckResult(id="C00", label="Workbook has every template column", passed=0 if missing_columns else 1,
@@ -713,7 +763,7 @@ def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleS
                               violations=[Violation(message=f"check could not run: {type(e).__name__}: {e}")])
         for res in (got if isinstance(got, list) else [got]):
             if res.rule_id is None and fn not in (c_tags, c_unique_address, c_unique_pair, c_formula, c_grid, c_status,
-                                                  c_capacity):
+                                                  c_capacity, c_cioc_count):
                 continue  # rule disabled → check not applicable
             results.append(res)
     hard = sum(r.failed for r in results if r.severity == "hard")

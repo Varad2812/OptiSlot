@@ -49,7 +49,7 @@ def compute_kpis(signals: list[Signal], slots: list[Slot], cabinets: list[Cabine
         signals=len(live), allocated=allocated,
         allocated_pct=round(100 * (allocated + explained) / len(live), 1) if live else 100.0,
         unallocated_with_tq=explained, tqs_open=len(open_tqs), violations=violations,
-        cabinets=len(cabinets), ciocs=sum(1 for c in cabinets for ci in c.ciocs if ci.used or ci.wired_spares),
+        cabinets=len(cabinets), ciocs=sum(len(c.ciocs) for c in cabinets),  # instantiated = the rows and the BOM
         baseplates_used=used_bps,
         fill_pct=round(100 * (status["Field"] + status["Cabinet Alarm"] + status["Wired Spare"]) / len(slots), 1) if slots else 0.0,
         wired_spares=status["Wired Spare"], wired_target=sum(c.target for c in compliance), stability_pct=stability_pct,

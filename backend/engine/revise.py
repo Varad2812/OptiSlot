@@ -58,7 +58,7 @@ def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings
                          field="Pair", unchanged="Every other signal keeps its slot.")
 
     out = run(src, ruleset or prev.rules.rs, settings, overrides, filename, table=table, baseline=base,
-              assign=Engine.assign_greedy, extra_tqs=[move_tqs])
+              assign=None, extra_tqs=[move_tqs])
     impact = annotate(out, prev, base, from_rev, to_rev, rev_no, manual=set(moves or {}))
     out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
     out.kpis = compute_kpis(out.signals, out.alloc.slots, out.alloc.cabinets, out.tqs, out.rules,

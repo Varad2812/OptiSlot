@@ -32,6 +32,19 @@ def test_gauntlet_zero_violations(gauntlet):
     assert rep.verdict == "PASS" and rep.violations == 0
 
 
+def test_gauntlet_compact_zero_violations_and_minimal_moves():
+    from engine.rules import load_ruleset
+    from tests.helpers import with_strategy
+    rs = with_strategy(load_ruleset(), "compact")
+    a = run(MDB, rs)
+    revb, _ = build(MDB, a)
+    b, imp = revise(revb, a)
+    rep = verify_rows(b.rows, b.signals, rs, b.settings, b.tqs)
+    assert rep.verdict == "PASS" and rep.violations == 0, [(c.id, c.violations[:2]) for c in rep.checks if c.failed]
+    assert imp.moved == [] and b.rules.cioc_strategy == "compact"
+    assert {(s.cabinet, s.cioc_seq) for s in b.alloc.slots} == {(c.name, ci.seq) for c in b.alloc.cabinets for ci in c.ciocs}
+
+
 def test_gauntlet_expected_tqs(gauntlet):
     a, b, imp, _ = gauntlet
     cats = sorted(t.category for t in b.tqs if t.id in imp.new_tqs)

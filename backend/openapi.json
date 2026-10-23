@@ -3049,6 +3049,9 @@
       "title": "Description",
       "default": ""
      },
+     "settings": {
+      "$ref": "#/components/schemas/RulesetSettings"
+     },
      "rules": {
       "items": {
        "$ref": "#/components/schemas/Rule"
@@ -3065,6 +3068,23 @@
      "rules"
     ],
     "title": "RuleSet"
+   },
+   "RulesetSettings": {
+    "properties": {
+     "cioc_strategy": {
+      "type": "string",
+      "enum": [
+       "balanced",
+       "compact"
+      ],
+      "title": "Cioc Strategy",
+      "default": "balanced"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "RulesetSettings",
+    "description": "Rule-set-wide choices that are not a single rule.\n\ncioc_strategy: balanced = every CIOC of every instantiated cabinet is installed and cable blocks are spread\nover them (even headroom); compact = fewest CIOCs, and only CIOCs that hold signals are instantiated."
    },
    "RunRecord": {
     "properties": {

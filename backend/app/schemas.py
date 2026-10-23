@@ -22,6 +22,7 @@ RuleType = Literal[
     "output_map", "custom_expr",
 ]
 SignalKind = Literal["field", "cabinet_alarm"]
+CiocStrategy = Literal["balanced", "compact"]
 Family = Literal["A", "B", "-"]
 
 
@@ -40,11 +41,20 @@ class Rule(Model):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class RulesetSettings(Model):
+    """Rule-set-wide choices that are not a single rule.
+
+    cioc_strategy: balanced = every CIOC of every instantiated cabinet is installed and cable blocks are spread
+    over them (even headroom); compact = fewest CIOCs, and only CIOCs that hold signals are instantiated."""
+    cioc_strategy: CiocStrategy = "balanced"
+
+
 class RuleSet(Model):
     id: str
     name: str
     version: int = 1
     description: str = ""
+    settings: RulesetSettings = Field(default_factory=RulesetSettings)
     rules: list[Rule]
 
 

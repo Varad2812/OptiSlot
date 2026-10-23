@@ -5,8 +5,10 @@
     → reserve: cabinet-alarm baseplate + future-spare baseplates at the END of each cabinet
     → cable blocks sorted family → IO grouping (sequence) → size desc → cable no
     → assign each block to a CIOC (greedy next-fit; CP-SAT may replace this step)
+      cioc_strategy compact  = fewest CIOCs; balanced = then re-spread over every CIOC of those cabinets
     → deterministic layout inside each CIOC (no defragmentation, pinned blocks never move)
-    → full grid: every slot of every cabinet → Field / Wired Spare / Spare Slot / Cabinet Alarm
+    → full grid: every slot of every instantiated CIOC → Field / Wired Spare / Spare Slot / Cabinet Alarm
+      (balanced: all CIOCs of every cabinet; compact: only CIOCs that hold signals)
     → wired spares per controller per IO type → names → why[] trace
 
 Nothing project-specific lives here: geometry comes from ProjectSettings, everything else from the rule set.
@@ -203,6 +205,7 @@ class Engine:
         cc = rules.params("cable_contiguous")
         self.g = Geometry(settings.ciocs_per_cabinet, settings.baseplates_per_cioc, settings.channels_per_baseplate,
                           int(cc.get("whole_baseplate_min_pairs", settings.channels_per_baseplate)) if cc else 10 ** 6)
+        self.strategy = rules.cioc_strategy
         self.names = rules.params("naming_pattern")
         self.patterns = self.names.get("patterns", {})
         self.cabs: list[Cab] = []
@@ -295,6 +298,25 @@ class Engine:
 
     def usable(self, cab: Cab, local: int) -> list[int]:
         return [bp for bp in range(1, self.g.bps + 1) if (local, bp) not in cab.reserved]
+
+    def cap_units(self, cab: Cab, local: int) -> int:
+        """Channels a CIOC offers to field cables (reserved baseplates excluded)."""
+        return len(self.usable(cab, local)) * self.g.chs
+
+    def load_units(self, cab: Cab, local: int) -> int:
+        return sum(b.foot for b in cab.blocks.get(local, []))
+
+    def fill_permille(self, cab: Cab, local: int) -> int:
+        cap = self.cap_units(cab, local)
+        return math.ceil(1000 * self.load_units(cab, local) / cap) if cap else 0
+
+    def instantiated(self, cab: Cab) -> list[int]:
+        """CIOC positions that exist in the output. balanced: all of them; compact: only those holding signals."""
+        if self.strategy != "compact":
+            return list(range(1, self.g.ciocs + 1))
+        alarm = self.rules.first("reserve_baseplate")
+        alarm_local = int(alarm.params.get("cioc", 1)) if alarm else None
+        return [l for l in range(1, self.g.ciocs + 1) if cab.blocks.get(l) or (cab.alarms and l == alarm_local)]
 
     # ── blocks ──
     def build_blocks(self, live: list[Signal]) -> list[Block]:
@@ -411,6 +433,61 @@ class Engine:
                         self.unplaced.append(s)
                     break
                 self.new_cab(domain, ns)
+
+    def assign_balanced(self, domain: str, ns: tuple[str, str], blocks: list[Block]) -> None:
+        """Compact next-fit first decides how many cabinets the domain needs (and raises any capacity TQ); then every
+        unpinned block is re-spread over ALL CIOCs of those cabinets — still in sequence, A and B apart — with the
+        lowest per-CIOC fill ceiling that lays out (binary search). Never worse than compact: if no ceiling below 100%
+        works, the compact assignment stands."""
+        self.assign_greedy(domain, ns, blocks)
+        free = sorted([b for b in blocks if b.cab is not None and not b.pinned], key=lambda b: b.sort_key)
+        if not free:
+            return
+        cabs = sorted([c for c in self.cabs if c.ns == ns and c.domain == domain], key=lambda c: c.seq)
+        seq = [(c, l) for c in cabs for l in range(1, self.g.ciocs + 1)]
+        before = [(b, b.cab, b.cioc) for b in free]
+        pinned = [(c, l, b) for c in cabs for l, bl in sorted(c.blocks.items()) for b in bl if b.pinned]
+
+        def reset() -> None:
+            for c in cabs:
+                c.blocks.clear()
+                c.family.clear()
+                c.family.update(c.alarm_lock)
+                c.locks.clear()
+            for b in free:
+                b.cab, b.cioc = None, None
+            for c, l, b in pinned:
+                self.commit(c, l, b)
+
+        def spread(ceiling: int) -> bool:
+            reset()
+            i = 0
+            for b in free:
+                while i < len(seq):
+                    c, l = seq[i]
+                    load = self.load_units(c, l)
+                    if (self.compatible(c, l, b) and (load == 0 or 1000 * (load + b.foot) <= ceiling * self.cap_units(c, l))
+                            and self.fits(c, l, b)):
+                        self.commit(c, l, b)
+                        break
+                    i += 1
+                else:
+                    return False
+            return True
+
+        lo, hi = 0, 1000
+        if spread(hi):
+            while lo < hi:
+                mid = (lo + hi) // 2
+                if spread(mid):
+                    hi = mid
+                else:
+                    lo = mid + 1
+            if spread(hi):
+                return
+        reset()  # nothing better than compact (cannot happen in practice): restore it exactly
+        for b, c, l in before:
+            self.commit(c, l, b)
 
     # ── alarms ──
     def place_alarms(self, domain: str, ns: tuple[str, str], alarms: list[Signal]) -> None:
@@ -592,7 +669,8 @@ class Engine:
             dblocks = [b for b in self.blocks if b.domain == domain]
             if self.baseline:
                 self.pin_blocks(domain, dblocks)
-            (assign or Engine.assign_greedy)(self, domain, ns, dblocks)
+            default = Engine.assign_balanced if self.strategy == "balanced" else Engine.assign_greedy
+            (assign or default)(self, domain, ns, dblocks)
         for cab in self.cabs:
             for local, bl in cab.blocks.items():
                 pos = layout(bl, self.usable(cab, local), self.g)
@@ -635,8 +713,9 @@ class Engine:
         slots: list[Slot] = []
         alarm_rule = self.rules.first("reserve_baseplate")
         for cab in sorted(self.cabs, key=lambda c: (c.dorder, c.ns, c.seq)):
+            locals_ = self.instantiated(cab)
             grid: dict[tuple[int, int, int], Slot] = {}
-            for local in range(1, g.ciocs + 1):
+            for local in locals_:
                 for bp in range(1, g.bps + 1):
                     for ch in range(1, g.chs + 1):
                         grid[(local, bp, ch)] = self.base_slot(cab, local, bp, ch)
@@ -709,7 +788,7 @@ class Engine:
                     if cab.alarm_exception and s.family == cab.alarm_minority:
                         slot.tq_ids.append(cab.alarm_exception)
                         slot.remarks = f"Excepted by {cab.alarm_exception}: A/B cabinet alarms"
-            for local in range(1, g.ciocs + 1):
+            for local in locals_:
                 for bp in range(1, g.bps + 1):
                     for ch in range(1, g.chs + 1):
                         slot = grid[(local, bp, ch)]
@@ -814,10 +893,13 @@ class Engine:
         for s in slots:
             by_cab[s.cabinet].append(s)
         for cab in sorted(self.cabs, key=lambda c: (c.dorder, c.ns, c.seq)):
+            locals_ = self.instantiated(cab)
+            if not locals_:
+                continue  # compact: a cabinet with no signal is not instantiated at all
             name = self.name("marshalling", cab)
             cs = by_cab[name]
             ciocs = []
-            for local in range(1, self.g.ciocs + 1):
+            for local in locals_:
                 ss = [s for s in cs if s.cioc_local == local]
                 bps = []
                 for bp in range(1, self.g.bps + 1):

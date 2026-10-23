@@ -65,7 +65,7 @@ def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: Proje
     alloc = engine.run(assign)
     t3 = time.perf_counter()
     rows = render_rows(alloc.slots, signals, rules)
-    optimiser = _optimiser_info(report, alloc, (t3 - t2) * 1e3)
+    optimiser = _optimiser_info(report, alloc, (t3 - t2) * 1e3, rules.cioc_strategy)
     if settings.cpsat_enabled and skip_large and report is None:
         optimiser.status, optimiser.note = "skipped (large)", f"{len(live):,} signals — CP-SAT skipped to keep the run under 3 s; greedy + verifier"
     if report is not None and report.adopted_any:
@@ -88,17 +88,25 @@ def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: Proje
                      optimiser=optimiser)
 
 
-def _optimiser_info(report, alloc: Allocation, ms: float) -> OptimiserInfo:
+def _optimiser_info(report, alloc: Allocation, ms: float, strategy: str = "compact") -> OptimiserInfo:
     used = sum(1 for c in alloc.cabinets for ci in c.ciocs if ci.used or ci.wired_spares)
     if report is None:
         return OptimiserInfo(method="greedy", greedy_ciocs=used, status="greedy only", time_ms=round(ms, 1),
-                             note="Optimiser off — greedy next-fit")
+                             note="Optimiser off — " + ("greedy balanced spread" if strategy == "balanced" else "greedy next-fit"))
     g = sum(d["greedy"]["ciocs"] for d in report.domains.values())
     c = sum((d["cpsat"] or d["greedy"])["ciocs"] for d in report.domains.values())
     gcab = sum(d["greedy"]["cabinets"] for d in report.domains.values())
     ccab = sum((d["cpsat"] or d["greedy"])["cabinets"] for d in report.domains.values())
     statuses = sorted({d["status"].split(" ")[0] for d in report.domains.values()})
-    if report.adopted_any:
+    if report.adopted_any and strategy == "balanced":
+        gf = max((d["greedy"]["max_fill"] for d in report.domains.values()), default=0)
+        cf = max(((d["cpsat"] or d["greedy"])["max_fill"] for d in report.domains.values()), default=0)
+        gg = sum(d["greedy"]["group_scope_spread"] for d in report.domains.values())
+        cg = sum((d["cpsat"] or d["greedy"])["group_scope_spread"] for d in report.domains.values())
+        note = (f"CP-SAT adopted (balanced) — IO groups tighter (spread {gg} → {cg})" if cg < gg else
+                f"CP-SAT adopted (balanced) — max CIOC fill {gf / 10:g}% → {cf / 10:g}%" if cf < gf else
+                "CP-SAT adopted (balanced) — fewer moves / better sequence than the greedy spread")
+    elif report.adopted_any:
         bits = []
         if gcab > ccab:
             bits.append(f"{gcab - ccab} cabinet(s)")
@@ -125,11 +133,19 @@ def _annotate(alloc: Allocation, report) -> None:
         d = report.domains.get(s.domain)
         if not d:
             continue
-        if d["adopted"]:
+        if d["adopted"] and _balanced(d):
+            text = (f"CIOC chosen by CP-SAT (balanced): max CIOC fill in this domain "
+                    f"{d['greedy']['max_fill'] / 10:g}% → {d['cpsat']['max_fill'] / 10:g}%")
+        elif d["adopted"]:
             g, c = d["greedy"], d["cpsat"]
             saved = g["ciocs"] - c["ciocs"]
             text = f"CIOC chosen by CP-SAT" + (f": saves {saved} CIOC(s) vs greedy in this domain" if saved > 0 else
                                                ": groups tighter than greedy in this domain")
         else:
-            text = f"CIOC chosen by greedy next-fit; CP-SAT {d['status'].lower()} found nothing strictly better"
+            text = (f"CIOC chosen by {'the greedy balanced spread' if _balanced(d) else 'greedy next-fit'}; "
+                    f"CP-SAT {d['status'].lower()} found nothing strictly better")
         s.why.append(WhyStep(rule_id=None, text=text))
+
+
+def _balanced(d: dict) -> bool:
+    return d["greedy"].get("strategy") == "balanced"

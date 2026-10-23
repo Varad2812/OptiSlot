@@ -17,7 +17,7 @@ MOCK = ROOT / "frontend" / "src" / "mock"
 
 def test_fixtures_validate():
     a = AllocationResult.model_validate_json((MOCK / "allocation.json").read_text())
-    assert len(a.slots) == 384 * len(a.cabinets)
+    assert len(a.slots) == 96 * a.kpis.ciocs == 96 * sum(len(c.ciocs) for c in a.cabinets)
     b = AllocationResult.model_validate_json((MOCK / "allocation_revb.json").read_text())
     assert b.revision == "B"
     Project.model_validate_json((MOCK / "project.json").read_text())

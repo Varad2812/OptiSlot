@@ -1,32 +1,32 @@
 [
  {
-  "run_id": "run-07987a87415b",
+  "run_id": "run-07c6994c7233",
   "project_id": "demo",
-  "timestamp": "2026-10-23T12:39:53Z",
+  "timestamp": "2026-10-23T13:08:32Z",
   "revision": "B",
   "kind": "revision",
-  "mdb_sha256": "c4fc0195f25441e46d93b1465f138a8df32c7b17b86aa90ca2eacc63733767f3",
-  "ruleset_hash": "361117f388f6afbfeddd73b9469cb325480f00e18d02fe692d1940d679d89775",
-  "output_sha256": "37ac237d44e2e4a5ea7df37eada9b2d540aa560d965d9b7597ce46405caa8b53",
+  "mdb_sha256": "c9f1ae205d86d2de24a2b8ea0cbed7c9e6af7b5d99647623877be9c6e5a0884b",
+  "ruleset_hash": "89917bb1559bc625c712ffb29cb100d8ab858a47af3f7e40019f0973083a7ce9",
+  "output_sha256": "96e0d33fa245030e57a834e98aeb7e395f84702caf0fdbd3835d0589481f125d",
   "engine_version": "optislot-0.1.0",
   "verdict": "PASS",
   "violations": 0,
   "signals": 199,
-  "runtime_ms": 1338.6
+  "runtime_ms": 1354.6
  },
  {
-  "run_id": "run-00ba54d396fd",
+  "run_id": "run-2a87b8bc147a",
   "project_id": "demo",
-  "timestamp": "2026-10-23T12:39:51Z",
+  "timestamp": "2026-10-23T13:08:30Z",
   "revision": "A",
   "kind": "allocate",
   "mdb_sha256": "a0f9035042fe3804d8dde17d20035ece6af684d02400643b40a9e8c3a8b6a6a1",
-  "ruleset_hash": "361117f388f6afbfeddd73b9469cb325480f00e18d02fe692d1940d679d89775",
-  "output_sha256": "486cd8a4a23fbb4aa6c7773ce7420cfebb88242c9e4bc6f6921714f64021d5ad",
+  "ruleset_hash": "89917bb1559bc625c712ffb29cb100d8ab858a47af3f7e40019f0973083a7ce9",
+  "output_sha256": "579a04de2042358c80c72b28d6a556b4e6f081f807dd0b9f223d080d184e815e",
   "engine_version": "optislot-0.1.0",
   "verdict": "PASS",
   "violations": 0,
   "signals": 189,
-  "runtime_ms": 1352.3
+  "runtime_ms": 1437.4
  }
 ]

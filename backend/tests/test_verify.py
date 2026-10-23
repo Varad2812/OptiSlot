@@ -11,10 +11,11 @@ from hypothesis import HealthCheck, given, settings, strategies as st
 
 from app.schemas import ProjectSettings
 from engine.pipeline import run
-from tests.helpers import row, table
+from engine.rules import load_ruleset
+from tests.helpers import row, table, with_strategy
 from verify.certificate import certify
 from verify.checks import verify_rows
-from verify.xlsx import verify_xlsx
+from verify.xlsx import read_bom, verify_xlsx
 from xio.reports import capacity_bom, revision_impact, rule_check_report, tq_register
 from xio.writer import TEMPLATE, write_allocation
 
@@ -104,14 +105,61 @@ def test_tampered_file_fails_on_that_row(sample):
     assert viol == [("C09", n, ws.cell(n, ti).value)], viol
 
 
-def test_reproducible_hashes(sample):
-    out, data = sample
-    out2 = run(MDB)
-    data2 = write_allocation(out2.rows)
-    rep = verify(out, out.rows)
-    c1 = certify(out.table.sha256, out.rules.rs, data, rep)
-    c2 = certify(out2.table.sha256, out2.rules.rs, data2, verify(out2, out2.rows))
+@pytest.mark.parametrize("strategy", ["balanced", "compact"])
+def test_reproducible_hashes(strategy):
+    rs = with_strategy(load_ruleset(), strategy)
+    certs = []
+    for _ in range(2):
+        out = run(MDB, rs)
+        data = write_allocation(out.rows)
+        rep = verify_xlsx(data, out.signals, rs, out.settings, out.tqs, claims=claims(out))
+        assert rep.verdict == "PASS" and rep.violations == 0, [(c.id, c.violations[:2]) for c in rep.checks if c.failed]
+        certs.append(certify(out.table.sha256, rs, data, rep))
+    c1, c2 = certs
     assert c1.output_sha256 == c2.output_sha256 and c1.run_id == c2.run_id and c1.ruleset_hash == c2.ruleset_hash
+
+
+def claims(out) -> dict:
+    bom, _ = capacity_bom(out.alloc.cabinets, out.alloc.slots, out.kpis)
+    return {"kpi_ciocs": out.kpis.ciocs, "bom": read_bom(bom)}
+
+
+def c19(rep):
+    return next(c for c in rep.checks if c.id == "C19")
+
+
+@pytest.mark.parametrize("strategy", ["balanced", "compact"])
+def test_cioc_count_agrees_and_disagreement_is_caught(strategy):
+    rs = with_strategy(load_ruleset(), strategy)
+    out = run(MDB, rs)
+    good = claims(out)
+    assert c19(verify_rows(out.rows, out.signals, rs, out.settings, out.tqs, claims=good)).failed == 0
+    bad_kpi = verify_rows(out.rows, out.signals, rs, out.settings, out.tqs, claims={**good, "kpi_ciocs": out.kpis.ciocs + 1})
+    assert bad_kpi.verdict == "FAIL" and "KPIs claim" in c19(bad_kpi).violations[0].message
+    bom = dict(good["bom"], ciocs=good["bom"]["ciocs"][:-1])  # a BOM that forgot one CIOC
+    bad_bom = verify_rows(out.rows, out.signals, rs, out.settings, out.tqs, claims={**good, "bom": bom})
+    assert bad_bom.verdict == "FAIL" and "missing from BOM" in c19(bad_bom).violations[0].message
+    junk = verify_rows(out.rows, out.signals, rs, out.settings, out.tqs, claims={**good, "bom": read_bom(b"not a workbook")})
+    assert "could not be read" in c19(junk).violations[0].message
+
+
+def test_compact_rows_with_an_empty_cioc_fail():
+    """A compact allocation that ships a CIOC holding no signal disagrees with its own strategy."""
+    rs = with_strategy(load_ruleset(), "compact")
+    out = run(MDB, rs)
+    bal = run(MDB)  # the balanced grid has CIOC 016, which compact leaves out
+    extra = [r for r in bal.rows if r["CIOC/CSLS Name"].endswith("016")]
+    for r in extra:
+        r.update({k: "-" for k in ("Tag Name", "IO Type", "Field Cable No", "Field Cable Pair", "Segregation")},
+                 **{"Tag Status": "Spare Slot", "CHARM Type": "SE6103", "CHARM TB1": "-", "CHARM TB2": "-", "CHARM TB3": "-"})
+    rep = verify_rows(out.rows + extra, out.signals, rs, out.settings, out.tqs)
+    assert "C19" in failed(rep) and "holds no signal" in c19(rep).violations[0].message
+
+
+def test_balanced_rows_missing_a_cioc_fail():
+    out = run(MDB)
+    rows = [r for r in out.rows if not r["CIOC/CSLS Name"].endswith("004")]
+    assert "C13" in failed(verify(out, rows))
 
 
 def test_formatting_identical_to_template_on_every_row(sample):
@@ -150,8 +198,8 @@ mix = st.lists(st.tuples(st.sampled_from([1, 2, 6, 12, 24]), st.sampled_from(["A
 
 
 @settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(mix, st.booleans())
-def test_engine_and_verifier_agree(m, ab_clash):
+@given(mix, st.booleans(), st.sampled_from(["balanced", "compact"]))
+def test_engine_and_verifier_agree(m, ab_clash, strategy):
     rows = []
     for c, (size, grp, io, fill, (room, area)) in enumerate(m):
         n = max(1, int(size * fill))
@@ -159,8 +207,8 @@ def test_engine_and_verifier_agree(m, ab_clash):
             g = "B" if (ab_clash and c == 0 and p == n and n > 1) else grp
             rows.append(row(f"T{c}-{p}", io, f"CB-{c:03d}", p, size, group=g, room=room, area=area,
                             inst="XYV" if io == "DO" else "PT"))
-    out = run(b"", table=table(rows))
-    rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs)
+    out = run(b"", with_strategy(load_ruleset(), strategy), table=table(rows))
+    rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs, claims=claims(out))
     assert rep.verdict == "PASS", [(c.id, c.violations[:3]) for c in rep.checks if c.failed]
 
 
@@ -176,10 +224,10 @@ junk = st.text(alphabet=st.characters(blacklist_categories=("Cs",)), max_size=10
     "group": st.sampled_from(["A", "B", "-", "", "B-ALARM"]), "status": st.sampled_from(["New", "DELETED", ""]),
     "inst": st.sampled_from(["XYV", "XA", "UZV", "PT", ""]),
     "equip": st.sampled_from(["-", "P30-DCM-32001-02", "P30-DCS-32001-01", "P30-DCM-32001-07"]),
-}), max_size=40))
-def test_junk_engine_and_verifier_agree(rows):
+}), max_size=40), st.sampled_from(["balanced", "compact"]))
+def test_junk_engine_and_verifier_agree(rows, strategy):
     t = table([row(r["tag"], r["io"], r["cable"], r["pair"], group=r["group"], status=r["status"], equipment=r["equip"],
                    spec=r["spec"], inst=r["inst"]) for r in rows])
-    out = run(b"", table=t, settings=ProjectSettings(max_cabinets_per_domain=8))
-    rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs)
+    out = run(b"", with_strategy(load_ruleset(), strategy), table=t, settings=ProjectSettings(max_cabinets_per_domain=8))
+    rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs, claims=claims(out))
     assert rep.verdict == "PASS", [(c.id, c.violations[:3]) for c in rep.checks if c.failed]
