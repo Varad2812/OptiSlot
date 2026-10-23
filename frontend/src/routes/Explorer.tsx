@@ -12,7 +12,7 @@ import { IO_COLOURS, IO_LABELS, IO_ORDER, ioKey, type IoKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { demoMode, registerDemo, setDemoReady } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
-import { EASE, phase, scoreProgress } from "@/motion/shared";
+import { DIVE_KEY, EASE, phase, scoreProgress } from "@/motion/shared";
 import { UploadDiveOverlay } from "@/motion/UploadDive";
 import { typing } from "@/shell/useHotkeys";
 import { NO_FILTERS, useUi, type ExplorerFilters, type Level } from "@/store/ui";
@@ -23,12 +23,12 @@ import { useCamera } from "@/world/useCamera";
 
 const INSETS: Insets = { top: 92, right: 40, bottom: 92, left: 40 };
 const GLIDE_MS = 700;
+const DIVE_IN_MS = 900;
 // Zoom-out dip mid-glide. Kept above the Plant threshold (0.85× cabinet scale) so the level of detail never pops.
 const GLIDE_DIP = 0.12;
 const PLANT_MAX = 8; // long rows (10k ≈ 46 cabinets): the Plant view walks a window of the row; the minimap shows it all
 const DIVE_S = 4;
 const DIVE_CALM_S = 1.1;
-const DIVE_KEY = "optislot-dive-seen";
 
 export default function Explorer() {
   const { data: a } = useAllocation();
@@ -187,7 +187,14 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
     prev.current = { idx, level, focus: focusCioc };
     setPlateKey(idx);
     if (suppress.current) return void (suppress.current = false);
-    if (!pv) return cam.set(target);
+    if (!pv) {
+      // Arrived from a Mission Control click: start at Plant level and dive into the chosen cabinet.
+      const arrive = useUi.getState().arriveFrom;
+      if (arrive) useUi.getState().setArrive(null);
+      if (!arrive || calm) return cam.set(target);
+      cam.set(camFor("plant", idx, null));
+      return void cam.tween(cam.get(), target, DIVE_IN_MS, vp.w, vp.h);
+    }
     if (pv.idx === idx && pv.level === level && pv.focus === focusCioc) return cam.set(target); // resize
     if (calm) return void fade(() => cam.set(target));
     if (pv.idx !== idx && level !== "plant") {

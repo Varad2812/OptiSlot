@@ -73,6 +73,7 @@ interface UiState {
   focusCioc: number | null; // cioc_local in view at detail level
   filters: ExplorerFilters;
   diveNonce: number;        // bump to replay the Upload Dive
+  arriveFrom: "plant" | null; // one-shot: the Explorer opens with a Plant → cabinet camera dive (Mission Control click)
   injectPending: boolean;   // the top-bar "Inject Rev B" button asks the Revision Center to run the gauntlet
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
@@ -86,6 +87,7 @@ interface UiState {
   setLevel: (l: Level, focusCioc?: number | null) => void;
   setFilters: (f: Partial<ExplorerFilters>) => void;
   replayDive: () => void;
+  setArrive: (a: "plant" | null) => void;
   requestInject: (v?: boolean) => void;
 }
 
@@ -102,6 +104,7 @@ export const useUi = create<UiState>((set, get) => ({
   focusCioc: null,
   filters: NO_FILTERS,
   diveNonce: 0,
+  arriveFrom: null,
   injectPending: false,
   setTheme: (theme) => {
     applyTheme(theme);
@@ -124,6 +127,7 @@ export const useUi = create<UiState>((set, get) => ({
   setLevel: (level, focusCioc = null) => set({ level, focusCioc }),
   setFilters: (f) => set({ filters: { ...get().filters, ...f } }),
   replayDive: () => set({ diveNonce: get().diveNonce + 1 }),
+  setArrive: (arriveFrom) => set({ arriveFrom }),
   requestInject: (v = true) => set({ injectPending: v }),
 }));
 

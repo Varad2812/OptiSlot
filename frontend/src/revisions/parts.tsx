@@ -1,5 +1,6 @@
 import { motion, useTransform, type MotionValue } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import type { WorldModel } from "@/api/derive";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,8 @@ import { KIND_TONE, type DiffItem, type DiffKind } from "@/world/DiffOverlay";
 const ARC = "M 18 98 A 82 82 0 0 1 182 98";
 
 /** Stability = unchanged-in-place ÷ previous live signals (computed by the server, never hard-coded). It sweeps with the diff. */
-export function StabilityGauge({ value, p, unchanged, previous }: { value: number; p: MotionValue<number>; unchanged: number; previous: number }) {
-  const sweep = useTransform(p, (v) => (value / 100) * phase(v, 0.05, 0.85));
+export function StabilityGauge({ value, p, unchanged, previous, empty, children }: { value: number | null; p: MotionValue<number>; unchanged: number; previous: number; empty?: ReactNode; children?: ReactNode }) {
+  const sweep = useTransform(p, (v) => ((value ?? 0) / 100) * phase(v, 0.05, 0.85));
   const follow = useTransform(p, (v) => phase(v, 0.05, 0.85));
   return (
     <div className="flex items-center gap-4" data-testid="stability-gauge">
@@ -25,13 +26,18 @@ export function StabilityGauge({ value, p, unchanged, previous }: { value: numbe
           })}
         </svg>
         <div className="absolute inset-x-0 bottom-1.5 text-center">
-          <div className="text-[30px] font-semibold leading-8 text-brand"><CountUp value={value} decimals={1} suffix="%" follow={follow} /></div>
+          <div className="text-[30px] font-semibold leading-8 text-brand">{value == null ? <span className="text-muted-foreground">—</span> : <CountUp value={value} decimals={1} suffix="%" follow={follow} />}</div>
           <div className="label-caps">stability</div>
         </div>
       </div>
       <div className="min-w-0 text-[12px] leading-snug text-muted-foreground">
-        <div><span className="tnum text-[15px] font-semibold text-text">{unchanged}</span> of <span className="tnum">{previous}</span></div>
-        signals sat still — same slot, same hardware.
+        {value == null ? empty : (
+          <>
+            <div><span className="tnum text-[15px] font-semibold text-text">{unchanged}</span> of <span className="tnum">{previous}</span></div>
+            signals sat still — same slot, same hardware.
+          </>
+        )}
+        {children}
       </div>
     </div>
   );

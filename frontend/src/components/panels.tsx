@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { CheckCircle2, CircleAlert, Download, FileSpreadsheet, Hash, XCircle } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, CircleAlert, Download, FileSpreadsheet, Hash, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   useAllocation, useExports, useImportSummary, useProjectId, useRules, useRuns, type AllocationResult,
@@ -10,19 +11,31 @@ import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { EASE } from "@/motion/shared";
 
-/** The card every screen is built from: an uppercase label, optional aside, hairline surface, hover lift. */
-export function Panel({ title, aside, children, className, delay = 0 }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; delay?: number }) {
+/**
+ * The card every screen is built from: an uppercase label, optional aside, hairline surface, hover lift.
+ * With `to` the whole card is a link (inner links/buttons keep their own target); the arrow in the header is the keyboard path.
+ */
+export function Panel({ title, aside, children, className, delay = 0, to }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; delay?: number; to?: string }) {
+  const nav = useNavigate();
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay, ease: EASE }}
       whileHover={{ y: -2 }}
-      className={cn("card-surface flex min-h-0 flex-col p-4", className)}
+      onClick={to ? (e) => !(e.target as HTMLElement).closest("a,button,input,[data-stop]") && nav(to) : undefined}
+      className={cn("card-surface group/panel flex min-h-0 flex-col p-4 transition-colors", to && "cursor-pointer hover:border-brand/40", className)}
     >
       <header className="mb-3 flex items-center justify-between gap-2">
         <h2 className="label-caps">{title}</h2>
-        {aside}
+        <div className="flex items-center gap-2">
+          {aside}
+          {to && (
+            <Link to={to} aria-label={`Open ${title}`} className="rounded-chip p-0.5 text-muted-foreground transition-colors group-hover/panel:text-brand focus-visible:text-brand">
+              <ArrowUpRight className="size-3.5" />
+            </Link>
+          )}
+        </div>
       </header>
       <div className="min-h-0 flex-1">{children}</div>
     </motion.section>
@@ -41,12 +54,12 @@ function Loading({ rows = 4 }: { rows?: number }) {
   );
 }
 
-export function CertificatePanel({ delay }: { delay?: number }) {
+export function CertificatePanel({ delay, to }: { delay?: number; to?: string }) {
   const { data: a } = useAllocation();
   const c = a?.certificate;
   const pass = c?.verdict === "PASS";
   return (
-    <Panel title="Run certificate" delay={delay} aside={c && <Verdict pass={pass} />}>
+    <Panel title="Run certificate" delay={delay} to={to} aside={c && <Verdict pass={pass} />}>
       {!c ? <Loading /> : (
         <>
           <div className={cn("text-[26px] font-semibold tnum", pass ? "text-ok" : "text-err")}>
@@ -63,6 +76,15 @@ export function CertificatePanel({ delay }: { delay?: number }) {
             <dt className="text-muted-foreground">Engine</dt>
             <dd className="font-mono text-[11.5px]">{c.engine_version} · {c.timestamp.replace("T", " ").replace("Z", "")}</dd>
           </dl>
+          <div className="mt-3 flex flex-wrap gap-1" aria-label="Verifier checks">
+            {a!.report.checks.map((ch) => (
+              <span
+                key={ch.id}
+                title={`${ch.label} — ${ch.failed ? `${ch.failed} failed` : ch.excepted ? `${ch.excepted} excepted by TQ` : `${ch.passed} passed`}`}
+                className={cn("h-2 w-4 rounded-[2px]", ch.failed ? "bg-err" : ch.excepted ? "bg-warn" : "bg-ok/80")}
+              />
+            ))}
+          </div>
         </>
       )}
     </Panel>
@@ -98,26 +120,32 @@ export function ChecksPanel({ delay, limit = 20 }: { delay?: number; limit?: num
 
 const SEV: Record<string, string> = { critical: "bg-err/20 text-err", high: "bg-err/15 text-err", medium: "bg-warn/15 text-warn", low: "bg-raised text-muted-foreground", info: "bg-raised text-muted-foreground" };
 
-export function TqPanel({ delay, limit = 5 }: { delay?: number; limit?: number }) {
+const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+export function TqPanel({ delay, limit = 5, to }: { delay?: number; limit?: number; to?: string }) {
   const { data: a } = useAllocation();
-  const tqs = a?.tqs ?? [];
+  // open first, then by severity; the register keeps the engine's order
+  const tqs = [...(a?.tqs ?? [])].sort((x, y) => Number(y.status === "open") - Number(x.status === "open") || (SEV_RANK[x.severity] ?? 9) - (SEV_RANK[y.severity] ?? 9));
   return (
-    <Panel title="Technical queries" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.kpis.tqs_open} open</span>}>
+    <Panel title="Technical queries" delay={delay} to={to} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.kpis.tqs_open} open</span>}>
       {!a ? <Loading /> : !tqs.length ? <p className="text-muted-foreground">No TQs — every live signal placed cleanly.</p> : (
         <ul className="space-y-2">
           {tqs.slice(0, limit).map((t) => (
-            <li key={t.id} className="rounded-chip border border-border bg-raised/50 p-2.5">
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="font-mono text-muted-foreground">{t.id}</span>
-                <span className={cn("rounded-[4px] px-1.5 py-px font-medium", SEV[t.severity] ?? SEV.low)}>{t.severity}</span>
-                <span className="text-muted-foreground">{t.category}</span>
-                <span className="ml-auto rounded-[4px] bg-surface px-1.5 py-px text-muted-foreground">{t.confidence}</span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{t.message}</p>
+            <li key={t.id}>
+              <Link to="/tqs" className="block rounded-chip border border-border bg-raised/50 p-2.5 transition-colors hover:border-brand/40 hover:bg-raised">
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="font-mono text-muted-foreground">{t.id}</span>
+                  <span className={cn("rounded-[4px] px-1.5 py-px font-medium", SEV[t.severity] ?? SEV.low)}>{t.severity}</span>
+                  <span className="truncate text-muted-foreground">{t.category}</span>
+                  <span className="ml-auto rounded-[4px] bg-surface px-1.5 py-px text-muted-foreground">{t.confidence}</span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{t.message}</p>
+              </Link>
             </li>
           ))}
         </ul>
       )}
+      {a && tqs.length > limit && <p className="mt-2 text-[11.5px] text-muted-foreground">+{tqs.length - limit} more in the TQ Center</p>}
     </Panel>
   );
 }
@@ -179,20 +207,39 @@ export function SpareCompliancePanel({ delay }: { delay?: number }) {
   );
 }
 
-export function ActivityPanel({ delay, kinds }: { delay?: number; kinds?: string[] }) {
+const KIND_DOT: Record<string, string> = {
+  import: "bg-io-ai", allocate: "bg-brand", verify: "bg-ok", tq: "bg-warn", rule: "bg-io-ao", revision: "bg-io-alarm", export: "bg-io-di", whatif: "bg-muted-foreground",
+};
+const KIND_TO: Record<string, string> = {
+  import: "/import", allocate: "/explorer", verify: "/proof", tq: "/tqs", rule: "/rules", revision: "/revisions", export: "/export", whatif: "/lab",
+};
+
+/**
+ * The decision log as a vertical timeline: a dot per event kind, each row links to the screen that owns it.
+ * `columns` > 1 fills column-first (wide tiles); every item draws its own connector so the line restarts per column.
+ */
+export function ActivityPanel({ delay, kinds, to, limit = 8, columns = 1 }: { delay?: number; kinds?: string[]; to?: string; limit?: number; columns?: number }) {
   const { data: a } = useAllocation();
-  const items = (a?.activity ?? []).filter((e) => !kinds || kinds.includes(e.kind)).slice(0, 8);
+  const items = (a?.activity ?? []).filter((e) => !kinds || kinds.includes(e.kind)).slice(0, limit);
+  const rows = Math.ceil(items.length / columns);
   return (
-    <Panel title="Activity" delay={delay}>
+    <Panel title="Activity" delay={delay} to={to} aside={a && <span className="text-[11px] text-muted-foreground">decision log</span>}>
       {!a ? <Loading /> : !items.length ? <p className="text-muted-foreground">Nothing yet.</p> : (
-        <ol className="space-y-2">
-          {items.map((e, i) => (
-            <li key={i} className="flex gap-3 text-[12.5px]">
-              <span className="w-14 shrink-0 font-mono text-[11px] text-muted-foreground">{e.ts.slice(11, 16)}</span>
-              <span className="rounded-[4px] bg-raised px-1.5 text-[10.5px] uppercase leading-5 tracking-wide text-muted-foreground">{e.kind}</span>
-              <span className="min-w-0 flex-1 leading-snug">{e.text}</span>
-            </li>
-          ))}
+        <ol className={cn("grid gap-x-8", columns > 1 && "xl:grid-flow-col")} style={columns > 1 ? { gridTemplateRows: `repeat(${rows}, auto)` } : undefined}>
+          {items.map((e, i) => {
+            const first = i % rows === 0;
+            const last = i % rows === rows - 1 || i === items.length - 1;
+            return (
+              <li key={i} className="relative">
+                <span className={cn("absolute left-[3.5px] w-px bg-border", first ? "top-[15px]" : "top-0", last ? "h-[15px]" : "bottom-0")} />
+                <Link to={KIND_TO[e.kind] ?? "/"} className="relative flex gap-3 rounded-chip py-1.5 pl-5 pr-1.5 text-[12.5px] transition-colors hover:bg-raised/70">
+                  <span className={cn("absolute left-0 top-[11px] size-2 rounded-full ring-2 ring-surface", KIND_DOT[e.kind] ?? "bg-muted-foreground")} />
+                  <span className="w-10 shrink-0 font-mono text-[11px] leading-[18px] text-muted-foreground">{e.ts.slice(11, 16)}</span>
+                  <span className="min-w-0 flex-1 leading-[18px]"><span className="mr-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">{e.kind}</span>{e.text}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ol>
       )}
     </Panel>

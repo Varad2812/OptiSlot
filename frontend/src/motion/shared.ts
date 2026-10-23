@@ -9,6 +9,9 @@ export const SPRING = { type: "spring", stiffness: 260, damping: 30 } as const;
 /** 0..1 multiplier the Scoreboard count-ups follow. The Upload Dive drives it; at rest it is 1 = the real numbers. */
 export const scoreProgress = motionValue(1);
 
+/** sessionStorage flag: the Upload Dive autoplays once per session; any deliberate dive (a Mission Control click) counts as seen. */
+export const DIVE_KEY = "optislot-dive-seen";
+
 export const isCalm = () => useUi.getState().motion === "calm";
 export const useCalm = () => useUi((s) => s.motion === "calm");
 
