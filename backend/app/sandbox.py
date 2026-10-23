@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.schemas import (
-    AllocationResult, Move, RuleSet, SlotDiff, TQ, WhatIfRequest, WhatIfResult,
+    AllocationResult, Move, ProjectSettings, RuleSet, SlotDiff, TQ, WhatIfRequest, WhatIfResult,
 )
 from app.service import ProjectState, Service, now, tq_signature
 from engine.allocate import Block
@@ -65,6 +65,42 @@ def apply_overrides(rs: RuleSet, toggles: dict[str, bool], params: dict[str, dic
         if r.id in params:
             r.params.update(params[r.id])
     return RuleSet.model_validate(rs2.model_dump())
+
+
+RULESET_SETTINGS = ("cioc_strategy", "wired_spare_pct", "future_spare_pct")   # the ones /commit can persist (as a rule-set version)
+
+
+def apply_settings(rs: RuleSet, ps: ProjectSettings, changes: dict[str, Any]) -> tuple[RuleSet, ProjectSettings]:
+    """What-if `settings` → a modified COPY of the rule set and project settings. Nothing is stored."""
+    if not changes:
+        return rs, ps
+    rs2 = rs.model_copy(deep=True)
+    ps_updates: dict[str, Any] = {}
+    for k, v in changes.items():
+        if k == "cioc_strategy":
+            if v not in ("balanced", "compact"):
+                raise ValueError("cioc_strategy must be 'balanced' or 'compact'")
+            rs2.settings.cioc_strategy = v
+        elif k in ("wired_spare_pct", "future_spare_pct"):
+            rule = next((r for r in rs2.rules if r.type == k), None)
+            if rule is None:
+                raise ValueError(f"the rule set has no {k} rule — add it in Rules Studio first")
+            if not rule.enabled:
+                raise ValueError(f"rule {rule.id} ({rule.label}) is switched off — toggle it on to try a different percentage")
+            try:
+                pct = float(v)
+            except (TypeError, ValueError):
+                raise ValueError(f"{k} must be a number (percent)") from None
+            if not 0 <= pct <= 100:
+                raise ValueError(f"{k} must be between 0 and 100")
+            rule.params["pct"] = pct
+        elif k in ProjectSettings.model_fields:
+            ps_updates[k] = v
+        else:
+            allowed = ", ".join([*RULESET_SETTINGS, *ProjectSettings.model_fields])
+            raise ValueError(f"unknown setting '{k}' (allowed: {allowed})")
+    ps2 = ProjectSettings.model_validate({**ps.model_dump(), **ps_updates}) if ps_updates else ps
+    return RuleSet.model_validate(rs2.model_dump()), ps2
 
 
 # ───────────────────────────── move validation ─────────────────────────────
@@ -172,6 +208,18 @@ def _diff(prev: RunOutput, new: RunOutput) -> list[SlotDiff]:
     for k, s in a.items():
         if k not in b:
             out.append(SlotDiff(tag=s.tag, from_slot=s.id, change="removed", reason="no longer allocated"))
+    # Spare Slot ↔ Wired Spare (a spare % change, a strategy change, a freed pair …): same slot, new Tag Status
+    sa = {s.id: s for s in prev.alloc.slots if s.status in ("Spare Slot", "Wired Spare")}
+    for s in new.alloc.slots:
+        old = sa.get(s.id)
+        if old is None or s.status not in ("Spare Slot", "Wired Spare"):
+            continue
+        if old.status != s.status:
+            out.append(SlotDiff(tag=s.tag if s.status == "Wired Spare" else old.tag, from_slot=s.id, to_slot=s.id, change="status",
+                                reason=f"{old.status} → {s.status}" + (f" ({s.io_type} on {s.cable})" if s.status == "Wired Spare" else "")))
+        elif s.status == "Wired Spare" and (old.charm, old.tb) != (s.charm, s.tb):
+            out.append(SlotDiff(tag=s.tag, from_slot=s.id, to_slot=s.id, change="hardware",
+                                reason=f"{old.charm}/{old.tb} → {s.charm}/{s.tb}"))
     return out
 
 
@@ -185,8 +233,10 @@ def _rev_no(st: ProjectState) -> str:
     return "01" if st.project.revision == "B" else st.settings.revision
 
 
-def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput) -> RunOutput:
-    """Replay committed sandbox moves on top of a freshly computed allocation (called by every recompute)."""
+def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput, rs: RuleSet | None = None,
+                  settings: ProjectSettings | None = None) -> RunOutput:
+    """Replay committed sandbox moves on top of a freshly computed allocation (called by every recompute).
+    rs / settings: what-if copies to replay under instead of the stored ones."""
     moves = svc.store.get(st.project.id, "sandbox_moves", {}) or {}
     if not moves:
         return out
@@ -195,7 +245,8 @@ def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput) -> RunOutput:
         ns, seq, local, bp, ch = pos
         ok[cable] = (tuple(ns), seq, local, bp, ch)
     rev = st.project.revision
-    out2, _ = revise(_active_mdb(st), out, st.ruleset, st.settings, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=ok)
+    out2, _ = revise(_active_mdb(st), out, rs or st.ruleset, settings or st.settings, from_rev=rev, to_rev=rev,
+                     rev_no=_rev_no(st), moves=ok)
     out2.optimiser = out.optimiser
     return out2
 
@@ -205,6 +256,7 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
     comp = st.current
     assert comp is not None
     rs = apply_overrides(st.ruleset, req.rule_toggles, req.params)
+    rs, ps = apply_settings(rs, st.settings, req.settings)   # copies: the stored rule set, settings and decision log stay untouched
     moves: dict[str, tuple] = {}
     for mv in req.moves:
         res = resolve_move(comp.out, rs, mv)
@@ -213,7 +265,7 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
         moves[res[0]] = res[1]
     rev = st.project.revision
     if moves:
-        out, _ = revise(_active_mdb(st), comp.out, rs, st.settings, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves)
+        out, _ = revise(_active_mdb(st), comp.out, rs, ps, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves)
         for cable, (_, seq, local, bp, ch) in moves.items():
             b = next((x for x in out.alloc.blocks if x.cable == cable), None)
             if b is None or not b.pinned:
@@ -222,17 +274,18 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
                                     kpis=comp.kpis, report=comp.report, moves=0, diff=[])
     elif rev == "B":
         from app.revisions import _rev_a
-        out, _ = revise(st.extra["mdb_b"], _rev_a(svc, st), rs, st.settings)
+        out, _ = revise(st.extra["mdb_b"], _rev_a(svc, st), rs, ps)
     else:
-        out = run(st.mdb, rs, st.settings, st.overrides or None, filename=st.mdb_name)
-    rep = verify_rows(out.rows, out.signals, rs, st.settings, out.tqs)
+        out = run(st.mdb, rs, ps, st.overrides or None, filename=st.mdb_name)
+        out = apply_sandbox(svc, st, out, rs, ps)   # committed moves stay in the preview, so the diff shows only this change
+    rep = verify_rows(out.rows, out.signals, rs, ps, out.tqs)
     diff = _diff(comp.out, out)
     changed = {d.to_slot for d in diff if d.to_slot} | {d.from_slot for d in diff if d.from_slot}
     kpis = out.kpis.model_copy(update={"violations": rep.violations})
     return WhatIfResult(allowed=rep.verdict == "PASS", blocked_reason=None if rep.verdict == "PASS" else
                         f"{rep.violations} hard-rule violation(s) — see the report", kpis=kpis, report=rep,
                         moves=sum(1 for d in diff if d.change == "moved"), diff=diff,
-                        slots=[s for s in out.alloc.slots if s.id in changed])
+                        slots=[s for s in out.alloc.slots if s.id in changed], applied_settings=dict(req.settings))
 
 
 def _push(svc: Service, pid: str, entry: dict) -> None:
@@ -243,16 +296,21 @@ def _push(svc: Service, pid: str, entry: dict) -> None:
 
 
 def commit(svc: Service, pid: str, req: WhatIfRequest) -> AllocationResult:
+    preview_only = [k for k in req.settings if k not in RULESET_SETTINGS]
+    if preview_only:
+        raise ValueError(f"{', '.join(preview_only)} can be previewed but not committed here — change project settings with "
+                         f"PUT /settings (commit accepts {', '.join(RULESET_SETTINGS)})")
     preview = whatif(svc, pid, req)
     if not preview.allowed:
         raise ValueError(preview.blocked_reason or "change rejected")
     st = svc.get(pid)
     with st.lock:
-        if req.rule_toggles or req.params:
+        if req.rule_toggles or req.params or req.settings:
             before = st.ruleset.model_dump()
             rs = apply_overrides(st.ruleset, req.rule_toggles, req.params)
+            rs, _ = apply_settings(rs, st.settings, req.settings)
             what = ", ".join([f"{k} {'on' if v else 'off'}" for k, v in req.rule_toggles.items()] +
-                             [f"{k} {v}" for k, v in req.params.items()])
+                             [f"{k} {v}" for k, v in req.params.items()] + [f"{k} {v}" for k, v in req.settings.items()])
             _push(svc, pid, {"kind": "rules", "before": before, "after": rs.model_dump(), "label": what})
             svc.put_rules(pid, rs, f"What-if committed: {what}")
         if req.moves:

@@ -107,6 +107,7 @@
    },
    "post": {
     "summary": "Import Mdb",
+    "description": "One MDB (`file`, .xlsx/.xlsm/.csv) or several (`files`, repeated field): several are merged with duplicate-tag\ndetection. Mappings below 70% confidence come back with needs_confirmation.",
     "operationId": "import_mdb_api_projects__pid__import_post",
     "parameters": [
      {
@@ -120,7 +121,6 @@
      }
     ],
     "requestBody": {
-     "required": true,
      "content": {
       "multipart/form-data": {
        "schema": {
@@ -1724,15 +1724,27 @@
    "Body_import_mdb_api_projects__pid__import_post": {
     "properties": {
      "file": {
-      "type": "string",
-      "contentMediaType": "application/octet-stream",
+      "anyOf": [
+       {
+        "type": "string",
+        "contentMediaType": "application/octet-stream"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "File"
+     },
+     "files": {
+      "items": {
+       "type": "string",
+       "contentMediaType": "application/octet-stream"
+      },
+      "type": "array",
+      "title": "Files"
      }
     },
     "type": "object",
-    "required": [
-     "file"
-    ],
     "title": "Body_import_mdb_api_projects__pid__import_post"
    },
    "Body_upload_revision_api_projects__pid__revisions_post": {
@@ -2102,6 +2114,10 @@
       "type": "boolean",
       "title": "Overridden",
       "default": false
+     },
+     "needs_confirmation": {
+      "type": "boolean",
+      "title": "Needs Confirmation"
      }
     },
     "additionalProperties": false,
@@ -2320,6 +2336,27 @@
      "sha256": {
       "type": "string",
       "title": "Sha256"
+     },
+     "needs_confirmation": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Needs Confirmation"
+     },
+     "raw_headers": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Raw Headers"
+     },
+     "notes": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Notes"
      }
     },
     "additionalProperties": false,
@@ -2682,26 +2719,36 @@
      },
      "ciocs_per_cabinet": {
       "type": "integer",
+      "maximum": 16.0,
+      "minimum": 1.0,
       "title": "Ciocs Per Cabinet",
       "default": 4
      },
      "baseplates_per_cioc": {
       "type": "integer",
+      "maximum": 64.0,
+      "minimum": 1.0,
       "title": "Baseplates Per Cioc",
       "default": 8
      },
      "channels_per_baseplate": {
       "type": "integer",
+      "maximum": 64.0,
+      "minimum": 1.0,
       "title": "Channels Per Baseplate",
       "default": 12
      },
      "max_cabinets_per_controller": {
       "type": "integer",
+      "maximum": 64.0,
+      "minimum": 1.0,
       "title": "Max Cabinets Per Controller",
       "default": 1
      },
      "max_cabinets_per_domain": {
       "type": "integer",
+      "maximum": 10000.0,
+      "minimum": 1.0,
       "title": "Max Cabinets Per Domain",
       "default": 99
      },
@@ -2724,6 +2771,8 @@
      },
      "cpsat_time_limit_s": {
       "type": "number",
+      "maximum": 60.0,
+      "exclusiveMinimum": 0.0,
       "title": "Cpsat Time Limit S",
       "default": 2.0
      }
@@ -3502,7 +3551,8 @@
        "moved",
        "added",
        "removed",
-       "hardware"
+       "hardware",
+       "status"
       ],
       "title": "Change"
      },
@@ -3840,6 +3890,11 @@
       },
       "type": "object",
       "title": "Params"
+     },
+     "settings": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Settings"
      }
     },
     "additionalProperties": false,
@@ -3886,6 +3941,11 @@
       },
       "type": "array",
       "title": "Slots"
+     },
+     "applied_settings": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Applied Settings"
      }
     },
     "additionalProperties": false,

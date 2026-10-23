@@ -445,13 +445,17 @@ class WhatIfRequest(Model):
     moves: list[Move] = Field(default_factory=list)
     rule_toggles: dict[str, bool] = Field(default_factory=dict)
     params: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    # Preview-only knobs that are not rules: cioc_strategy ("balanced"|"compact"), wired_spare_pct, future_spare_pct, or
+    # any ProjectSettings field. They are applied to a copy — never stored, never in the decision log. On /commit only
+    # cioc_strategy and the two spare percentages are accepted (they become a new rule-set version).
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class SlotDiff(Model):
     tag: str
     from_slot: str | None = None
     to_slot: str | None = None
-    change: Literal["moved", "added", "removed", "hardware"]
+    change: Literal["moved", "added", "removed", "hardware", "status"]   # status: Spare Slot ↔ Wired Spare
     reason: str = ""
 
 
@@ -463,6 +467,7 @@ class WhatIfResult(Model):
     moves: int
     diff: list[SlotDiff]
     slots: list[Slot] = Field(default_factory=list)
+    applied_settings: dict[str, Any] = Field(default_factory=dict)   # the `settings` the preview ran with
 
 
 class MoveItem(Model):

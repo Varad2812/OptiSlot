@@ -48,7 +48,11 @@ export interface paths {
         /** Get Import */
         get: operations["get_import_api_projects__pid__import_get"];
         put?: never;
-        /** Import Mdb */
+        /**
+         * Import Mdb
+         * @description One MDB (`file`, .xlsx/.xlsm/.csv) or several (`files`, repeated field): several are merged with duplicate-tag
+         *     detection. Mappings below 70% confidence come back with needs_confirmation.
+         */
         post: operations["import_mdb_api_projects__pid__import_post"];
         delete?: never;
         options?: never;
@@ -617,7 +621,9 @@ export interface components {
         /** Body_import_mdb_api_projects__pid__import_post */
         Body_import_mdb_api_projects__pid__import_post: {
             /** File */
-            file: string;
+            file?: string | null;
+            /** Files */
+            files?: string[];
         };
         /** Body_upload_revision_api_projects__pid__revisions_post */
         Body_upload_revision_api_projects__pid__revisions_post: {
@@ -794,6 +800,8 @@ export interface components {
              * @default false
              */
             overridden: boolean;
+            /** Needs Confirmation */
+            needs_confirmation?: boolean;
         };
         /** DecisionEntry */
         DecisionEntry: {
@@ -871,6 +879,12 @@ export interface components {
             }[];
             /** Sha256 */
             sha256: string;
+            /** Needs Confirmation */
+            needs_confirmation?: string[];
+            /** Raw Headers */
+            raw_headers?: string[];
+            /** Notes */
+            notes?: string[];
         };
         /** Kpis */
         Kpis: {
@@ -1446,7 +1460,7 @@ export interface components {
              * Change
              * @enum {string}
              */
-            change: "moved" | "added" | "removed" | "hardware";
+            change: "moved" | "added" | "removed" | "hardware" | "status";
             /**
              * Reason
              * @default
@@ -1572,6 +1586,10 @@ export interface components {
                     [key: string]: unknown;
                 };
             };
+            /** Settings */
+            settings?: {
+                [key: string]: unknown;
+            };
         };
         /** WhatIfResult */
         WhatIfResult: {
@@ -1587,6 +1605,10 @@ export interface components {
             diff: components["schemas"]["SlotDiff"][];
             /** Slots */
             slots?: components["schemas"]["Slot"][];
+            /** Applied Settings */
+            applied_settings?: {
+                [key: string]: unknown;
+            };
         };
         /** WhyStep */
         WhyStep: {
@@ -1695,7 +1717,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_import_mdb_api_projects__pid__import_post"];
             };
