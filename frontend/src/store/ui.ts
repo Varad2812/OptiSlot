@@ -8,6 +8,7 @@ export type Level = "plant" | "cabinet" | "detail";
 const THEME_KEY = "optislot-theme";
 const MOTION_KEY = "optislot-motion";
 const PROJECT_KEY = "optislot-project";
+const VIEW_KEY = "optislot-view";
 
 function read(key: string): string | null {
   try {
@@ -75,6 +76,7 @@ interface UiState {
   diveNonce: number;        // bump to replay the Upload Dive
   arriveFrom: "plant" | null; // one-shot: the Explorer opens with a Plant → cabinet camera dive (Mission Control click)
   injectPending: boolean;   // the top-bar "Inject Rev B" button asks the Revision Center to run the gauntlet
+  view3d: boolean;          // Cabinet Explorer: the 3D Marshalling Room (default) or the 2.5D World
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setMotion: (m: Motion) => void;
@@ -89,6 +91,7 @@ interface UiState {
   replayDive: () => void;
   setArrive: (a: "plant" | null) => void;
   requestInject: (v?: boolean) => void;
+  setView3d: (v: boolean) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -106,6 +109,7 @@ export const useUi = create<UiState>((set, get) => ({
   diveNonce: 0,
   arriveFrom: null,
   injectPending: false,
+  view3d: read(VIEW_KEY) !== "2d",
   setTheme: (theme) => {
     applyTheme(theme);
     set({ theme });
@@ -129,6 +133,10 @@ export const useUi = create<UiState>((set, get) => ({
   replayDive: () => set({ diveNonce: get().diveNonce + 1 }),
   setArrive: (arriveFrom) => set({ arriveFrom }),
   requestInject: (v = true) => set({ injectPending: v }),
+  setView3d: (view3d) => {
+    write(VIEW_KEY, view3d ? "3d" : "2d");
+    set({ view3d });
+  },
 }));
 
 applyTheme(useUi.getState().theme);

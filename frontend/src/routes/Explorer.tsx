@@ -1,6 +1,6 @@
 import { animate, AnimatePresence, motion, useMotionValue, useMotionValueEvent } from "framer-motion";
 import { ChevronLeft, ChevronRight, FlipHorizontal2, Maximize2, Search, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { dimsOf, worldModel, type Dims, type WorldModel } from "@/api/derive";
@@ -19,7 +19,12 @@ import { NO_FILTERS, useUi, type ExplorerFilters, type Level } from "@/store/ui"
 import { CabinetWorld, type Tier } from "@/world/CabinetWorld";
 import { cabinetBounds, ciocRect, fit, plantRect, slotXY, type Cam, type Insets } from "@/world/geometry";
 import { Minimap } from "@/world/Minimap";
+import { HeaderPlate, Legend } from "@/world/Plates";
 import { useCamera } from "@/world/useCamera";
+import { hasWebGL } from "@/world3d/support";
+
+// three.js only ships with the 3D view (its own chunk).
+const World3D = lazy(() => import("@/world3d/World3D"));
 
 const INSETS: Insets = { top: 92, right: 40, bottom: 92, left: 40 };
 const GLIDE_MS = 700;
@@ -33,6 +38,7 @@ const DIVE_CALM_S = 1.1;
 export default function Explorer() {
   const { data: a } = useAllocation();
   const { data: p } = useProject();
+  const view3d = useUi((s) => s.view3d) && hasWebGL();
   if (!a) {
     return (
       <div className="grid h-full grid-rows-[48px_1fr] gap-3 p-4">
@@ -41,7 +47,32 @@ export default function Explorer() {
       </div>
     );
   }
-  return <ExplorerInner a={a} p={p} />;
+  return view3d ? <Explorer3D a={a} p={p} /> : <ExplorerInner a={a} p={p} />;
+}
+
+/** The 3D Marshalling Room (CLAUDE.md §10.7) inside the Explorer: same toolbar, filters and Inspector as the 2D World. */
+function Explorer3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
+  const dims = useMemo(() => dimsOf(a, p), [a, p]);
+  const model = useMemo(() => worldModel(a, dims), [a, dims]);
+  const filters = useUi((s) => s.filters);
+  const idx = Math.min(Math.max(0, useUi((s) => s.cabIdx)), Math.max(0, model.cabinets.length - 1));
+  const side = useUi((s) => s.side);
+  const match = useMemo(() => matcher(filters), [filters]);
+  const loading = (
+    <div className="grid h-full place-items-center text-[12px] text-muted-foreground">
+      <Skeleton className="h-full w-full" />
+    </div>
+  );
+  return (
+    <div className="flex h-full flex-col">
+      <Toolbar model={model} idx={idx} tier="cabinet" side={side} dims={dims} filters={filters} mode="3d" onDive={() => useUi.getState().replayDive()} />
+      <div className="relative min-h-0 flex-1 bg-[#0A0D13]">
+        <Suspense fallback={loading}>
+          <World3D model={model} dims={dims} match={match} onFail={() => useUi.getState().setView3d(false)} />
+        </Suspense>
+      </div>
+    </div>
+  );
 }
 
 function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
@@ -312,7 +343,7 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
 
   return (
     <div className="flex h-full flex-col">
-      <Toolbar model={model} idx={idx} tier={tier} side={side} dims={dims} filters={filters} onDive={() => startDive()} />
+      <Toolbar model={model} idx={idx} tier={tier} side={side} dims={dims} filters={filters} mode="2d" onDive={() => startDive()} />
       <div className="relative min-h-0 flex-1">
         <motion.div className="absolute inset-0" style={{ opacity: worldOpacity, rotateY, transformPerspective: 1800 }}>
           <CabinetWorld
@@ -387,70 +418,10 @@ function IconBtn({ label, onClick, children, disabled }: { label: string; onClic
   );
 }
 
-function HeaderPlate({ view, side }: { view: WorldModel["cabinets"][number]; side: "F" | "R" }) {
-  const c = view.counts;
-  const used = c.field + c.alarm;
-  const fill = (100 * (used + c.wired)) / Math.max(1, view.slots.length);
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 4 }}
-      transition={{ duration: 0.22, ease: EASE }}
-      className="glass rounded-card border border-border px-4 py-2.5 inner-hi"
-      data-testid="header-plate"
-    >
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[15px] font-medium">{view.info.name}</span>
-        <span className="rounded-chip bg-brand/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-brand">{side === "F" ? "FRONT" : "REAR"}</span>
-      </div>
-      <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-        {view.info.controller} · {view.info.system_cabinet}
-      </div>
-      <div className="mt-2 flex gap-4 text-[11.5px] tnum">
-        <Mini k="Field" v={c.field} />
-        <Mini k="Alarm" v={c.alarm} />
-        <Mini k="Wired spare" v={c.wired} />
-        <Mini k="Spare slot" v={c.spare} />
-        <Mini k="Fill" v={`${fill.toFixed(1)}%`} />
-      </div>
-    </motion.div>
-  );
-}
-
-function Mini({ k, v }: { k: string; v: React.ReactNode }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{k}</div>
-      <div className="font-semibold">{v}</div>
-    </div>
-  );
-}
-
-function Legend() {
-  return (
-    <div className="glass flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-card border border-border px-3 py-2 text-[11px] text-muted-foreground" data-testid="legend">
-      {IO_ORDER.map((k) => (
-        <span key={k} className="flex items-center gap-1.5">
-          <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: IO_COLOURS[k] }} />
-          {IO_LABELS[k]}
-        </span>
-      ))}
-      <span className="flex items-center gap-1.5">
-        <span className="hatch h-2.5 w-3.5 rounded-[3px] border" style={{ color: IO_COLOURS.ai, borderColor: IO_COLOURS.ai }} /> Wired spare
-      </span>
-      <span className="flex items-center gap-1.5"><span className="h-2.5 w-3.5 rounded-[3px] border border-[color:var(--spare)]" /> Spare slot</span>
-      <span className="flex items-center gap-1.5"><span className="h-2.5 w-3.5 rounded-[3px] border border-dashed border-muted-foreground" /> Reserved BP</span>
-      <span className="flex items-center gap-1.5"><span className="h-2.5 w-3.5 rounded-[3px] border-2 border-brand/80" /> Family A</span>
-      <span className="flex items-center gap-1.5"><span className="h-2.5 w-3.5 rounded-[3px] border-2 border-dashed border-brand/80" /> Family B</span>
-    </div>
-  );
-}
-
 const STATUSES = ["Field", "Wired Spare", "Spare Slot", "Cabinet Alarm"];
 
-function Toolbar({ model, idx, tier, side, dims, filters, onDive }: {
-  model: WorldModel; idx: number; tier: Tier; side: "F" | "R"; dims: Dims; filters: ExplorerFilters; onDive: () => void;
+function Toolbar({ model, idx, tier, side, dims, filters, mode, onDive }: {
+  model: WorldModel; idx: number; tier: Tier; side: "F" | "R"; dims: Dims; filters: ExplorerFilters; mode: "2d" | "3d"; onDive: () => void;
 }) {
   const ui = useUi();
   const { data: rules } = useRules();
@@ -465,7 +436,8 @@ function Toolbar({ model, idx, tier, side, dims, filters, onDive }: {
   return (
     <div className="border-b border-border bg-surface/50 backdrop-blur-sm">
     <div className="flex h-11 items-center gap-4 px-5">
-      {/* breadcrumb */}
+      {/* breadcrumb (the 3D Room draws its own, level by level) */}
+      {mode === "2d" && (
       <nav className="flex items-center gap-1 text-[12.5px]" aria-label="Zoom level">
         <Crumb on={tier === "plant"} onClick={() => ui.setLevel("plant")}>Plant</Crumb>
         <span className="text-muted-foreground">›</span>
@@ -479,6 +451,7 @@ function Toolbar({ model, idx, tier, side, dims, filters, onDive }: {
           </>
         )}
       </nav>
+      )}
 
       {/* cabinet tabs */}
       <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist">
@@ -499,6 +472,7 @@ function Toolbar({ model, idx, tier, side, dims, filters, onDive }: {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        <ViewToggle mode={mode} />
         <span className="rounded-chip border border-border bg-raised px-2 py-1 text-[11px] text-muted-foreground" title="Rule set → Settings">
           Strategy: <span className="font-medium capitalize text-text">{strategy}</span>
         </span>
@@ -553,6 +527,30 @@ function Toolbar({ model, idx, tier, side, dims, filters, onDive }: {
           {model.cabinets.length} cabinets · {dims.ciocsPerCabinet} CIOC × {dims.bps} BP × {dims.channels} ch
         </span>
       </div>
+    </div>
+  );
+}
+
+function ViewToggle({ mode }: { mode: "2d" | "3d" }) {
+  const gl = hasWebGL();
+  const set = useUi((s) => s.setView3d);
+  return (
+    <div className="flex h-7 items-center rounded-chip border border-border bg-raised p-0.5 text-[11px]" role="group" aria-label="View" data-testid="view-toggle">
+      {(["3d", "2d"] as const).map((m) => (
+        <button
+          key={m}
+          onClick={() => set(m === "3d")}
+          disabled={m === "3d" && !gl}
+          title={m === "3d" && !gl ? "WebGL is not available — 2D view" : m === "3d" ? "3D Marshalling Room" : "2.5D cabinet World"}
+          aria-pressed={mode === m}
+          className={cn(
+            "h-full rounded-[4px] px-2 font-semibold uppercase tracking-wider transition-colors disabled:opacity-40",
+            mode === m ? "bg-brand/20 text-text" : "text-muted-foreground hover:text-text",
+          )}
+        >
+          {m}
+        </button>
+      ))}
     </div>
   );
 }

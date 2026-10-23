@@ -5,10 +5,12 @@
 //            Verify scan at 0/50/100 % + the tampered-export demo            → /shots/motion/verify__p<NNN>__<theme>.png, tamper__{mid,end}__<theme>.png
 //            Mission Control strip click → zoom → Explorer arrival           → /shots/motion/mission-dive__{mid,end}__<theme>.png
 //   stress:  the 10k project in the Explorer (stills + glide FPS)          → /shots/stress/*.png
+//   3d:      the 3D Marshalling Room (sample + 10k): L0/L1/L2/L3 + mid-Dive, time to first frame, FPS → /shots/3d/*.png
+//            headless = SwiftShader (software GL, indicative only) · SHOTS_GPU=1 adds a headed run on the real GPU (opens a window)
 //   npm run shots                      builds the frontend, serves it with the real API (temp DB, seeds stress10k), captures
 //   SHOTS_URL=http://127.0.0.1:8000 …  reuse an already-running `make demo` / `make dev` instead
 //   SHOTS_ROUTES=/explorer,/tqs …      capture a subset of routes
-//   SHOTS_MOTION_ONLY=1                skip the route pass · SHOTS_NO_STRESS=1 skip the 10k pass
+//   SHOTS_MOTION_ONLY=1                skip the route pass · SHOTS_NO_STRESS=1 skip the 10k pass · SHOTS_3D_ONLY=1 only the 3D pass
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,6 +30,8 @@ const FRAMES = [0, 0.25, 0.5, 0.75, 1];
 const routes = process.env.SHOTS_ROUTES ? process.env.SHOTS_ROUTES.split(",") : ROUTES;
 const motionOnly = !!process.env.SHOTS_MOTION_ONLY;
 const noStress = !!process.env.SHOTS_NO_STRESS;
+const only3d = !!process.env.SHOTS_3D_ONLY;
+const gpu = !!process.env.SHOTS_GPU;
 const slug = (r) => (r === "/" ? "mission-control" : r.slice(1).replace(/\//g, "-"));
 const pct = (p) => String(Math.round(p * 100)).padStart(3, "0");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -69,21 +73,24 @@ if (base ? !(await healthy(base)) : true) {
 
 mkdirSync(path.join(outDir, "motion"), { recursive: true });
 mkdirSync(path.join(outDir, "stress"), { recursive: true });
+mkdirSync(path.join(outDir, "3d"), { recursive: true });
 const browser = await chromium.launch();
 let count = 0;
 const problems = [];
 const perf = [];
+const perf3d = [];
 
-async function context(theme, vp, motion = "cinematic") {
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
-  await ctx.addInitScript(([t, m]) => {
+async function context(theme, vp, motion = "cinematic", view = "2d", b = browser) {
+  const ctx = await b.newContext({ viewport: vp, deviceScaleFactor: 1 });
+  await ctx.addInitScript(([t, m, v]) => {
     try {
       localStorage.setItem("optislot-theme", t);
       localStorage.setItem("optislot-motion", m);
+      localStorage.setItem("optislot-view", v); // the 2D passes pin the 2.5D World; the 3D pass sets "3d"
       sessionStorage.setItem("optislot-dive-seen", "1"); // no autoplay during stills
       sessionStorage.setItem("optislot-scan-seen", "1");
     } catch { /* ignore */ }
-  }, [theme, motion]);
+  }, [theme, motion, view]);
   return ctx;
 }
 
@@ -110,239 +117,297 @@ async function openExplorer(ctx, label, project = "demo") {
 const raf2 = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
 try {
-  // ───── 1. routes ─────
-  if (!motionOnly) {
-    for (const theme of THEMES) {
-      for (const vp of VIEWPORTS) {
-        const ctx = await context(theme, vp);
-        for (const route of routes) {
-          const page = await ctx.newPage();
-          watch(page, `${route} ${theme}`);
-          await page.goto(`${base}${route}?project=demo`, { waitUntil: "networkidle" });
-          await settle(page, route === "/explorer" ? 900 : 450);
-          await page.screenshot({ path: path.join(outDir, `${slug(route)}__${vp.width}x${vp.height}__${theme}.png`) });
-          count++;
-          await page.close();
-        }
-        await ctx.close();
-      }
-    }
-  }
-
-  // ───── 2. motion frames (1440×900, both themes) ─────
-  for (const theme of THEMES) {
-    const ctx = await context(theme, VIEWPORTS[0]);
-    const page = await openExplorer(ctx, `motion ${theme}`);
-    for (const p of FRAMES) {
-      await page.evaluate((v) => window.__optislot.dive.seek(v), p);
-      await raf2(page);
-      await sleep(80);
-      await page.screenshot({ path: path.join(outDir, "motion", `dive__p${pct(p)}__${theme}.png`) });
-      count++;
-    }
-    await sleep(500); // let the header plate settle after the dive ends
-    for (const p of FRAMES) {
-      await page.evaluate((v) => window.__optislot.glide.seek(0, 1, v), p);
-      await raf2(page);
-      await sleep(80);
-      await page.screenshot({ path: path.join(outDir, "motion", `glide__p${pct(p)}__${theme}.png`) });
-      count++;
-    }
-    // detail zoom + Inspector, for the review
-    await page.evaluate(() => window.__optislot.glide.seek(1, 0, 1));
-    await sleep(300);
-    await page.keyboard.press("Escape");
-    await sleep(600);
-    await page.screenshot({ path: path.join(outDir, "motion", `plant__${theme}.png`) });
-    count++;
-    // interactions: CIOC detail zoom → Inspector, mid-flip, palette
-    await page.evaluate(() => window.__optislot.glide.seek(0, 0, 1));
-    await sleep(200);
-    await page.locator('[data-cioc="1"]').first().click();
-    await sleep(900);
-    await page.screenshot({ path: path.join(outDir, "motion", `detail__${theme}.png`) });
-    await page.locator('rect[data-slot][fill^="#"]').nth(4).click();
-    await sleep(700);
-    await page.screenshot({ path: path.join(outDir, "motion", `inspector__${theme}.png`) });
-    await page.keyboard.press("Escape"); // closes the Inspector
-    await page.keyboard.press("Escape"); // detail → cabinet
-    await sleep(800);
-    await page.keyboard.press("f");
-    await sleep(170);
-    await page.screenshot({ path: path.join(outDir, "motion", `flip__mid__${theme}.png`) });
-    await sleep(700);
-    await page.screenshot({ path: path.join(outDir, "motion", `flip__rear__${theme}.png`) });
-    await page.keyboard.press("f");
-    await sleep(700);
-    await page.keyboard.press("Meta+k");
-    await sleep(250);
-    await page.keyboard.type("320-CE");
-    await sleep(350);
-    await page.screenshot({ path: path.join(outDir, "motion", `palette__${theme}.png`) });
-    await page.keyboard.press("Escape");
-    count += 6;
-    if (theme === "dark") {
-      const fps = [];
-      for (let k = 0; k < 2; k++) {
-        await page.evaluate(() => window.__optislot.glide.play(0));
-        await sleep(900);
-        const m = page.evaluate(() => window.__optislot.fps.measure(800));
-        await page.evaluate((to) => window.__optislot.glide.play(to), 1);
-        fps.push(await m);
-      }
-      perf.push({ project: "demo", glide: fps });
-    }
-    await page.close();
-    await ctx.close();
-  }
-
-  // ───── 2b. Calm mode: the dive collapses into fades ─────
-  {
-    const ctx = await context("dark", VIEWPORTS[0], "calm");
-    const page = await openExplorer(ctx, "calm");
-    for (const p of [0.5, 1]) {
-      await page.evaluate((v) => window.__optislot.dive.seek(v), p);
-      await raf2(page);
-      await page.screenshot({ path: path.join(outDir, "motion", `dive-calm__p${pct(p)}__dark.png`) });
-      count++;
-    }
-    await page.close();
-    await ctx.close();
-  }
-
-  // ───── 2c. Rev B diff: inject silently, then freeze the diff at 0/50/100 % (the gauntlet is deterministic) ─────
-  const projectApi = `${base}/api/projects/demo`;
-  const toRevA = () => fetch(`${projectApi}/revisions/switch?rev=A`, { method: "POST" }).catch(() => undefined);
-  await toRevA();
-  for (const theme of THEMES) {
-    const ctx = await context(theme, VIEWPORTS[0]);
-    const page = await ctx.newPage();
-    watch(page, `revb ${theme}`);
-    await page.goto(`${base}/revisions?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
-    await page.waitForFunction(() => !!window.__optislot?.revb, null, { timeout: 60_000 });
-    await settle(page);
-    await page.screenshot({ path: path.join(outDir, "motion", `revb__intro__${theme}.png`) });
-    await page.evaluate(() => window.__optislot.revb.inject());
-    await sleep(1400); // the camera glides to the busiest cabinet
-    for (const p of [0, 0.5, 1]) {
-      await page.evaluate((v) => window.__optislot.revb.seek(v), p);
-      await raf2(page);
-      await sleep(120);
-      await page.screenshot({ path: path.join(outDir, "motion", `revb__p${pct(p)}__${theme}.png`) });
-      count++;
-    }
-    count++;
-    await page.close();
-    await ctx.close();
-    await toRevA(); // leave the project on Rev A for whatever runs next (or for the reused server)
-  }
-
-  // ───── 2d. Proof Center: verify-scan frames, then the tampered-export demo (the "red pulse on the exact slot" check) ─────
-  {
-    // The project's own export, then a copy with ONE CHARM Type changed (scripts/make_tampered.py).
-    const tmp = mkdtempSync(path.join(tmpdir(), "optislot-tamper-"));
-    const good = path.join(tmp, "IO_Allocation_export.xlsx");
-    const bad = path.join(tmp, "IO_Allocation_tampered.xlsx");
-    writeFileSync(good, Buffer.from(await (await fetch(`${projectApi}/export/allocation`)).arrayBuffer()));
-    const mk = spawnSync("uv", ["run", "--project", "backend", "python", "scripts/make_tampered.py", good, bad], { cwd: root, stdio: "inherit" });
-    if (mk.status !== 0) problems.push("make_tampered.py failed");
-    else {
+  if (!only3d) {
+    // ───── 1. routes ─────
+    if (!motionOnly) {
       for (const theme of THEMES) {
-        const ctx = await context(theme, VIEWPORTS[0]);
-        const page = await ctx.newPage();
-        watch(page, `proof ${theme}`);
-        await page.goto(`${base}/proof?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
-        await page.waitForFunction(() => !!window.__optislot?.verify, null, { timeout: 60_000 });
-        await settle(page, 900);
-        for (const p of [0, 0.5, 1]) {
-          await page.evaluate((v) => window.__optislot.verify.seek(v), p);
-          await raf2(page);
-          await sleep(160);
-          await page.screenshot({ path: path.join(outDir, "motion", `verify__p${pct(p)}__${theme}.png`) });
-          count++;
+        for (const vp of VIEWPORTS) {
+          const ctx = await context(theme, vp);
+          for (const route of routes) {
+            const page = await ctx.newPage();
+            watch(page, `${route} ${theme}`);
+            await page.goto(`${base}${route}?project=demo`, { waitUntil: "networkidle" });
+            await settle(page, route === "/explorer" ? 900 : 450);
+            await page.screenshot({ path: path.join(outDir, `${slug(route)}__${vp.width}x${vp.height}__${theme}.png`) });
+            count++;
+            await page.close();
+          }
+          await ctx.close();
         }
-        // wait for the upload to start (state leaves "done"), then for the scan + camera flight to finish
-        const finish = async () => {
-          await page.waitForFunction(() => window.__optislot.verify.state() !== "done", null, { timeout: 4000 }).catch(() => undefined);
-          await page.waitForFunction(() => window.__optislot.verify.state() === "done", null, { timeout: 30_000 });
+      }
+    }
+
+    // ───── 2. motion frames (1440×900, both themes) ─────
+    for (const theme of THEMES) {
+      const ctx = await context(theme, VIEWPORTS[0]);
+      const page = await openExplorer(ctx, `motion ${theme}`);
+      for (const p of FRAMES) {
+        await page.evaluate((v) => window.__optislot.dive.seek(v), p);
+        await raf2(page);
+        await sleep(80);
+        await page.screenshot({ path: path.join(outDir, "motion", `dive__p${pct(p)}__${theme}.png`) });
+        count++;
+      }
+      await sleep(500); // let the header plate settle after the dive ends
+      for (const p of FRAMES) {
+        await page.evaluate((v) => window.__optislot.glide.seek(0, 1, v), p);
+        await raf2(page);
+        await sleep(80);
+        await page.screenshot({ path: path.join(outDir, "motion", `glide__p${pct(p)}__${theme}.png`) });
+        count++;
+      }
+      // detail zoom + Inspector, for the review
+      await page.evaluate(() => window.__optislot.glide.seek(1, 0, 1));
+      await sleep(300);
+      await page.keyboard.press("Escape");
+      await sleep(600);
+      await page.screenshot({ path: path.join(outDir, "motion", `plant__${theme}.png`) });
+      count++;
+      // interactions: CIOC detail zoom → Inspector, mid-flip, palette
+      await page.evaluate(() => window.__optislot.glide.seek(0, 0, 1));
+      await sleep(200);
+      await page.locator('[data-cioc="1"]').first().click();
+      await sleep(900);
+      await page.screenshot({ path: path.join(outDir, "motion", `detail__${theme}.png`) });
+      await page.locator('rect[data-slot][fill^="#"]').nth(4).click();
+      await sleep(700);
+      await page.screenshot({ path: path.join(outDir, "motion", `inspector__${theme}.png`) });
+      await page.keyboard.press("Escape"); // closes the Inspector
+      await page.keyboard.press("Escape"); // detail → cabinet
+      await sleep(800);
+      await page.keyboard.press("f");
+      await sleep(170);
+      await page.screenshot({ path: path.join(outDir, "motion", `flip__mid__${theme}.png`) });
+      await sleep(700);
+      await page.screenshot({ path: path.join(outDir, "motion", `flip__rear__${theme}.png`) });
+      await page.keyboard.press("f");
+      await sleep(700);
+      await page.keyboard.press("Meta+k");
+      await sleep(250);
+      await page.keyboard.type("320-CE");
+      await sleep(350);
+      await page.screenshot({ path: path.join(outDir, "motion", `palette__${theme}.png`) });
+      await page.keyboard.press("Escape");
+      count += 6;
+      if (theme === "dark") {
+        const fps = [];
+        for (let k = 0; k < 2; k++) {
+          await page.evaluate(() => window.__optislot.glide.play(0));
+          await sleep(900);
+          const m = page.evaluate(() => window.__optislot.fps.measure(800));
+          await page.evaluate((to) => window.__optislot.glide.play(to), 1);
+          fps.push(await m);
+        }
+        perf.push({ project: "demo", glide: fps });
+      }
+      await page.close();
+      await ctx.close();
+    }
+
+    // ───── 2b. Calm mode: the dive collapses into fades ─────
+    {
+      const ctx = await context("dark", VIEWPORTS[0], "calm");
+      const page = await openExplorer(ctx, "calm");
+      for (const p of [0.5, 1]) {
+        await page.evaluate((v) => window.__optislot.dive.seek(v), p);
+        await raf2(page);
+        await page.screenshot({ path: path.join(outDir, "motion", `dive-calm__p${pct(p)}__dark.png`) });
+        count++;
+      }
+      await page.close();
+      await ctx.close();
+    }
+
+    // ───── 2c. Rev B diff: inject silently, then freeze the diff at 0/50/100 % (the gauntlet is deterministic) ─────
+    const projectApi = `${base}/api/projects/demo`;
+    const toRevA = () => fetch(`${projectApi}/revisions/switch?rev=A`, { method: "POST" }).catch(() => undefined);
+    await toRevA();
+    for (const theme of THEMES) {
+      const ctx = await context(theme, VIEWPORTS[0]);
+      const page = await ctx.newPage();
+      watch(page, `revb ${theme}`);
+      await page.goto(`${base}/revisions?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
+      await page.waitForFunction(() => !!window.__optislot?.revb, null, { timeout: 60_000 });
+      await settle(page);
+      await page.screenshot({ path: path.join(outDir, "motion", `revb__intro__${theme}.png`) });
+      await page.evaluate(() => window.__optislot.revb.inject());
+      await sleep(1400); // the camera glides to the busiest cabinet
+      for (const p of [0, 0.5, 1]) {
+        await page.evaluate((v) => window.__optislot.revb.seek(v), p);
+        await raf2(page);
+        await sleep(120);
+        await page.screenshot({ path: path.join(outDir, "motion", `revb__p${pct(p)}__${theme}.png`) });
+        count++;
+      }
+      count++;
+      await page.close();
+      await ctx.close();
+      await toRevA(); // leave the project on Rev A for whatever runs next (or for the reused server)
+    }
+
+    // ───── 2d. Proof Center: verify-scan frames, then the tampered-export demo (the "red pulse on the exact slot" check) ─────
+    {
+      // The project's own export, then a copy with ONE CHARM Type changed (scripts/make_tampered.py).
+      const tmp = mkdtempSync(path.join(tmpdir(), "optislot-tamper-"));
+      const good = path.join(tmp, "IO_Allocation_export.xlsx");
+      const bad = path.join(tmp, "IO_Allocation_tampered.xlsx");
+      writeFileSync(good, Buffer.from(await (await fetch(`${projectApi}/export/allocation`)).arrayBuffer()));
+      const mk = spawnSync("uv", ["run", "--project", "backend", "python", "scripts/make_tampered.py", good, bad], { cwd: root, stdio: "inherit" });
+      if (mk.status !== 0) problems.push("make_tampered.py failed");
+      else {
+        for (const theme of THEMES) {
+          const ctx = await context(theme, VIEWPORTS[0]);
+          const page = await ctx.newPage();
+          watch(page, `proof ${theme}`);
+          await page.goto(`${base}/proof?demo=1&project=demo`, { waitUntil: "networkidle", timeout: 180_000 });
+          await page.waitForFunction(() => !!window.__optislot?.verify, null, { timeout: 60_000 });
+          await settle(page, 900);
+          for (const p of [0, 0.5, 1]) {
+            await page.evaluate((v) => window.__optislot.verify.seek(v), p);
+            await raf2(page);
+            await sleep(160);
+            await page.screenshot({ path: path.join(outDir, "motion", `verify__p${pct(p)}__${theme}.png`) });
+            count++;
+          }
+          // wait for the upload to start (state leaves "done"), then for the scan + camera flight to finish
+          const finish = async () => {
+            await page.waitForFunction(() => window.__optislot.verify.state() !== "done", null, { timeout: 4000 }).catch(() => undefined);
+            await page.waitForFunction(() => window.__optislot.verify.state() === "done", null, { timeout: 30_000 });
+          };
+          // an untouched export passes and is byte-identical to the certified output
+          await page.setInputFiles("[data-testid=verify-file-input]", good);
+          await finish();
+          await sleep(500);
+          if (!/PASS/.test(await page.locator("[data-testid=verdict-chip]").innerText())) problems.push(`proof ${theme}: the untouched export did not PASS`);
+          if (!(await page.getByText("Byte-identical to the certified output").count())) problems.push(`proof ${theme}: the untouched export is not byte-identical to the certified output`);
+          // the tampered copy fails: red markers on the slot, the failing check expanded, the camera on the slot
+          await page.setInputFiles("[data-testid=verify-file-input]", bad);
+          await sleep(1900); // mid-scan: the beam, the checks ticking
+          await page.screenshot({ path: path.join(outDir, "motion", `tamper__mid__${theme}.png`) });
+          await finish();
+          await sleep(1900); // the camera has flown in and the pulses have run
+          await page.screenshot({ path: path.join(outDir, "motion", `tamper__end__${theme}.png`) });
+          count += 2;
+          const markers = await page.locator("[data-testid=fail-marker]").count();
+          const failRows = await page.locator("[data-testid=check-row][data-failed]").count();
+          const tier = await page.evaluate(() => document.querySelector("[data-testid=world]")?.getAttribute("data-tier"));
+          if (markers < 1) problems.push(`proof ${theme}: tampered export shows no red marker on the plant`);
+          if (failRows < 1) problems.push(`proof ${theme}: tampered export shows no failing check`);
+          if (tier !== "detail") problems.push(`proof ${theme}: the camera did not fly in to the slot (tier ${tier})`);
+          await page.close();
+          await ctx.close();
+        }
+      }
+    }
+
+    // ───── 2e. Mission Control: click a cabinet in the strip → the strip zooms → the Explorer dives in ─────
+    {
+      const ctx = await context("dark", VIEWPORTS[0]);
+      const page = await ctx.newPage();
+      watch(page, "mission dive");
+      await page.goto(`${base}/?project=demo`, { waitUntil: "networkidle" });
+      await settle(page, 1400);
+      const box = await page.locator("[data-testid=plant-strip]").boundingBox();
+      await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+      await sleep(230);
+      await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__mid__dark.png") });
+      await sleep(1700);
+      await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__end__dark.png") });
+      count += 2;
+      if (!page.url().includes("/explorer")) problems.push("mission dive: clicking a cabinet did not open the Explorer");
+      await page.close();
+      await ctx.close();
+    }
+
+    // ───── 3. stress project (10k) ─────
+    if (!noStress) {
+      const ctx = await context("dark", VIEWPORTS[0]);
+      const page = await openExplorer(ctx, "stress10k", "stress10k");
+      await page.screenshot({ path: path.join(outDir, "stress", "explorer__dark.png") });
+      count++;
+      const fps = [];
+      for (const to of [1, 2, 3]) {
+        const m = page.evaluate(() => window.__optislot.fps.measure(800));
+        await page.evaluate((t) => window.__optislot.glide.play(t), to);
+        fps.push(await m);
+        await sleep(300);
+      }
+      await page.keyboard.press("Escape");
+      await sleep(700);
+      await page.screenshot({ path: path.join(outDir, "stress", "plant__dark.png") });
+      count++;
+      const t0 = Date.now();
+      await page.goto(`${base}/grid?project=stress10k`, { waitUntil: "networkidle" });
+      await settle(page);
+      const nav = Date.now() - t0;
+      perf.push({ project: "stress10k", glide: fps, gridNavMs: nav });
+      for (const route of ["/", "/proof"]) {
+        const t1 = Date.now();
+        await page.goto(`${base}${route}?project=stress10k`, { waitUntil: "networkidle" });
+        await settle(page, 1200);
+        perf.at(-1)[`${slug(route)}Ms`] = Date.now() - t1;
+        await page.screenshot({ path: path.join(outDir, "stress", `${slug(route)}__dark.png`) });
+        count++;
+      }
+      await page.close();
+      await ctx.close();
+    }
+  }
+
+  // ───── 4. 3D Marshalling Room: frames + time to first frame + FPS (CLAUDE.md §10.7 targets: ≥55 fps sample, ≥30 at 10k) ─────
+  const projects3d = noStress ? ["demo"] : ["demo", "stress10k"];
+  const runs3d = [{ mode: "swiftshader", launch: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }, frames: true }];
+  if (gpu) runs3d.push({ mode: "gpu", launch: { headless: false }, frames: true });
+  for (const run of runs3d) {
+    const b3 = await chromium.launch(run.launch);
+    try {
+      for (const project of projects3d) {
+        const ctx = await context("dark", VIEWPORTS[0], "cinematic", "3d", b3);
+        const page = await ctx.newPage();
+        watch(page, `3d ${project} ${run.mode}`);
+        const t0 = Date.now();
+        await page.goto(`${base}/explorer?demo=1&project=${project}`, { waitUntil: "networkidle", timeout: 180_000 });
+        await page.waitForFunction(() => window.__optislot?.world3d?.ready?.() === true, null, { timeout: 240_000 });
+        const row = { project, mode: run.mode, readyMs: Date.now() - t0, ...(await page.evaluate(() => window.__optislot.world3d.stats())) };
+        const tag = `${project}__${run.mode}`;
+        const snap = async (name) => {
+          if (!run.frames) return;
+          await page.screenshot({ path: path.join(outDir, "3d", `${name}__${tag}.png`) });
+          count++;
         };
-        // an untouched export passes and is byte-identical to the certified output
-        await page.setInputFiles("[data-testid=verify-file-input]", good);
-        await finish();
-        await sleep(500);
-        if (!/PASS/.test(await page.locator("[data-testid=verdict-chip]").innerText())) problems.push(`proof ${theme}: the untouched export did not PASS`);
-        if (!(await page.getByText("Byte-identical to the certified output").count())) problems.push(`proof ${theme}: the untouched export is not byte-identical to the certified output`);
-        // the tampered copy fails: red markers on the slot, the failing check expanded, the camera on the slot
-        await page.setInputFiles("[data-testid=verify-file-input]", bad);
-        await sleep(1900); // mid-scan: the beam, the checks ticking
-        await page.screenshot({ path: path.join(outDir, "motion", `tamper__mid__${theme}.png`) });
-        await finish();
-        await sleep(1900); // the camera has flown in and the pulses have run
-        await page.screenshot({ path: path.join(outDir, "motion", `tamper__end__${theme}.png`) });
-        count += 2;
-        const markers = await page.locator("[data-testid=fail-marker]").count();
-        const failRows = await page.locator("[data-testid=check-row][data-failed]").count();
-        const tier = await page.evaluate(() => document.querySelector("[data-testid=world]")?.getAttribute("data-tier"));
-        if (markers < 1) problems.push(`proof ${theme}: tampered export shows no red marker on the plant`);
-        if (failRows < 1) problems.push(`proof ${theme}: tampered export shows no failing check`);
-        if (tier !== "detail") problems.push(`proof ${theme}: the camera did not fly in to the slot (tier ${tier})`);
+        await settle(page, 1500);
+        await snap("L0");
+        row.idle = await page.evaluate(() => window.__optislot.fps.measure(3000)); // L0 has the idle camera drift: every frame renders
+        const fly = async (level, addr, name) => {
+          const m = page.evaluate(() => window.__optislot.fps.measure(1800));
+          await page.evaluate(([l, a]) => window.__optislot.world3d.goTo(l, a), [level, addr]);
+          const r = await m;
+          await sleep(1200);
+          await snap(name);
+          return r;
+        };
+        row.toL1 = await fly(1, { cab: 0 }, "L1");
+        if (project === "demo") {
+          row.toL2 = await fly(2, { cab: 0, cioc: 1 }, "L2");
+          row.toL3 = await fly(3, { cab: 0, cioc: 1, bp: 2 }, "L3");
+        }
+        row.toNext = await fly(1, { cab: 1 }, "L1-next");
+        // Upload Dive (≈7.5 s): frame at ~45 %, FPS over the first 5 s
+        const dm = page.evaluate(() => window.__optislot.fps.measure(5000));
+        await page.evaluate(() => void window.__optislot.world3d.playDive());
+        await sleep(3400);
+        await snap("dive-mid");
+        row.dive = await dm;
+        await sleep(5500);
+        await snap("dive-end");
+        row.stats = await page.evaluate(() => window.__optislot.world3d.stats());
+        perf3d.push(row);
         await page.close();
         await ctx.close();
       }
+    } finally {
+      await b3.close();
     }
-  }
-
-  // ───── 2e. Mission Control: click a cabinet in the strip → the strip zooms → the Explorer dives in ─────
-  {
-    const ctx = await context("dark", VIEWPORTS[0]);
-    const page = await ctx.newPage();
-    watch(page, "mission dive");
-    await page.goto(`${base}/?project=demo`, { waitUntil: "networkidle" });
-    await settle(page, 1400);
-    const box = await page.locator("[data-testid=plant-strip]").boundingBox();
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
-    await sleep(230);
-    await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__mid__dark.png") });
-    await sleep(1700);
-    await page.screenshot({ path: path.join(outDir, "motion", "mission-dive__end__dark.png") });
-    count += 2;
-    if (!page.url().includes("/explorer")) problems.push("mission dive: clicking a cabinet did not open the Explorer");
-    await page.close();
-    await ctx.close();
-  }
-
-  // ───── 3. stress project (10k) ─────
-  if (!noStress) {
-    const ctx = await context("dark", VIEWPORTS[0]);
-    const page = await openExplorer(ctx, "stress10k", "stress10k");
-    await page.screenshot({ path: path.join(outDir, "stress", "explorer__dark.png") });
-    count++;
-    const fps = [];
-    for (const to of [1, 2, 3]) {
-      const m = page.evaluate(() => window.__optislot.fps.measure(800));
-      await page.evaluate((t) => window.__optislot.glide.play(t), to);
-      fps.push(await m);
-      await sleep(300);
-    }
-    await page.keyboard.press("Escape");
-    await sleep(700);
-    await page.screenshot({ path: path.join(outDir, "stress", "plant__dark.png") });
-    count++;
-    const t0 = Date.now();
-    await page.goto(`${base}/grid?project=stress10k`, { waitUntil: "networkidle" });
-    await settle(page);
-    const nav = Date.now() - t0;
-    perf.push({ project: "stress10k", glide: fps, gridNavMs: nav });
-    for (const route of ["/", "/proof"]) {
-      const t1 = Date.now();
-      await page.goto(`${base}${route}?project=stress10k`, { waitUntil: "networkidle" });
-      await settle(page, 1200);
-      perf.at(-1)[`${slug(route)}Ms`] = Date.now() - t1;
-      await page.screenshot({ path: path.join(outDir, "stress", `${slug(route)}__dark.png`) });
-      count++;
-    }
-    await page.close();
-    await ctx.close();
   }
 } finally {
   await browser.close();
@@ -352,6 +417,13 @@ console.log(`${count} screenshots → ${outDir}`);
 for (const p of perf) {
   console.log(`FPS ${p.project}: ` + p.glide.map((g) => `avg ${g.avg} fps · p95 ${g.p95} ms · worst ${g.worst} ms`).join("  |  ") + (p.gridNavMs ? `  · grid nav ${p.gridNavMs} ms` : "") + (p["mission-controlMs"] ? `  · mission control ${p["mission-controlMs"]} ms · proof ${p.proofMs} ms (10k, incl. 1.2 s settle)` : ""));
   if (p.glide.some((g) => g.avg < 50)) console.warn(`  ⚠ ${p.project}: glide below 50 fps`);
+}
+for (const r of perf3d) {
+  const f = (g) => (g ? `${g.avg} fps (p95 ${g.p95} ms)` : "–");
+  console.log(
+    `3D ${r.project} [${r.mode}]: ${r.cabinets} cab · ${r.instances} CHARMs · ${r.drawCalls} draw calls · ready ${r.readyMs} ms · first frame ${r.firstFrameMs} ms` +
+      ` · idle ${f(r.idle)} · →L1 ${f(r.toL1)}${r.toL2 ? ` · →L2 ${f(r.toL2)} · →L3 ${f(r.toL3)}` : ""} · →next cab ${f(r.toNext)} · dive ${f(r.dive)}`,
+  );
 }
 if (problems.length) {
   console.error(`\n${problems.length} browser problem(s):\n  ` + [...new Set(problems)].join("\n  "));

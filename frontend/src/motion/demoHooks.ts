@@ -5,6 +5,7 @@
  *   window.__optislot.glide.play(to) / seek(from, to, p)
  *   window.__optislot.revb.inject() / seek(p) / reset()   (Revision Center: run the gauntlet silently, then scrub the diff)
  *   window.__optislot.verify.seek(p) / play() / state()    (Proof Center: freeze the verify scan; state = idle|uploading|scanning|flying|done)
+ *   window.__optislot.world3d.ready() / goTo(level, addr) / playDive() / skipDive() / flyToSlot(id) / stats()   (3D Room)
  *   window.__optislot.fps.measure(ms)            → { avg, p95, worst, frames }
  */
 type Api = Record<string, unknown>;
@@ -15,6 +16,7 @@ interface DemoHooks {
   glide?: Api;
   revb?: Api;
   verify?: Api;
+  world3d?: Api;
   fps: { measure: (ms: number) => Promise<{ avg: number; p95: number; worst: number; frames: number }> };
 }
 
@@ -64,7 +66,7 @@ export function installDemoHooks() {
 }
 
 /** Register a sequence API; returns the unregister function. No-op outside demo mode. */
-export function registerDemo(name: "dive" | "glide" | "revb" | "verify", api: Api) {
+export function registerDemo(name: "dive" | "glide" | "revb" | "verify" | "world3d", api: Api) {
   const h = window.__optislot;
   if (!h) return () => {};
   h[name] = api;
