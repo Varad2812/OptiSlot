@@ -1,0 +1,47 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens are space-separated RGB so Tailwind can apply alpha. */
+:root,
+[data-theme="dark"] {
+  --bg: 11 13 18;        /* #0B0D12 */
+  --surface: 18 21 28;   /* #12151C */
+  --raised: 24 28 37;    /* #181C25 */
+  --border: 37 42 54;    /* #252A36 */
+  --text: 230 233 240;   /* #E6E9F0 */
+  --muted: 138 147 166;  /* #8A93A6 */
+  --accent: 124 92 255;  /* #7C5CFF */
+  --ok: 34 197 94;
+  --warn: 245 158 11;
+  --err: 239 68 68;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: 245 246 249;
+  --surface: 255 255 255;
+  --raised: 250 250 252;
+  --border: 222 226 234;
+  --text: 17 20 28;
+  --muted: 92 101 120;
+  --accent: 108 76 240;
+  --ok: 22 163 74;
+  --warn: 217 119 6;
+  --err: 220 38 38;
+  color-scheme: light;
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-bg text-text font-sans text-ui antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+.tnum { font-variant-numeric: tabular-nums; }

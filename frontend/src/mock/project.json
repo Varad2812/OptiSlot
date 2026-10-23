@@ -1,0 +1,29 @@
+{
+ "id": "demo",
+ "name": "VIT Sample — PIB-30 / PIB-24",
+ "revision": "A",
+ "revisions": [
+  "A"
+ ],
+ "settings": {
+  "loc_prefix_default": "P01",
+  "area_code_default": "10001",
+  "domain_keys": [
+   "room",
+   "area"
+  ],
+  "ciocs_per_cabinet": 4,
+  "baseplates_per_cioc": 8,
+  "channels_per_baseplate": 12,
+  "max_cabinets_per_controller": 1,
+  "max_cabinets_per_domain": 99,
+  "revision": "00",
+  "cpsat_enabled": true,
+  "cpsat_time_limit_s": 2.0
+ },
+ "ruleset_id": "default",
+ "ruleset_version": 1,
+ "mdb_file": "Sample_IO_MDB_VIT_v2_1.xlsx",
+ "created": "2026-10-23T10:00:00Z",
+ "updated": "2026-10-23T10:00:00Z"
+}

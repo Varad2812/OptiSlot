@@ -1,0 +1,46 @@
+{
+ "from_rev": "A",
+ "to_rev": "B",
+ "added": [
+  {
+   "tag": "320-PT   -80099",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/001/3/10",
+   "reason": "New tag on spare pair 22 of 320-CE-0001 — took the cable's own position"
+  },
+  {
+   "tag": "320-XS   -90001",
+   "from_slot": null,
+   "to_slot": "P30-DCM-32001-01/004/6/1",
+   "reason": "New 12-pair cable 320-CE-0999 → first free baseplate on a neutral CIOC"
+  }
+ ],
+ "deleted": [
+  {
+   "tag": "320-TT   -80005",
+   "from_slot": "P30-DCM-32001-01/001/2/12",
+   "to_slot": null,
+   "reason": "Deleted in Rev B — slot freed as Spare Slot"
+  }
+ ],
+ "modified": [
+  {
+   "tag": "500-XA   -00322-L",
+   "from_slot": "P24-DCM-50002-01/003/3/1",
+   "to_slot": "P24-DCM-50002-01/003/3/1",
+   "reason": "Instrument type → XYV: CHARM SE4302T01→SE4302T02, TB SE4501→SE4502, same slot"
+  }
+ ],
+ "moved": [],
+ "unchanged_in_place": 186,
+ "previous_live": 189,
+ "stability_pct": 98.4,
+ "cabinets_touched": [
+  "P30-DCM-32001-01",
+  "P24-DCM-50002-01"
+ ],
+ "new_tqs": [
+  "TQ-REV-001",
+  "TQ-REV-002"
+ ]
+}

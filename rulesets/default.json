@@ -1,0 +1,188 @@
+{
+  "id": "default",
+  "name": "VIT project default",
+  "version": 1,
+  "description": "Default OptiSlot rule set learned from the VIT sample. Every value here is editable; no project values live in code.",
+  "rules": [
+    {
+      "id": "r-io-map",
+      "type": "io_type_map",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Map IO types to their redundant (R) forms",
+      "params": {
+        "map": {"AI": "AIR", "AO": "AOR", "DI": "DIR", "DO": "DOR", "AIR": "AIR", "AOR": "AOR", "DIR": "DIR", "DOR": "DOR"}
+      }
+    },
+    {
+      "id": "r-capacity",
+      "type": "capacity",
+      "enabled": true,
+      "severity": "hard",
+      "label": "One signal per slot, one slot per cable pair, cabinets within the configured limits",
+      "params": {}
+    },
+    {
+      "id": "r-cable",
+      "type": "cable_contiguous",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Cable pairs land contiguously and in order; big cables start a baseplate, small ones never cross one",
+      "params": {"whole_baseplate_min_pairs": 12}
+    },
+    {
+      "id": "r-ab",
+      "type": "segregate",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Never put A and B on the same CIOC",
+      "params": {"level": "cioc", "field": "group", "families": {"A": ["A", "A-CONTROL"], "B": ["B", "B-ALARM"]}}
+    },
+    {
+      "id": "r-group",
+      "type": "group_together",
+      "enabled": true,
+      "severity": "soft",
+      "label": "Keep each IO Grouping together in one cabinet, in sequence",
+      "params": {"field": "group", "level": "cabinet", "ignore": ["", "-"]}
+    },
+    {
+      "id": "r-alarm-bp",
+      "type": "reserve_baseplate",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Cabinet alarms go to baseplate 1 of CIOC 1 of each marshalling cabinet",
+      "params": {
+        "purpose": "cabinet_alarm",
+        "cioc": 1,
+        "baseplate": 1,
+        "exclusive": true,
+        "match_any": [
+          {"cable": "~(?i)^internal\\s*wiring$"},
+          {"equipment": "~(?i)-DC[MS]-"}
+        ]
+      }
+    },
+    {
+      "id": "r-wired-spare",
+      "type": "wired_spare_pct",
+      "enabled": true,
+      "severity": "hard",
+      "label": "10% wired spares per IO type per controller",
+      "params": {"pct": 10, "rounding": "ceil", "per": ["controller", "io_type"]}
+    },
+    {
+      "id": "r-future",
+      "type": "future_spare_pct",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Keep 10% of each cabinet's baseplates free for the future (at the end of the cabinet)",
+      "params": {"pct": 10, "rounding": "ceil"}
+    },
+    {
+      "id": "r-hw",
+      "type": "hardware_map",
+      "enabled": true,
+      "severity": "hard",
+      "label": "CHARM and terminal block follow the electrical signal",
+      "params": {
+        "lists": {
+          "high_current_do": ["XYV", "ZYV"],
+          "normal_do": ["XA", "ZLO", "MHL", "MXA", "MXL", "QAX"]
+        },
+        "rows": [
+          {"when": {"io_type": "AIR", "signal_type": "RTD"}, "charm": "SE4303T03", "tb": "SE4501"},
+          {"when": {"io_type": "AIR"}, "charm": "SE4303T01", "tb": "SE4501"},
+          {"when": {"io_type": "AOR"}, "charm": "SE4304T01", "tb": "SE4501"},
+          {"when": {"io_type": "DIR"}, "charm": "SE4301T02", "tb": "SE4501"},
+          {"when": {"io_type": "DOR", "instrument_type": "@high_current_do"}, "charm": "SE4302T02", "tb": "SE4502"},
+          {"when": {"io_type": "DOR", "instrument_type": "@normal_do"}, "charm": "SE4302T01", "tb": "SE4501"},
+          {"when": {"io_type": "DOR"}, "charm": "SE4302T01", "tb": "SE4501", "tq": "Unknown DO instrument type — confirm load/inrush (standard high-side DO assumed)"}
+        ],
+        "spare_slot": {"charm": "SE6103", "tb": "SE4501"},
+        "terminals": [
+          {"when": {"tb": "SE4502"}, "tb1": "-", "tb2": "2", "tb3": "4"},
+          {"when": {"signal_level": "~(?i)^4-?wire"}, "tb1": "-", "tb2": "2", "tb3": "4"},
+          {"when": {"signal_level": "~(?i)^3-?wire"}, "tb1": "1", "tb2": "2", "tb3": "4"},
+          {"when": {}, "tb1": "1", "tb2": "2", "tb3": "-"}
+        ],
+        "loop_typicals": [
+          {"when": {"kind": "cabinet_alarm", "signal_type": "RTD"}, "value": "SA-AMI-530-4EME-000041 - LT-03"},
+          {"when": {"kind": "cabinet_alarm", "equipment": "~(?i)-DCS-"}, "value": "SA-AMI-530-4EME-000041 - LT-05"},
+          {"when": {"kind": "cabinet_alarm"}, "value": "SA-AMI-530-4EME-000029 SH.16"},
+          {"when": {"charm": "SE4302T02"}, "value": "HW-TYP-41 - LT-08A"},
+          {"when": {"io_type": "DOR"}, "value": "HW-TYP-41 - LT-07"},
+          {"when": {"io_type": "DIR"}, "value": "HW-TYP-41 - LT-05"},
+          {"when": {"io_type": "AOR"}, "value": "HW-TYP-41 - LT-04"},
+          {"when": {"io_type": "AIR", "signal_level": "~(?i)^4-?wire"}, "value": "HW-TYP-41 - LT-02B"},
+          {"when": {"io_type": "AIR"}, "value": "HW-TYP-41 - LT-01"}
+        ]
+      }
+    },
+    {
+      "id": "r-names",
+      "type": "naming_pattern",
+      "enabled": true,
+      "severity": "hard",
+      "label": "Cabinet, controller, CIOC, baseplate and spare names follow the project patterns",
+      "params": {
+        "patterns": {
+          "system_cabinet": "{loc}-DCS-{area}-{ctrl2}",
+          "controller": "{loc}DPK{area4}{ctrl2}",
+          "marshalling": "{loc}-DCM-{area}-{cab2}",
+          "cioc": "{loc}DCIOC{area4}{cioc3}",
+          "baseplate": "{cioc3}-CBP-{bp}",
+          "wired_spare": "{area4}DSP{ctrl2}{cioc3}{bp}{ch}",
+          "visualization": "{dcm}({side})",
+          "dst": "{tag_nodash}_",
+          "spare_service": "SPARE {io2}"
+        },
+        "sides": {"1": "F", "2": "F", "3": "R", "4": "R"},
+        "cioc_seq": "(cab-1)*ciocs_per_cabinet+local",
+        "derive": {
+          "loc": {"from": "room", "regex": "(\\d+)\\s*$", "format": "P{1}"},
+          "area": {"from": "area", "regex": "(\\d{3})\\D*(\\d{2})\\s*$", "format": "{1}{2}"},
+          "area4": {"from": "area_code", "regex": "^(\\d{2})\\d*(\\d{2})$", "format": "{1}{2}"},
+          "cabinet_seq": {"from": "equipment", "regex": "-DCM-\\d+-(\\d+)\\s*$", "format": "{1}"}
+        }
+      }
+    },
+    {
+      "id": "r-out",
+      "type": "output_map",
+      "enabled": true,
+      "severity": "soft",
+      "label": "Copy engineering columns from the MDB into the allocation",
+      "params": {
+        "columns": {
+          "Technical Room": "room",
+          "Operating Area": "operating_area",
+          "Risk Area": "area",
+          "Unit": "unit",
+          "Segregation": "group",
+          "Service Description": "service",
+          "Location": "location",
+          "Signal Type": "signal_type",
+          "Signal Level": "signal_level",
+          "NON-IS / IS": "is_type",
+          "Equipment Name": "equipment",
+          "External Power": "external_power",
+          "System 2": "system2",
+          "Old Tag": "old_tag",
+          "Instrument type": "instrument_desc",
+          "Loop Name": "loop_name",
+          "Section / Sub Unit": "section"
+        },
+        "constants": {"BATCH": "B1"}
+      }
+    },
+    {
+      "id": "r-uzv",
+      "type": "custom_expr",
+      "enabled": false,
+      "severity": "hard",
+      "label": "Example: UZV shutdown valves need isolated DO + fused TB",
+      "params": {"expr": "io_type == \"DOR\" and instrument_type in [\"UZV\"] -> charm = \"SE4302T02\", tb = \"SE4502\""}
+    }
+  ]
+}

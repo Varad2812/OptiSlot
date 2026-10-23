@@ -1,0 +1,32 @@
+[
+ {
+  "run_id": "run-0001",
+  "project_id": "demo",
+  "timestamp": "2026-10-23T10:00:00Z",
+  "revision": "A",
+  "kind": "allocate",
+  "mdb_sha256": "a8584e4d63e9159a2448ce07c16373e60fa4b78e0bcb2054d920b3081b1399c2",
+  "ruleset_hash": "99c030754b69261444a37f5d6def839a9df98ec9df8a7666625ce8029c68f7cd",
+  "output_sha256": "762069bc07a6e1b5df123a5ae7bd91c10daa04694fbaa17fba0cd6a8dcce8f22",
+  "engine_version": "optislot-0.1.0",
+  "verdict": "PASS",
+  "violations": 0,
+  "signals": 189,
+  "runtime_ms": 42.0
+ },
+ {
+  "run_id": "run-0002",
+  "project_id": "demo",
+  "timestamp": "2026-10-23T10:00:00Z",
+  "revision": "A",
+  "kind": "allocate",
+  "mdb_sha256": "a8584e4d63e9159a2448ce07c16373e60fa4b78e0bcb2054d920b3081b1399c2",
+  "ruleset_hash": "99c030754b69261444a37f5d6def839a9df98ec9df8a7666625ce8029c68f7cd",
+  "output_sha256": "762069bc07a6e1b5df123a5ae7bd91c10daa04694fbaa17fba0cd6a8dcce8f22",
+  "engine_version": "optislot-0.1.0",
+  "verdict": "PASS",
+  "violations": 0,
+  "signals": 189,
+  "runtime_ms": 43.0
+ }
+]

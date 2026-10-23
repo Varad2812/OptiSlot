@@ -1,0 +1,3399 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "OptiSlot API",
+  "description": "Allocate. Prove. Revise.",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/projects": {
+   "get": {
+    "summary": "List Projects",
+    "operationId": "list_projects_api_projects_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Project"
+         },
+         "type": "array",
+         "title": "Response List Projects Api Projects Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}": {
+   "get": {
+    "summary": "Get Project",
+    "operationId": "get_project_api_projects__pid__get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Project"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/import": {
+   "post": {
+    "summary": "Import Mdb",
+    "operationId": "import_mdb_api_projects__pid__import_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_import_mdb_api_projects__pid__import_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ImportSummary"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/mapping": {
+   "post": {
+    "summary": "Set Mapping",
+    "operationId": "set_mapping_api_projects__pid__mapping_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "array",
+        "items": {
+         "$ref": "#/components/schemas/ColumnMapping"
+        },
+        "title": "Mapping"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ImportSummary"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/rules": {
+   "get": {
+    "summary": "Get Rules",
+    "operationId": "get_rules_api_projects__pid__rules_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RuleSet"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "summary": "Put Rules",
+    "operationId": "put_rules_api_projects__pid__rules_put",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RuleSet"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/rules/draft": {
+   "post": {
+    "summary": "Draft Rule",
+    "operationId": "draft_rule_api_projects__pid__rules_draft_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RuleDraft"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/allocation": {
+   "get": {
+    "summary": "Get Allocation",
+    "operationId": "get_allocation_api_projects__pid__allocation_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/allocate": {
+   "post": {
+    "summary": "Allocate",
+    "operationId": "allocate_api_projects__pid__allocate_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/verify": {
+   "post": {
+    "summary": "Verify",
+    "operationId": "verify_api_projects__pid__verify_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RuleCheckReport"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/whatif": {
+   "post": {
+    "summary": "Whatif",
+    "operationId": "whatif_api_projects__pid__whatif_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WhatIfRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WhatIfResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/commit": {
+   "post": {
+    "summary": "Commit",
+    "operationId": "commit_api_projects__pid__commit_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WhatIfRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/undo": {
+   "post": {
+    "summary": "Undo",
+    "operationId": "undo_api_projects__pid__undo_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/tqs/{tq_id}/apply": {
+   "post": {
+    "summary": "Apply Tq",
+    "operationId": "apply_tq_api_projects__pid__tqs__tq_id__apply_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "tq_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Tq Id"
+      }
+     },
+     {
+      "name": "option",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 0,
+       "title": "Option"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AllocationResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/tqs": {
+   "get": {
+    "summary": "List Tqs",
+    "operationId": "list_tqs_api_projects__pid__tqs_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/TQ"
+         },
+         "title": "Response List Tqs Api Projects  Pid  Tqs Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/slots/{slot_id}/why": {
+   "get": {
+    "summary": "Slot Why",
+    "operationId": "slot_why_api_projects__pid__slots__slot_id__why_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "slot_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Slot Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/WhyStep"
+         },
+         "title": "Response Slot Why Api Projects  Pid  Slots  Slot Id  Why Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/rows": {
+   "get": {
+    "summary": "Rows",
+    "description": "The 76-column allocation rows exactly as they will be written to Excel.",
+    "operationId": "rows_api_projects__pid__rows_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": {
+           "type": "string"
+          }
+         },
+         "title": "Response Rows Api Projects  Pid  Rows Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/revisions": {
+   "post": {
+    "summary": "Upload Revision",
+    "operationId": "upload_revision_api_projects__pid__revisions_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_upload_revision_api_projects__pid__revisions_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RevisionImpact"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/revisions/gauntlet": {
+   "post": {
+    "summary": "Gauntlet",
+    "operationId": "gauntlet_api_projects__pid__revisions_gauntlet_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RevisionImpact"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/revisions/impact": {
+   "get": {
+    "summary": "Revision Impact",
+    "operationId": "revision_impact_api_projects__pid__revisions_impact_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RevisionImpact"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/runs": {
+   "get": {
+    "summary": "Runs",
+    "operationId": "runs_api_projects__pid__runs_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/RunRecord"
+         },
+         "title": "Response Runs Api Projects  Pid  Runs Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/verify-file": {
+   "post": {
+    "summary": "Verify File",
+    "operationId": "verify_file_api_verify_file_post",
+    "requestBody": {
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_verify_file_api_verify_file_post"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RuleCheckReport"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/exports": {
+   "get": {
+    "summary": "Exports",
+    "operationId": "exports_api_projects__pid__exports_get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ExportFile"
+         },
+         "title": "Response Exports Api Projects  Pid  Exports Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/export/{kind}": {
+   "get": {
+    "summary": "Export",
+    "operationId": "export_api_projects__pid__export__kind__get",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "kind",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Kind"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/stress": {
+   "post": {
+    "summary": "Stress",
+    "operationId": "stress_api_projects__pid__stress_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     },
+     {
+      "name": "n",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "default": 10000,
+       "title": "N"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StressResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/health": {
+   "get": {
+    "summary": "Health",
+    "operationId": "health_api_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ActivityEvent": {
+    "properties": {
+     "ts": {
+      "type": "string",
+      "title": "Ts"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "import",
+       "allocate",
+       "verify",
+       "tq",
+       "rule",
+       "revision",
+       "export",
+       "whatif"
+      ],
+      "title": "Kind"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "ts",
+     "kind",
+     "text"
+    ],
+    "title": "ActivityEvent"
+   },
+   "AllocationResult": {
+    "properties": {
+     "project_id": {
+      "type": "string",
+      "title": "Project Id"
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision"
+     },
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "cabinets": {
+      "items": {
+       "$ref": "#/components/schemas/CabinetInfo"
+      },
+      "type": "array",
+      "title": "Cabinets"
+     },
+     "slots": {
+      "items": {
+       "$ref": "#/components/schemas/Slot"
+      },
+      "type": "array",
+      "title": "Slots"
+     },
+     "tqs": {
+      "items": {
+       "$ref": "#/components/schemas/TQ"
+      },
+      "type": "array",
+      "title": "Tqs"
+     },
+     "quarantine": {
+      "items": {
+       "$ref": "#/components/schemas/QuarantineRow"
+      },
+      "type": "array",
+      "title": "Quarantine"
+     },
+     "kpis": {
+      "$ref": "#/components/schemas/Kpis"
+     },
+     "report": {
+      "$ref": "#/components/schemas/RuleCheckReport"
+     },
+     "certificate": {
+      "$ref": "#/components/schemas/Certificate"
+     },
+     "optimiser": {
+      "$ref": "#/components/schemas/OptimiserInfo"
+     },
+     "runtime_ms": {
+      "type": "number",
+      "title": "Runtime Ms"
+     },
+     "activity": {
+      "items": {
+       "$ref": "#/components/schemas/ActivityEvent"
+      },
+      "type": "array",
+      "title": "Activity"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "project_id",
+     "revision",
+     "run_id",
+     "cabinets",
+     "slots",
+     "tqs",
+     "quarantine",
+     "kpis",
+     "report",
+     "certificate",
+     "optimiser",
+     "runtime_ms"
+    ],
+    "title": "AllocationResult"
+   },
+   "BaseplateInfo": {
+    "properties": {
+     "bp": {
+      "type": "integer",
+      "title": "Bp"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "reserved": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "cabinet_alarm",
+         "future"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reserved"
+     },
+     "used": {
+      "type": "integer",
+      "title": "Used",
+      "default": 0
+     },
+     "wired_spares": {
+      "type": "integer",
+      "title": "Wired Spares",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "bp",
+     "name"
+    ],
+    "title": "BaseplateInfo"
+   },
+   "Body_import_mdb_api_projects__pid__import_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_import_mdb_api_projects__pid__import_post"
+   },
+   "Body_upload_revision_api_projects__pid__revisions_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_upload_revision_api_projects__pid__revisions_post"
+   },
+   "Body_verify_file_api_verify_file_post": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "File"
+     }
+    },
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "Body_verify_file_api_verify_file_post"
+   },
+   "CabinetInfo": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "seq": {
+      "type": "integer",
+      "title": "Seq"
+     },
+     "system_cabinet": {
+      "type": "string",
+      "title": "System Cabinet"
+     },
+     "controller": {
+      "type": "string",
+      "title": "Controller"
+     },
+     "controller_seq": {
+      "type": "integer",
+      "title": "Controller Seq"
+     },
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "loc": {
+      "type": "string",
+      "title": "Loc"
+     },
+     "area_code": {
+      "type": "string",
+      "title": "Area Code"
+     },
+     "declared": {
+      "type": "boolean",
+      "title": "Declared",
+      "default": false
+     },
+     "ciocs": {
+      "items": {
+       "$ref": "#/components/schemas/CiocInfo"
+      },
+      "type": "array",
+      "title": "Ciocs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name",
+     "seq",
+     "system_cabinet",
+     "controller",
+     "controller_seq",
+     "domain",
+     "loc",
+     "area_code",
+     "ciocs"
+    ],
+    "title": "CabinetInfo"
+   },
+   "CabinetSpares": {
+    "properties": {
+     "cabinet": {
+      "type": "string",
+      "title": "Cabinet"
+     },
+     "controller": {
+      "type": "string",
+      "title": "Controller"
+     },
+     "used": {
+      "type": "integer",
+      "title": "Used"
+     },
+     "wired_spares": {
+      "type": "integer",
+      "title": "Wired Spares"
+     },
+     "spare_slots": {
+      "type": "integer",
+      "title": "Spare Slots"
+     },
+     "empty_baseplates": {
+      "type": "integer",
+      "title": "Empty Baseplates"
+     },
+     "future_baseplates": {
+      "type": "integer",
+      "title": "Future Baseplates"
+     },
+     "fill_pct": {
+      "type": "number",
+      "title": "Fill Pct"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "cabinet",
+     "controller",
+     "used",
+     "wired_spares",
+     "spare_slots",
+     "empty_baseplates",
+     "future_baseplates",
+     "fill_pct"
+    ],
+    "title": "CabinetSpares"
+   },
+   "Certificate": {
+    "properties": {
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "timestamp": {
+      "type": "string",
+      "title": "Timestamp"
+     },
+     "engine_version": {
+      "type": "string",
+      "title": "Engine Version",
+      "default": "optislot-0.1.0"
+     },
+     "mdb_sha256": {
+      "type": "string",
+      "title": "Mdb Sha256"
+     },
+     "ruleset_hash": {
+      "type": "string",
+      "title": "Ruleset Hash"
+     },
+     "output_sha256": {
+      "type": "string",
+      "title": "Output Sha256"
+     },
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "PASS",
+       "FAIL"
+      ],
+      "title": "Verdict"
+     },
+     "checks_passed": {
+      "type": "integer",
+      "title": "Checks Passed"
+     },
+     "checks_total": {
+      "type": "integer",
+      "title": "Checks Total"
+     },
+     "violations": {
+      "type": "integer",
+      "title": "Violations"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "run_id",
+     "timestamp",
+     "mdb_sha256",
+     "ruleset_hash",
+     "output_sha256",
+     "verdict",
+     "checks_passed",
+     "checks_total",
+     "violations"
+    ],
+    "title": "Certificate"
+   },
+   "CheckResult": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "rule_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rule Id"
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "hard",
+       "soft"
+      ],
+      "title": "Severity",
+      "default": "hard"
+     },
+     "passed": {
+      "type": "integer",
+      "title": "Passed",
+      "default": 0
+     },
+     "failed": {
+      "type": "integer",
+      "title": "Failed",
+      "default": 0
+     },
+     "excepted": {
+      "type": "integer",
+      "title": "Excepted",
+      "default": 0
+     },
+     "violations": {
+      "items": {
+       "$ref": "#/components/schemas/Violation"
+      },
+      "type": "array",
+      "title": "Violations"
+     },
+     "exceptions": {
+      "items": {
+       "$ref": "#/components/schemas/Violation"
+      },
+      "type": "array",
+      "title": "Exceptions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "label"
+    ],
+    "title": "CheckResult"
+   },
+   "CiocInfo": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "seq": {
+      "type": "integer",
+      "title": "Seq"
+     },
+     "local": {
+      "type": "integer",
+      "title": "Local"
+     },
+     "side": {
+      "type": "string",
+      "title": "Side"
+     },
+     "family": {
+      "type": "string",
+      "enum": [
+       "A",
+       "B",
+       "-"
+      ],
+      "title": "Family",
+      "default": "-"
+     },
+     "used": {
+      "type": "integer",
+      "title": "Used",
+      "default": 0
+     },
+     "wired_spares": {
+      "type": "integer",
+      "title": "Wired Spares",
+      "default": 0
+     },
+     "capacity": {
+      "type": "integer",
+      "title": "Capacity",
+      "default": 96
+     },
+     "baseplates": {
+      "items": {
+       "$ref": "#/components/schemas/BaseplateInfo"
+      },
+      "type": "array",
+      "title": "Baseplates"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name",
+     "seq",
+     "local",
+     "side",
+     "baseplates"
+    ],
+    "title": "CiocInfo"
+   },
+   "ColumnMapping": {
+    "properties": {
+     "field": {
+      "type": "string",
+      "title": "Field"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence",
+      "default": 0.0
+     },
+     "required": {
+      "type": "boolean",
+      "title": "Required",
+      "default": false
+     },
+     "overridden": {
+      "type": "boolean",
+      "title": "Overridden",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "field",
+     "label"
+    ],
+    "title": "ColumnMapping"
+   },
+   "ExportFile": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "allocation",
+       "rule_check",
+       "tq_register",
+       "revision_impact",
+       "capacity_bom"
+      ],
+      "title": "Kind"
+     },
+     "filename": {
+      "type": "string",
+      "title": "Filename"
+     },
+     "rows": {
+      "type": "integer",
+      "title": "Rows"
+     },
+     "sha256": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sha256"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "kind",
+     "filename",
+     "rows"
+    ],
+    "title": "ExportFile"
+   },
+   "FixOption": {
+    "properties": {
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "rule_patch": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rule Patch"
+     },
+     "data_patch": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Data Patch"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "label"
+    ],
+    "title": "FixOption"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "ImportSummary": {
+    "properties": {
+     "file": {
+      "type": "string",
+      "title": "File"
+     },
+     "sheet": {
+      "type": "string",
+      "title": "Sheet"
+     },
+     "header_row": {
+      "type": "integer",
+      "title": "Header Row"
+     },
+     "rows": {
+      "type": "integer",
+      "title": "Rows"
+     },
+     "live_rows": {
+      "type": "integer",
+      "title": "Live Rows"
+     },
+     "quarantined": {
+      "type": "integer",
+      "title": "Quarantined"
+     },
+     "mapping": {
+      "items": {
+       "$ref": "#/components/schemas/ColumnMapping"
+      },
+      "type": "array",
+      "title": "Mapping"
+     },
+     "preview": {
+      "items": {
+       "additionalProperties": {
+        "type": "string"
+       },
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Preview"
+     },
+     "sha256": {
+      "type": "string",
+      "title": "Sha256"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "file",
+     "sheet",
+     "header_row",
+     "rows",
+     "live_rows",
+     "quarantined",
+     "mapping",
+     "sha256"
+    ],
+    "title": "ImportSummary"
+   },
+   "Kpis": {
+    "properties": {
+     "signals": {
+      "type": "integer",
+      "title": "Signals"
+     },
+     "allocated": {
+      "type": "integer",
+      "title": "Allocated"
+     },
+     "allocated_pct": {
+      "type": "number",
+      "title": "Allocated Pct"
+     },
+     "unallocated_with_tq": {
+      "type": "integer",
+      "title": "Unallocated With Tq"
+     },
+     "tqs_open": {
+      "type": "integer",
+      "title": "Tqs Open"
+     },
+     "violations": {
+      "type": "integer",
+      "title": "Violations"
+     },
+     "cabinets": {
+      "type": "integer",
+      "title": "Cabinets"
+     },
+     "ciocs": {
+      "type": "integer",
+      "title": "Ciocs"
+     },
+     "baseplates_used": {
+      "type": "integer",
+      "title": "Baseplates Used"
+     },
+     "fill_pct": {
+      "type": "number",
+      "title": "Fill Pct"
+     },
+     "wired_spares": {
+      "type": "integer",
+      "title": "Wired Spares"
+     },
+     "wired_target": {
+      "type": "integer",
+      "title": "Wired Target"
+     },
+     "stability_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stability Pct"
+     },
+     "status_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Status Counts"
+     },
+     "tq_by_category": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Tq By Category"
+     },
+     "spare_compliance": {
+      "items": {
+       "$ref": "#/components/schemas/SpareCompliance"
+      },
+      "type": "array",
+      "title": "Spare Compliance"
+     },
+     "spares_per_cabinet": {
+      "items": {
+       "$ref": "#/components/schemas/CabinetSpares"
+      },
+      "type": "array",
+      "title": "Spares Per Cabinet"
+     },
+     "hardware_bom": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Hardware Bom"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "signals",
+     "allocated",
+     "allocated_pct",
+     "unallocated_with_tq",
+     "tqs_open",
+     "violations",
+     "cabinets",
+     "ciocs",
+     "baseplates_used",
+     "fill_pct",
+     "wired_spares",
+     "wired_target",
+     "status_counts",
+     "tq_by_category",
+     "spare_compliance",
+     "spares_per_cabinet"
+    ],
+    "title": "Kpis"
+   },
+   "Move": {
+    "properties": {
+     "block_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Block Id"
+     },
+     "slot_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slot Id"
+     },
+     "target_cioc": {
+      "type": "string",
+      "title": "Target Cioc"
+     },
+     "target_bp": {
+      "type": "integer",
+      "title": "Target Bp"
+     },
+     "target_ch": {
+      "type": "integer",
+      "title": "Target Ch",
+      "default": 1
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "target_cioc",
+     "target_bp"
+    ],
+    "title": "Move"
+   },
+   "MoveItem": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "from_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Slot"
+     },
+     "to_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Slot"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "reason"
+    ],
+    "title": "MoveItem"
+   },
+   "OptimiserInfo": {
+    "properties": {
+     "method": {
+      "type": "string",
+      "enum": [
+       "greedy",
+       "cpsat"
+      ],
+      "title": "Method",
+      "default": "greedy"
+     },
+     "greedy_ciocs": {
+      "type": "integer",
+      "title": "Greedy Ciocs"
+     },
+     "cpsat_ciocs": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cpsat Ciocs"
+     },
+     "adopted": {
+      "type": "boolean",
+      "title": "Adopted",
+      "default": false
+     },
+     "status": {
+      "type": "string",
+      "title": "Status",
+      "default": "not run"
+     },
+     "time_ms": {
+      "type": "number",
+      "title": "Time Ms",
+      "default": 0.0
+     },
+     "note": {
+      "type": "string",
+      "title": "Note",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "greedy_ciocs"
+    ],
+    "title": "OptimiserInfo"
+   },
+   "Project": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision",
+      "default": "A"
+     },
+     "revisions": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Revisions"
+     },
+     "settings": {
+      "$ref": "#/components/schemas/ProjectSettings"
+     },
+     "ruleset_id": {
+      "type": "string",
+      "title": "Ruleset Id",
+      "default": "default"
+     },
+     "ruleset_version": {
+      "type": "integer",
+      "title": "Ruleset Version",
+      "default": 1
+     },
+     "mdb_file": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mdb File"
+     },
+     "created": {
+      "type": "string",
+      "title": "Created"
+     },
+     "updated": {
+      "type": "string",
+      "title": "Updated"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "created",
+     "updated"
+    ],
+    "title": "Project"
+   },
+   "ProjectSettings": {
+    "properties": {
+     "loc_prefix_default": {
+      "type": "string",
+      "title": "Loc Prefix Default",
+      "default": "P01"
+     },
+     "area_code_default": {
+      "type": "string",
+      "title": "Area Code Default",
+      "default": "10001"
+     },
+     "domain_keys": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Domain Keys"
+     },
+     "ciocs_per_cabinet": {
+      "type": "integer",
+      "title": "Ciocs Per Cabinet",
+      "default": 4
+     },
+     "baseplates_per_cioc": {
+      "type": "integer",
+      "title": "Baseplates Per Cioc",
+      "default": 8
+     },
+     "channels_per_baseplate": {
+      "type": "integer",
+      "title": "Channels Per Baseplate",
+      "default": 12
+     },
+     "max_cabinets_per_controller": {
+      "type": "integer",
+      "title": "Max Cabinets Per Controller",
+      "default": 1
+     },
+     "max_cabinets_per_domain": {
+      "type": "integer",
+      "title": "Max Cabinets Per Domain",
+      "default": 99
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision",
+      "default": "00"
+     },
+     "cpsat_enabled": {
+      "type": "boolean",
+      "title": "Cpsat Enabled",
+      "default": true
+     },
+     "cpsat_time_limit_s": {
+      "type": "number",
+      "title": "Cpsat Time Limit S",
+      "default": 2.0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "ProjectSettings",
+    "description": "Hidden-test safety net: defaults so that missing data never blocks allocation."
+   },
+   "QuarantineRow": {
+    "properties": {
+     "row": {
+      "type": "integer",
+      "title": "Row"
+     },
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason"
+     },
+     "tq_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tq Id"
+     },
+     "values": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Values"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "row",
+     "tag",
+     "reason"
+    ],
+    "title": "QuarantineRow"
+   },
+   "RevisionImpact": {
+    "properties": {
+     "from_rev": {
+      "type": "string",
+      "title": "From Rev"
+     },
+     "to_rev": {
+      "type": "string",
+      "title": "To Rev"
+     },
+     "added": {
+      "items": {
+       "$ref": "#/components/schemas/MoveItem"
+      },
+      "type": "array",
+      "title": "Added"
+     },
+     "deleted": {
+      "items": {
+       "$ref": "#/components/schemas/MoveItem"
+      },
+      "type": "array",
+      "title": "Deleted"
+     },
+     "modified": {
+      "items": {
+       "$ref": "#/components/schemas/MoveItem"
+      },
+      "type": "array",
+      "title": "Modified"
+     },
+     "moved": {
+      "items": {
+       "$ref": "#/components/schemas/MoveItem"
+      },
+      "type": "array",
+      "title": "Moved"
+     },
+     "unchanged_in_place": {
+      "type": "integer",
+      "title": "Unchanged In Place"
+     },
+     "previous_live": {
+      "type": "integer",
+      "title": "Previous Live"
+     },
+     "stability_pct": {
+      "type": "number",
+      "title": "Stability Pct"
+     },
+     "cabinets_touched": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Cabinets Touched"
+     },
+     "new_tqs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "New Tqs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "from_rev",
+     "to_rev",
+     "added",
+     "deleted",
+     "modified",
+     "moved",
+     "unchanged_in_place",
+     "previous_live",
+     "stability_pct",
+     "cabinets_touched"
+    ],
+    "title": "RevisionImpact"
+   },
+   "Rule": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "type": {
+      "type": "string",
+      "enum": [
+       "capacity",
+       "cable_contiguous",
+       "group_together",
+       "segregate",
+       "reserve_baseplate",
+       "wired_spare_pct",
+       "future_spare_pct",
+       "hardware_map",
+       "io_type_map",
+       "naming_pattern",
+       "output_map",
+       "custom_expr"
+      ],
+      "title": "Type"
+     },
+     "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "default": true
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "hard",
+       "soft"
+      ],
+      "title": "Severity",
+      "default": "hard"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "params": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Params"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "type",
+     "label"
+    ],
+    "title": "Rule"
+   },
+   "RuleCheckReport": {
+    "properties": {
+     "source": {
+      "type": "string",
+      "enum": [
+       "memory",
+       "file"
+      ],
+      "title": "Source",
+      "default": "memory"
+     },
+     "file": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "File"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/CheckResult"
+      },
+      "type": "array",
+      "title": "Checks"
+     },
+     "checks_total": {
+      "type": "integer",
+      "title": "Checks Total"
+     },
+     "checks_passed": {
+      "type": "integer",
+      "title": "Checks Passed"
+     },
+     "violations": {
+      "type": "integer",
+      "title": "Violations"
+     },
+     "warnings": {
+      "type": "integer",
+      "title": "Warnings",
+      "default": 0
+     },
+     "excepted": {
+      "type": "integer",
+      "title": "Excepted",
+      "default": 0
+     },
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "PASS",
+       "FAIL"
+      ],
+      "title": "Verdict"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "checks",
+     "checks_total",
+     "checks_passed",
+     "violations",
+     "verdict"
+    ],
+    "title": "RuleCheckReport"
+   },
+   "RuleDraft": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "enum": [
+       "claude",
+       "ollama",
+       "templates"
+      ],
+      "title": "Provider"
+     },
+     "provider_note": {
+      "type": "string",
+      "title": "Provider Note"
+     },
+     "rule": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Rule"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "provider",
+     "provider_note"
+    ],
+    "title": "RuleDraft"
+   },
+   "RuleSet": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version",
+      "default": 1
+     },
+     "description": {
+      "type": "string",
+      "title": "Description",
+      "default": ""
+     },
+     "rules": {
+      "items": {
+       "$ref": "#/components/schemas/Rule"
+      },
+      "type": "array",
+      "title": "Rules"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "rules"
+    ],
+    "title": "RuleSet"
+   },
+   "RunRecord": {
+    "properties": {
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "project_id": {
+      "type": "string",
+      "title": "Project Id"
+     },
+     "timestamp": {
+      "type": "string",
+      "title": "Timestamp"
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "allocate",
+       "revision",
+       "verify-file",
+       "stress"
+      ],
+      "title": "Kind",
+      "default": "allocate"
+     },
+     "mdb_sha256": {
+      "type": "string",
+      "title": "Mdb Sha256"
+     },
+     "ruleset_hash": {
+      "type": "string",
+      "title": "Ruleset Hash"
+     },
+     "output_sha256": {
+      "type": "string",
+      "title": "Output Sha256"
+     },
+     "engine_version": {
+      "type": "string",
+      "title": "Engine Version",
+      "default": "optislot-0.1.0"
+     },
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "PASS",
+       "FAIL"
+      ],
+      "title": "Verdict"
+     },
+     "violations": {
+      "type": "integer",
+      "title": "Violations"
+     },
+     "signals": {
+      "type": "integer",
+      "title": "Signals"
+     },
+     "runtime_ms": {
+      "type": "number",
+      "title": "Runtime Ms"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "run_id",
+     "project_id",
+     "timestamp",
+     "revision",
+     "mdb_sha256",
+     "ruleset_hash",
+     "output_sha256",
+     "verdict",
+     "violations",
+     "signals",
+     "runtime_ms"
+    ],
+    "title": "RunRecord"
+   },
+   "Slot": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "cabinet": {
+      "type": "string",
+      "title": "Cabinet"
+     },
+     "cabinet_seq": {
+      "type": "integer",
+      "title": "Cabinet Seq"
+     },
+     "system_cabinet": {
+      "type": "string",
+      "title": "System Cabinet"
+     },
+     "controller": {
+      "type": "string",
+      "title": "Controller"
+     },
+     "controller_seq": {
+      "type": "integer",
+      "title": "Controller Seq"
+     },
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "cioc": {
+      "type": "string",
+      "title": "Cioc"
+     },
+     "cioc_seq": {
+      "type": "integer",
+      "title": "Cioc Seq"
+     },
+     "cioc_local": {
+      "type": "integer",
+      "title": "Cioc Local"
+     },
+     "side": {
+      "type": "string",
+      "title": "Side"
+     },
+     "baseplate": {
+      "type": "string",
+      "title": "Baseplate"
+     },
+     "bp": {
+      "type": "integer",
+      "title": "Bp"
+     },
+     "ch": {
+      "type": "integer",
+      "title": "Ch"
+     },
+     "charm_no": {
+      "type": "integer",
+      "title": "Charm No"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "Field",
+       "Wired Spare",
+       "Spare Slot",
+       "Cabinet Alarm"
+      ],
+      "title": "Status"
+     },
+     "tag": {
+      "type": "string",
+      "title": "Tag",
+      "default": "-"
+     },
+     "tag_key": {
+      "type": "string",
+      "title": "Tag Key",
+      "default": ""
+     },
+     "io_type": {
+      "type": "string",
+      "title": "Io Type",
+      "default": "-"
+     },
+     "family": {
+      "type": "string",
+      "enum": [
+       "A",
+       "B",
+       "-"
+      ],
+      "title": "Family",
+      "default": "-"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group",
+      "default": "-"
+     },
+     "cable": {
+      "type": "string",
+      "title": "Cable",
+      "default": "-"
+     },
+     "cable_spec": {
+      "type": "string",
+      "title": "Cable Spec",
+      "default": "-"
+     },
+     "cable_size": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cable Size"
+     },
+     "pair": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pair"
+     },
+     "pair_label": {
+      "type": "string",
+      "title": "Pair Label",
+      "default": "-"
+     },
+     "block_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Block Id"
+     },
+     "charm": {
+      "type": "string",
+      "title": "Charm",
+      "default": "SE6103"
+     },
+     "charm_desc": {
+      "type": "string",
+      "title": "Charm Desc",
+      "default": ""
+     },
+     "tb": {
+      "type": "string",
+      "title": "Tb",
+      "default": "SE4501"
+     },
+     "tb_desc": {
+      "type": "string",
+      "title": "Tb Desc",
+      "default": ""
+     },
+     "tb1": {
+      "type": "string",
+      "title": "Tb1",
+      "default": "-"
+     },
+     "tb2": {
+      "type": "string",
+      "title": "Tb2",
+      "default": "-"
+     },
+     "tb3": {
+      "type": "string",
+      "title": "Tb3",
+      "default": "-"
+     },
+     "loop_typical": {
+      "type": "string",
+      "title": "Loop Typical",
+      "default": "-"
+     },
+     "signal_type": {
+      "type": "string",
+      "title": "Signal Type",
+      "default": "-"
+     },
+     "signal_level": {
+      "type": "string",
+      "title": "Signal Level",
+      "default": "-"
+     },
+     "service": {
+      "type": "string",
+      "title": "Service",
+      "default": "-"
+     },
+     "instrument_type": {
+      "type": "string",
+      "title": "Instrument Type",
+      "default": "-"
+     },
+     "reserved": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "cabinet_alarm",
+         "future"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reserved"
+     },
+     "source_row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Row"
+     },
+     "revision": {
+      "type": "string",
+      "title": "Revision",
+      "default": "00"
+     },
+     "change_type": {
+      "type": "string",
+      "title": "Change Type",
+      "default": "-"
+     },
+     "old_tag": {
+      "type": "string",
+      "title": "Old Tag",
+      "default": "-"
+     },
+     "remarks": {
+      "type": "string",
+      "title": "Remarks",
+      "default": "-"
+     },
+     "pinned": {
+      "type": "boolean",
+      "title": "Pinned",
+      "default": false
+     },
+     "tq_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tq Ids"
+     },
+     "why": {
+      "items": {
+       "$ref": "#/components/schemas/WhyStep"
+      },
+      "type": "array",
+      "title": "Why"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "cabinet",
+     "cabinet_seq",
+     "system_cabinet",
+     "controller",
+     "controller_seq",
+     "domain",
+     "cioc",
+     "cioc_seq",
+     "cioc_local",
+     "side",
+     "baseplate",
+     "bp",
+     "ch",
+     "charm_no",
+     "status"
+    ],
+    "title": "Slot"
+   },
+   "SlotDiff": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "from_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Slot"
+     },
+     "to_slot": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To Slot"
+     },
+     "change": {
+      "type": "string",
+      "enum": [
+       "moved",
+       "added",
+       "removed",
+       "hardware"
+      ],
+      "title": "Change"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tag",
+     "change"
+    ],
+    "title": "SlotDiff"
+   },
+   "SpareCompliance": {
+    "properties": {
+     "controller": {
+      "type": "string",
+      "title": "Controller"
+     },
+     "io_type": {
+      "type": "string",
+      "title": "Io Type"
+     },
+     "field": {
+      "type": "integer",
+      "title": "Field"
+     },
+     "wired": {
+      "type": "integer",
+      "title": "Wired"
+     },
+     "target": {
+      "type": "integer",
+      "title": "Target"
+     },
+     "pct": {
+      "type": "number",
+      "title": "Pct"
+     },
+     "ok": {
+      "type": "boolean",
+      "title": "Ok"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "controller",
+     "io_type",
+     "field",
+     "wired",
+     "target",
+     "pct",
+     "ok"
+    ],
+    "title": "SpareCompliance"
+   },
+   "StressResult": {
+    "properties": {
+     "n": {
+      "type": "integer",
+      "title": "N"
+     },
+     "signals": {
+      "type": "integer",
+      "title": "Signals"
+     },
+     "allocate_ms": {
+      "type": "number",
+      "title": "Allocate Ms"
+     },
+     "verify_ms": {
+      "type": "number",
+      "title": "Verify Ms"
+     },
+     "total_ms": {
+      "type": "number",
+      "title": "Total Ms"
+     },
+     "cabinets": {
+      "type": "integer",
+      "title": "Cabinets"
+     },
+     "violations": {
+      "type": "integer",
+      "title": "Violations"
+     },
+     "tqs": {
+      "type": "integer",
+      "title": "Tqs"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "n",
+     "signals",
+     "allocate_ms",
+     "verify_ms",
+     "total_ms",
+     "cabinets",
+     "violations",
+     "tqs"
+    ],
+    "title": "StressResult"
+   },
+   "TQ": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category"
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "critical",
+       "high",
+       "medium",
+       "low",
+       "info"
+      ],
+      "title": "Severity"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "open",
+       "applied",
+       "closed"
+      ],
+      "title": "Status",
+      "default": "open"
+     },
+     "confidence": {
+      "type": "string",
+      "enum": [
+       "confirmed",
+       "candidate"
+      ],
+      "title": "Confidence",
+      "default": "confirmed"
+     },
+     "rows": {
+      "items": {
+       "type": "integer"
+      },
+      "type": "array",
+      "title": "Rows"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tags"
+     },
+     "field": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Field"
+     },
+     "rules_in_conflict": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Rules In Conflict"
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     },
+     "fix_options": {
+      "items": {
+       "$ref": "#/components/schemas/FixOption"
+      },
+      "type": "array",
+      "title": "Fix Options"
+     },
+     "unchanged_note": {
+      "type": "string",
+      "title": "Unchanged Note",
+      "default": ""
+     },
+     "slot_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Slot Ids"
+     },
+     "decision": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "category",
+     "severity",
+     "message"
+    ],
+    "title": "TQ"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "Violation": {
+    "properties": {
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     },
+     "tag": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag"
+     },
+     "slot_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Slot Id"
+     },
+     "message": {
+      "type": "string",
+      "title": "Message"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "message"
+    ],
+    "title": "Violation"
+   },
+   "WhatIfRequest": {
+    "properties": {
+     "moves": {
+      "items": {
+       "$ref": "#/components/schemas/Move"
+      },
+      "type": "array",
+      "title": "Moves"
+     },
+     "rule_toggles": {
+      "additionalProperties": {
+       "type": "boolean"
+      },
+      "type": "object",
+      "title": "Rule Toggles"
+     },
+     "params": {
+      "additionalProperties": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Params"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "WhatIfRequest"
+   },
+   "WhatIfResult": {
+    "properties": {
+     "allowed": {
+      "type": "boolean",
+      "title": "Allowed"
+     },
+     "blocked_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Blocked Reason"
+     },
+     "kpis": {
+      "$ref": "#/components/schemas/Kpis"
+     },
+     "report": {
+      "$ref": "#/components/schemas/RuleCheckReport"
+     },
+     "moves": {
+      "type": "integer",
+      "title": "Moves"
+     },
+     "diff": {
+      "items": {
+       "$ref": "#/components/schemas/SlotDiff"
+      },
+      "type": "array",
+      "title": "Diff"
+     },
+     "slots": {
+      "items": {
+       "$ref": "#/components/schemas/Slot"
+      },
+      "type": "array",
+      "title": "Slots"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "allowed",
+     "kpis",
+     "report",
+     "moves",
+     "diff"
+    ],
+    "title": "WhatIfResult"
+   },
+   "WhyStep": {
+    "properties": {
+     "rule_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rule Id"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "WhyStep"
+   }
+  }
+ }
+}
