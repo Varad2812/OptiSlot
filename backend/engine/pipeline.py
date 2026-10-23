@@ -34,7 +34,7 @@ class RunOutput:
 
 def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None,
         overrides: dict[str, str | None] | None = None, filename: str | None = None, assign=None,
-        table: RawTable | None = None) -> RunOutput:
+        table: RawTable | None = None, baseline=None, extra_tqs=None) -> RunOutput:
     t0 = time.perf_counter()
     rules = Rules(ruleset or load_ruleset())
     settings = settings or ProjectSettings()
@@ -50,7 +50,9 @@ def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: Proje
     signals = normalise(table, mapping_dict(mapping), rules, settings, book)
     exceptions = preflight(signals, rules, settings, book)
     t2 = time.perf_counter()
-    engine = Engine(signals, rules, settings, book, exceptions)
+    for hook in extra_tqs or []:
+        hook(signals, book)
+    engine = Engine(signals, rules, settings, book, exceptions, baseline=baseline)
     report = None
     live = [s for s in signals if s.live and not s.quarantined]
     skip_large = len(live) > 5000
@@ -69,7 +71,8 @@ def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: Proje
     if report is not None and report.adopted_any:
         from verify.checks import verify_rows  # safety gate: the independent verifier must agree
         if verify_rows(rows, signals, rules.rs, settings, book.tqs).verdict != "PASS":
-            out = run(src, ruleset, settings.model_copy(update={"cpsat_enabled": False}), overrides, filename, None, table)
+            out = run(src, ruleset, settings.model_copy(update={"cpsat_enabled": False}), overrides, filename, None, table,
+                      baseline, extra_tqs)
             out.optimiser = OptimiserInfo(method="greedy", greedy_ciocs=out.kpis.ciocs, cpsat_ciocs=optimiser.cpsat_ciocs,
                                           adopted=False, status="rejected by verifier",
                                           note="CP-SAT result failed the independent verifier — greedy kept")

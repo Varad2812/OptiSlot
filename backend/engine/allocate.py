@@ -57,6 +57,7 @@ class Block:
     ch: int | None = None
     pinned: bool = False
     pin_pos: tuple[int, int, int, int] | None = None  # (cab seq, cioc local, bp, ch) for revisions
+    move_reason: str | None = None
 
     @property
     def sort_key(self) -> tuple:
@@ -166,6 +167,18 @@ def layout(blocks: list[Block], usable: list[int], g: Geometry) -> dict[str, tup
 # ───────────────────────────── the engine ─────────────────────────────
 
 @dataclass
+class Baseline:
+    """A previous allocation, reduced to what a revision must preserve."""
+    cabs: list[tuple[tuple[str, str], int, str, bool]]                    # (ns, seq, domain, declared)
+    blocks: dict[str, tuple[tuple[str, str], int, int, int, int, int]]    # cable → (ns, seq, local, bp, ch, size)
+    alarms: dict[str, tuple[tuple[str, str], int, int, int, int]]         # tag key → (ns, seq, local, bp, ch)
+    spares: dict[tuple[str, int], str]                                    # (cable, pair) → IO type of the wired spare
+    slots: dict[str, Slot]                                                # tag key → previous slot (Field / Cabinet Alarm)
+    by_id: dict[str, Slot]                                                # slot id → previous slot
+    live: int                                                             # previous live signals
+
+
+@dataclass
 class Allocation:
     cabinets: list[CabinetInfo]
     slots: list[Slot]
@@ -177,12 +190,13 @@ class Allocation:
 
 class Engine:
     def __init__(self, signals: list[Signal], rules: Rules, settings: ProjectSettings, book: TQBook,
-                 exceptions: dict[str, str] | None = None):
+                 exceptions: dict[str, str] | None = None, baseline: Baseline | None = None):
         self.signals = signals
         self.rules = rules
         self.settings = settings
         self.book = book
         self.exceptions = exceptions or {}
+        self.baseline = baseline
         cc = rules.params("cable_contiguous")
         self.g = Geometry(settings.ciocs_per_cabinet, settings.baseplates_per_cioc, settings.channels_per_baseplate,
                           int(cc.get("whole_baseplate_min_pairs", settings.channels_per_baseplate)) if cc else 10 ** 6)
@@ -395,21 +409,44 @@ class Engine:
         if not rule or not cab.alarms:
             return
         g = self.g
-        local, bp, ch = int(rule.params.get("cioc", 1)), int(rule.params.get("baseplate", 1)), 1
+        local, bp0 = int(rule.params.get("cioc", 1)), int(rule.params.get("baseplate", 1))
         units: dict[str, list[Signal]] = defaultdict(list)
         for s in sorted(cab.alarms, key=lambda s: s.row):
             units[s.cable if (s.cable and s.cable_size and s.pair) else f"__{s.row}"].append(s)
+        occupied: dict[int, set[int]] = defaultdict(set)
         keep: list[Signal] = []
+        pending: list[tuple[str, list[Signal]]] = []
         for key, group in units.items():
+            fixed = None
+            if self.baseline:  # a revision keeps every cabinet alarm on its previous channel
+                prev = [self.baseline.alarms.get(s.tag_key) for s in group]
+                if all(p and p[0] == cab.ns and p[1] == cab.seq and p[2] == local for p in prev):
+                    chans = [(p[3], p[4]) for p in prev]  # type: ignore[index]
+                    if all(cab.reserved.get((local, b)) in (None, "cabinet_alarm") and c not in occupied[b] for b, c in chans):
+                        fixed = chans
+            if fixed:
+                for s, (b, c) in zip(group, fixed):
+                    occupied[b].add(c)
+                    cab.reserved[(local, b)] = "cabinet_alarm"
+                    cab.alarm_pos[s.row] = (b, c)
+                    keep.append(s)
+            else:
+                pending.append((key, group))
+        for key, group in pending:
             cabled = not key.startswith("__")
             width = max(s.pair for s in group) if cabled else 1  # type: ignore[type-var]
-            if ch + width - 1 > g.chs:
-                bp, ch = bp + 1, 1
-                if bp <= g.bps and cab.reserved.get((local, bp)) is None:
-                    self.book.add("capacity", "Cabinet alarm overflow", "low",
-                                  f"More cabinet alarms than one baseplate in {self.name('marshalling', cab)} — baseplate {bp} also reserved.",
-                                  rules=[rule.id], key=f"alarmovf:{cab.ns}:{cab.seq}:{bp}")
-            if bp > g.bps or cab.reserved.get((local, bp)) not in (None, "cabinet_alarm"):
+            spot = None
+            b = bp0
+            while b <= g.bps and spot is None:
+                if cab.reserved.get((local, b)) not in (None, "cabinet_alarm"):
+                    break
+                for c0 in range(1, g.chs - width + 2):
+                    if all(c not in occupied[b] for c in range(c0, c0 + width)):
+                        spot = (b, c0)
+                        break
+                if spot is None:
+                    b += 1
+            if spot is None:
                 t = self.book.add("capacity", "Cabinet alarm overflow", "high",
                                   f"No room left for cabinet alarms in {self.name('marshalling', cab)} — not allocated.",
                                   rows=[s.row for s in group], tags=[s.tag for s in group], rules=[rule.id],
@@ -418,11 +455,19 @@ class Engine:
                     self.book.quarantine_signal(s, "no room on the cabinet-alarm baseplates", t)
                     self.unplaced.append(s)
                 continue
-            cab.reserved[(local, bp)] = "cabinet_alarm"
+            b, c0 = spot
+            if b != bp0 and cab.reserved.get((local, b)) is None:
+                self.book.add("capacity", "Cabinet alarm overflow", "low",
+                              f"More cabinet alarms than one baseplate in {self.name('marshalling', cab)} — baseplate {b} also reserved.",
+                              rules=[rule.id], key=f"alarmovf:{cab.ns}:{cab.seq}:{b}")
+            cab.reserved[(local, b)] = "cabinet_alarm"
             for s in group:
-                cab.alarm_pos[s.row] = (bp, ch + ((s.pair or 1) - 1 if cabled else 0))
+                c = c0 + ((s.pair or 1) - 1 if cabled else 0)
+                occupied[b].add(c)
+                cab.alarm_pos[s.row] = (b, c)
                 keep.append(s)
-            ch += width
+            if cabled:
+                occupied[b].update(range(c0, c0 + width))
         cab.alarms = keep
         counts = Counter(s.family for s in keep if s.family in ("A", "B"))
         fams = set(counts)
@@ -439,6 +484,44 @@ class Engine:
                                   rules=[self.rules.rid("segregate") or "r-ab", rule.id])
                 cab.alarm_exception = t.id
 
+    # ── revisions ──
+    def pin_blocks(self, domain: str, blocks: list[Block]) -> None:
+        """Freeze every cable that existed before at its exact position — unless a hard rule now forbids it,
+        in which case it is left unpinned (the engine moves it) and the reason is recorded."""
+        assert self.baseline is not None
+        seg = self.rules.rid("segregate") or "r-ab"
+        for b in sorted(blocks, key=lambda b: b.sort_key):
+            pos = self.baseline.blocks.get(b.cable)
+            if not pos:
+                continue
+            bns, seq, local, bp, ch, size = pos
+            cab = next((c for c in self.cabs if c.ns == bns and c.seq == seq), None)
+            b.pin_pos = (seq, local, bp, ch)
+            reason = None
+            if cab is None or cab.domain != domain:
+                reason = "its cabinet is no longer in this controller domain"
+            elif size != b.size:
+                reason = f"cable size changed from {size} to {b.size} pairs"
+            else:
+                bps = range(bp, bp + max(1, b.span))
+                res = [(x, cab.reserved[(local, x)]) for x in bps if (local, x) in cab.reserved]
+                if res:
+                    rid = self.rules.rid("future_spare_pct") if res[0][1] == "future" else self.rules.rid("reserve_baseplate")
+                    reason = f"baseplate {res[0][0]} is now reserved ({res[0][1].replace('_', ' ')}, rule {rid})"
+                elif b.family != "-" and self.rules.first("segregate") and cab.family.get(local) not in (None, b.family):
+                    reason = (f"the cable is now {b.family}-family but CIOC {self.cioc_seq(cab, local):03d} holds "
+                              f"{cab.family[local]}-family signals (rule {seg})")
+                else:
+                    b.pinned = True
+                    if layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is None:
+                        b.pinned = False
+                        reason = "its previous position now overlaps another cable"
+            if reason:
+                b.pinned = False
+                b.move_reason = reason
+            else:
+                self.commit(cab, local, b)  # type: ignore[arg-type]
+
     # ── run ──
     def run(self, assign: Callable[["Engine", str, tuple[str, str], list[Block]], None] | None = None) -> Allocation:
         live = [s for s in self.signals if s.live and not s.quarantined]
@@ -448,6 +531,11 @@ class Engine:
         self.blocks = self.build_blocks(live)
         ordered = sorted(domains, key=lambda d: min(s.row for s in domains[d]))
         self.dorder = {d: i for i, d in enumerate(ordered)}
+        if self.baseline:  # a revision keeps every previous cabinet (same names, same numbering)
+            for ns, seq, domain, declared in self.baseline.cabs:
+                self.dorder.setdefault(domain, len(self.dorder))
+                if not any(c.ns == ns and c.seq == seq for c in self.cabs):
+                    self.new_cab(domain, ns, seq, declared)
         for domain in ordered:
             sigs = domains[domain]
             ns = Counter((s.loc, s.area_code) for s in sigs).most_common(1)[0][0]
@@ -455,6 +543,8 @@ class Engine:
             self.plan_domain_cabinets(domain, ns, alarms)
             self.place_alarms(domain, ns, alarms)
             dblocks = [b for b in self.blocks if b.domain == domain]
+            if self.baseline:
+                self.pin_blocks(domain, dblocks)
             (assign or Engine.assign_greedy)(self, domain, ns, dblocks)
         for cab in self.cabs:
             for local, bl in cab.blocks.items():
@@ -601,6 +691,19 @@ class Engine:
                 target = math.ceil(field[io] * pct / 100 - 1e-9) if rule.params.get("rounding", "ceil") == "ceil" else round(field[io] * pct / 100)
                 if target <= 0:
                     continue
+                got = 0
+                if self.baseline:  # a revision keeps the previous wired spares first
+                    for (cable, pair), sio in self.baseline.spares.items():
+                        if got >= target or sio != io:
+                            continue
+                        slot = next((x for x in cand.get(cable, []) if x.pair == pair and x.id not in used), None)
+                        b = blocks_by_id.get(cable)
+                        if slot is None or b is None or not any(m.io_type == io for m in b.members.values()):
+                            continue
+                        used.add(slot.id)
+                        tmpl = min((m for m in b.members.values() if m.io_type == io), key=lambda m: m.pair or 0)
+                        self.make_spare(slot, tmpl, io, ctrl, field[io], target, pct, got, rule.id, b, kept=True)
+                        got += 1
                 cables = []
                 for bid, free in cand.items():
                     b = blocks_by_id[bid]
@@ -608,7 +711,7 @@ class Engine:
                     if n_io:
                         cables.append((-n_io, b.sort_key, bid))
                 cables.sort()
-                got, progress = 0, True
+                progress = True
                 while got < target and progress:
                     progress = False
                     for _, _, bid in cables:
@@ -619,19 +722,9 @@ class Engine:
                             continue
                         slot = free[0]
                         used.add(slot.id)
-                        slot.remarks = "-"
                         b = blocks_by_id[bid]
                         tmpl = min((m for m in b.members.values() if m.io_type == io), key=lambda m: m.pair or 0)
-                        self.put_signal(slot, tmpl, "Wired Spare", [
-                            WhyStep(rule_id=rule.id, text=f"{ctrl}: {field[io]} {io} field signals → target {target} wired spare(s) ({pct:g}%)"),
-                            WhyStep(rule_id=rule.id, text=f"Unused pair {slot.pair} of {b.cable} (carries {io}) wired as spare #{got + 1}"),
-                        ])
-                        cab = next(c for c in self.cabs if self.name("marshalling", c) == slot.cabinet)
-                        slot.tag = self.name("wired_spare", cab, slot.cioc_local, slot.bp, slot.ch)
-                        slot.tag_key = slot.tag
-                        slot.family, slot.group = "-", "-"
-                        slot.service = fmt(self.patterns.get("spare_service", "SPARE {io2}"), io2=io[:2])
-                        slot.instrument_type, slot.old_tag = "-", "-"
+                        self.make_spare(slot, tmpl, io, ctrl, field[io], target, pct, got, rule.id, b)
                         got += 1
                         progress = True
                 if got < target:
@@ -644,6 +737,21 @@ class Engine:
                                           "rule_patch": {"rule_id": rule.id, "op": "set", "path": "pct",
                                                          "value": math.floor(100 * got / field[io]) if field[io] else 0}}],
                                   unchanged="No signal moves.", key=f"spare:{ctrl}:{io}")
+
+    def make_spare(self, slot: Slot, tmpl: Signal, io: str, ctrl: str, n_field: int, target: int, pct: float, got: int,
+                   rule_id: str, b: Block, kept: bool = False) -> None:
+        slot.remarks = "-"
+        self.put_signal(slot, tmpl, "Wired Spare", [
+            WhyStep(rule_id=rule_id, text=f"{ctrl}: {n_field} {io} field signals → target {target} wired spare(s) ({pct:g}%)"),
+            WhyStep(rule_id=rule_id, text=f"Unused pair {slot.pair} of {b.cable} (carries {io}) wired as spare #{got + 1}"
+                                          + (" — kept from the previous revision" if kept else "")),
+        ])
+        cab = next(c for c in self.cabs if self.name("marshalling", c) == slot.cabinet)
+        slot.tag = self.name("wired_spare", cab, slot.cioc_local, slot.bp, slot.ch)
+        slot.tag_key = slot.tag
+        slot.family, slot.group = "-", "-"  # type: ignore[assignment]
+        slot.service = fmt(self.patterns.get("spare_service", "SPARE {io2}"), io2=io[:2])
+        slot.instrument_type, slot.old_tag = "-", "-"
 
     # ── summaries ──
     def cabinet_infos(self, slots: list[Slot]) -> list[CabinetInfo]:

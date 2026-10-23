@@ -5,6 +5,7 @@ import datetime as dt
 import hashlib
 import io
 import json
+import re
 import threading
 import time
 import zipfile
@@ -107,7 +108,11 @@ class Service:
         if st.current is None:
             with st.lock:
                 if st.current is None:
-                    self.recompute(st, record=False)
+                    if self.store.get(pid, "revision") == "B" and self.store.get_file(pid, "mdb_b"):
+                        from app.revisions import activate_b
+                        activate_b(self, st, record=False)
+                    else:
+                        self.recompute(st, record=False)
         return st
 
     # ───────────── compute ─────────────
@@ -121,6 +126,14 @@ class Service:
         return comp
 
     def certify(self, st: ProjectState, out: RunOutput, t0: float, impact: RevisionImpact | None = None) -> Computed:
+        remap = self.stable_ids(st.project.id, out.tqs)
+        for sl in out.alloc.slots:  # slots and remarks refer to the stable ids too
+            if sl.tq_ids:
+                sl.tq_ids = [remap.get(x, x) for x in sl.tq_ids]
+                sl.remarks = re.sub(r"TQ-[A-Z]+-\d+", lambda m: remap.get(m.group(0), m.group(0)), sl.remarks)
+        if any(o != n for o, n in remap.items()):
+            from xio.render import render_rows
+            out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
         xlsx = write_allocation(out.rows)
         tqs = self.decorate_tqs(st.project.id, out.tqs)
         report = verify_xlsx(xlsx, out.signals, st.ruleset, st.settings, tqs, filename="(exported allocation)")
@@ -138,14 +151,37 @@ class Service:
                        signals=comp.kpis.signals, runtime_ms=round(comp.runtime_ms, 1))
         self.store.append("runs", st.project.id, rr.timestamp, rr.model_dump())
 
-    def decorate_tqs(self, pid: str, tqs: list[TQ]) -> list[TQ]:
-        """Apply stored decisions (closed / applied) to the current TQs; keep applied TQs that no longer occur."""
+    def stable_ids(self, pid: str, tqs: list[TQ]) -> dict[str, str]:
+        """The same issue keeps the same TQ id across re-runs and revisions (signature → id, persisted)."""
+        ids: dict[str, str] = self.store.get(pid, "tq_ids", {}) or {}
+        taken = set(ids.values())
+        changed = False
+        out = {}
+        for t in tqs:
+            sig = tq_signature(t)
+            if sig not in ids:
+                prefix = t.id.rsplit("-", 1)[0]
+                n = 1
+                while f"{prefix}-{n:03d}" in taken:
+                    n += 1
+                ids[sig] = f"{prefix}-{n:03d}"
+                taken.add(ids[sig])
+                changed = True
+            out[t.id] = ids[sig]
+        if changed:
+            self.store.put(pid, "tq_ids", ids)
+        return out
+
+    def decorate_tqs(self, pid: str, tqs: list[TQ], slots=None) -> list[TQ]:
+        """Stable ids, stored decisions (closed / applied), and applied TQs that no longer occur."""
         decisions: dict[str, dict] = self.store.get(pid, "tq_decisions", {}) or {}
+        remap = self.stable_ids(pid, tqs)
         out: list[TQ] = []
         seen = set()
         for t in tqs:
             t = t.model_copy(deep=True)
             sig = tq_signature(t)
+            t.id = remap.get(t.id, t.id)
             seen.add(sig)
             d = decisions.get(sig)
             if d:
