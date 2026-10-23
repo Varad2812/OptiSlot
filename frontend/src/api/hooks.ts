@@ -203,3 +203,27 @@ export function useCloseTq() {
     onError: (e) => toast.error("Close failed", { description: String((e as Error).message) }),
   });
 }
+
+export type GridRow = Record<string, string>;
+
+/** Offline: a reduced grid rebuilt from the fixture slots (the real 76 columns come from the API). */
+function rowsFromSlots(a: AllocationResult): GridRow[] {
+  return a.slots.map((s, i) => ({
+    "Sr. No.": String(i + 1), "Revision No": s.revision, "Tag Name": s.tag, "IO Type": s.io_type, "Signal Type": s.signal_type,
+    "Electronic/ Marshalling Cabinet": s.cabinet, "CIOC/CSLS Name": s.cioc, "Baseplate": s.baseplate, "Channel_No": String(s.ch), "CHARM_No": String(s.charm_no),
+    "CHARM Type": s.charm, "Charm Description": s.charm_desc, "CHARM TB Part No": s.tb, "CHARM TB Description": s.tb_desc, "CHARM TB1": s.tb1, "CHARM TB2": s.tb2, "CHARM TB3": s.tb3,
+    "Field Cable No": s.cable, "Field Cable Size": s.cable_size == null ? "-" : String(s.cable_size), "Field Cable Pair": s.pair_label, "Tag Status": s.status,
+    "Remarks": s.remarks, "Old Tag": s.old_tag, "Change Type": s.change_type, "Segregation": s.family,
+  }));
+}
+
+/** The 76-column rows exactly as written to Excel; keyed by run so they follow every re-allocation. */
+export function useRows() {
+  const pid = useProjectId();
+  const { data: a } = useAllocation();
+  return useQuery({
+    queryKey: ["rows", pid, a?.run_id],
+    enabled: !!a,
+    queryFn: () => getJson<GridRow[]>(`/projects/${pid}/rows`, () => rowsFromSlots(a!)),
+  });
+}

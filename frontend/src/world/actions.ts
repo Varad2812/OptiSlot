@@ -12,6 +12,11 @@ export function cabinetOrder(a: AllocationResult) {
 /** Point the Explorer camera at a slot (its cabinet, side and CIOC) and open the Inspector on it. */
 export function flyToSlot(a: AllocationResult, slot: Slot, ciocsPerSide: number) {
   const idx = Math.max(0, cabinetOrder(a).indexOf(slot.cabinet));
+  try {
+    sessionStorage.setItem(DIVE_KEY, "1"); // a deliberate fly-to must not be pre-empted by the once-per-session Upload Dive
+  } catch {
+    /* storage can be blocked */
+  }
   const st = useUi.getState();
   useUi.setState({
     cabIdx: idx,
