@@ -17,11 +17,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { DIVE_KEY, EASE, useCalm } from "@/motion/shared";
 import { useUi } from "@/store/ui";
+import { ALLOCATE_LANDING_ROUTE } from "@/world/actions";
 
 const NONE = "__none__";
 const ACCEPT = ".xlsx,.xlsm,.csv";
 const isMdb = (f: File) => /\.(xlsx|xlsm|csv)$/i.test(f.name);
-const CONFIRM_BELOW = 0.8; // the API has no needs_confirmation flag; a low-confidence match is the same thing for the user
+const CONFIRM_BELOW = 0.8;
+// Optional future API fields: the file's raw header list, and a per-field needs_confirmation flag. Absent → derived as before.
+type MapExtra = { needs_confirmation?: boolean };
+const needsConfirm = (m: { source?: string | null; required?: boolean; confidence: number } & MapExtra) =>
+  m.needs_confirmation ?? ((!!m.source && m.confidence < CONFIRM_BELOW) || (!!m.required && !m.source)); // the API has no needs_confirmation flag; a low-confidence match is the same thing for the user
 
 /** Import & Mapping (§10.5.6) — where the Upload Dive starts. */
 export default function Import() {
@@ -60,7 +65,7 @@ export default function Import() {
     } catch {
       /* storage can be blocked */
     }
-    nav("/explorer?dive=1");
+    nav(`${ALLOCATE_LANDING_ROUTE}?dive=1`);
   }
 
   const busy = importer.isPending;
@@ -88,10 +93,10 @@ export default function Import() {
         <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden data-testid="mdb-input" onChange={(e) => (void take(e.target.files), (e.target.value = ""))} />
 
         <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-12 xl:col-span-8">
+          <div className="col-span-12 xl:col-span-8 [&>section]:h-full">
             <DropCard imp={imp} busy={busy} over={over} onPick={() => fileRef.current?.click()} calm={calm} />
           </div>
-          <div className="col-span-12 xl:col-span-4"><Preflight /></div>
+          <div className="col-span-12 xl:col-span-4 [&>section]:h-full"><Preflight /></div>
 
           <div className="col-span-12 xl:col-span-8"><MappingTable fresh={fresh} calm={calm} /></div>
           <div className="col-span-12 xl:col-span-4"><SettingsPanel /></div>
@@ -118,7 +123,7 @@ function DropCard({ imp, busy, over, onPick, calm }: { imp: ReturnType<typeof us
         onClick={onPick}
         disabled={busy}
         className={cn(
-          "flex w-full items-center gap-5 rounded-card border border-dashed p-5 text-left transition-colors",
+          "flex h-full min-h-[96px] w-full items-center gap-5 rounded-card border border-dashed p-5 text-left transition-colors",
           over ? "border-live bg-live/5" : "border-border bg-raised/40 hover:border-brand/50 hover:bg-raised/70",
         )}
         data-testid="drop-zone"
@@ -163,7 +168,7 @@ function Preflight() {
     <Panel title="Pre-flight" to="/tqs" aside={a && <span className={cn("rounded-chip px-1.5 py-0.5 text-[11px]", open ? "bg-warn/15 text-warn" : "bg-ok/15 text-ok")}>{open ? `${open} open TQ${open > 1 ? "s" : ""}` : "clean"}</span>}>
       {!imp || !a ? <Skeleton className="h-24 w-full" /> : (
         <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {([["Rows", imp.rows, ""], ["Live", imp.live_rows, ""], ["Placed", a.kpis.allocated, "text-ok"], ["Quarantined", imp.quarantined, imp.quarantined ? "text-warn" : ""]] as const).map(([k, v, tone]) => (
               <div key={k} className="rounded-chip bg-raised/60 p-2.5">
                 <div className="label-caps truncate">{k}</div>
@@ -196,14 +201,15 @@ function MappingTable({ fresh, calm }: { fresh: number; calm: boolean }) {
   const setMap = useSetMapping();
   const [custom, setCustom] = useState<string | null>(null); // field being typed
   const [draft, setDraft] = useState("");
-  const sources = useMemo(() => Array.from(new Set((imp?.mapping ?? []).map((m) => m.source).filter((s): s is string => !!s))).sort(), [imp]);
+  const raw = (imp as { raw_headers?: string[] } | undefined)?.raw_headers;
+  const sources = useMemo(() => (raw?.length ? raw : Array.from(new Set((imp?.mapping ?? []).map((m) => m.source).filter((s): s is string => !!s))).sort()), [imp, raw]);
 
   function change(field: string, source: string | null) {
     if (!imp) return;
     setMap.mutate(imp.mapping.map((m) => (m.field === field ? { ...m, source, overridden: true } : m)));
   }
   const overrides = imp?.mapping.filter((m) => m.overridden).length ?? 0;
-  const confirm = imp?.mapping.filter((m) => (m.source && m.confidence < CONFIRM_BELOW) || (m.required && !m.source)).length ?? 0;
+  const confirm = imp?.mapping.filter((m) => needsConfirm(m)).length ?? 0;
 
   return (
     <Panel
@@ -226,7 +232,7 @@ function MappingTable({ fresh, calm }: { fresh: number; calm: boolean }) {
             </thead>
             <tbody>
               {imp.mapping.map((m, i) => {
-                const needs = (!!m.source && m.confidence < CONFIRM_BELOW) || (m.required && !m.source);
+                const needs = needsConfirm(m);
                 return (
                   <motion.tr
                     key={`${fresh}-${m.field}`}

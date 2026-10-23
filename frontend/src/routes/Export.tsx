@@ -6,6 +6,7 @@ import { CertificatePanel } from "@/components/panels";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { EASE, useCalm } from "@/motion/shared";
 
 const META: Record<ExportFile["kind"], { icon: LucideIcon; title: string; blurb: string; unit: string }> = {
@@ -52,7 +53,7 @@ export default function Export() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.25, delay: i * 0.05, ease: EASE }}
                       whileHover={{ y: -2 }}
-                      className="card-surface group flex flex-col gap-3 p-4 transition-colors hover:border-brand/50"
+                      className={cn("card-surface group flex flex-col gap-3 p-4 transition-colors hover:border-brand/50", i === files.length - 1 && files.length % 2 === 1 && "md:col-span-2")}
                       data-testid={`export-${f.kind}`}
                     >
                       <div className="flex items-start gap-3">

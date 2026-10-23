@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { EASE, useCalm } from "@/motion/shared";
-import { flyToSlot } from "@/world/actions";
+import { ALLOCATE_LANDING_ROUTE, flyToSlot } from "@/world/actions";
 
 // The generated types mark defaulted list fields optional; the API always sends them, but be safe about it.
 type NTQ = TQ & { rows: number[]; tags: string[]; slot_ids: string[]; rules_in_conflict: string[]; fix_options: NonNullable<TQ["fix_options"]> };
@@ -135,7 +135,7 @@ function TqCard({ t: raw, a, onResolved, result }: { t: TQ; a: AllocationResult;
   }
   function show(s: Slot) {
     flyToSlot(a, s, dimsOf(a, p).ciocsPerSide);
-    nav("/explorer");
+    nav(ALLOCATE_LANDING_ROUTE);
   }
 
   return (
@@ -204,6 +204,10 @@ function TqCard({ t: raw, a, onResolved, result }: { t: TQ; a: AllocationResult;
             </div>
           )}
 
+          {isOpen && slots.length > 0 && (
+            <button type="button" onClick={() => show(slots[0])} className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-brand" data-testid="tq-show3d"><Boxes className="size-3.5" />Show in 3D · {slots.length} slot{slots.length > 1 ? "s" : ""}</button>
+          )}
+
           {isOpen && (
             <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
               <p className="text-[12px] text-muted-foreground"><span className="label-caps mr-2">Stays unchanged</span>{t.unchanged_note || "Every other signal keeps its slot."}</p>
@@ -215,7 +219,7 @@ function TqCard({ t: raw, a, onResolved, result }: { t: TQ; a: AllocationResult;
 
           {result && !isOpen && <ResultStrip a={a} slots={slots} result={result} onShow={show} calm={calm} />}
           {!isOpen && !result && slots.length > 0 && (
-            <button type="button" onClick={() => show(slots[0])} className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-brand"><Boxes className="size-3.5" />Show {slots.length} slot{slots.length > 1 ? "s" : ""} in the Explorer</button>
+            <button type="button" onClick={() => show(slots[0])} className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-brand"><Boxes className="size-3.5" />Show in 3D · {slots.length} slot{slots.length > 1 ? "s" : ""}</button>
           )}
         </div>
       )}
@@ -246,13 +250,14 @@ function ResultStrip({ a, slots, result, onShow, calm }: { a: AllocationResult; 
                 className="flex items-center gap-2 rounded-chip px-2 py-1 font-mono text-[11.5px]"
                 data-testid="tq-flash"
               >
-                <button type="button" onClick={() => onShow(s)} className="truncate text-left hover:text-brand">{s.tag}</button>
+                <span className="truncate">{s.tag}</span>
                 <span className="text-muted-foreground">{s.baseplate}·ch{s.ch}</span>
                 {changed ? (
                   <span className="ml-auto flex items-center gap-1.5">{old.charm}/{old.tb}<ArrowRight className="size-3 text-muted-foreground" /><b>{s.charm}/{s.tb}</b></span>
                 ) : (
                   <span className="ml-auto text-muted-foreground">{s.charm}/{s.tb} · same slot</span>
                 )}
+                <button type="button" onClick={() => onShow(s)} className="flex shrink-0 items-center gap-1 rounded-chip border border-border px-1.5 py-0.5 font-sans text-[11px] text-muted-foreground hover:border-brand/50 hover:text-brand"><Boxes className="size-3" />Show in 3D</button>
               </motion.li>
             );
           })}

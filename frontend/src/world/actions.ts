@@ -4,6 +4,9 @@ import type { AllocationResult, Slot } from "@/api/hooks";
 import { DIVE_KEY, isCalm } from "@/motion/shared";
 import { useUi, type Level } from "@/store/ui";
 
+/** Where "Allocate" lands after the Upload Dive, and where every "Show in 3D" goes. Point it at "/room" when the 3D page ships. */
+export const ALLOCATE_LANDING_ROUTE = "/explorer";
+
 /** Cabinet order used by the World: the engine's physical order. */
 export function cabinetOrder(a: AllocationResult) {
   return a.cabinets.map((c) => c.name);

@@ -8,11 +8,12 @@ import { useAllocation, useProject, useRows, type GridRow, type Slot } from "@/a
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { flyToSlot } from "@/world/actions";
+import { ALLOCATE_LANDING_ROUTE, flyToSlot } from "@/world/actions";
 
 const ROW_H = 26;
 const HEAD_H = 26;
 const GROUP_H = 24;
+const ACT_W = 34; // leading frozen action column: "Show in 3D"
 const FROZEN = ["Sr. No.", "Revision No", "Tag Name"]; // the template's freeze pane is D2
 
 // Column groups start at these headers (the template's layout); any unknown header joins the group before it.
@@ -65,7 +66,7 @@ export default function Grid() {
     const frozen = FROZEN.filter((c) => cols.includes(c));
     const order = [...frozen, ...cols.filter((c) => !frozen.includes(c))];
     const left: Record<string, number> = {};
-    let x = 0;
+    let x = ACT_W;
     for (const c of frozen) (left[c] = x, (x += widthOf(c)));
     // group spans over the *ordered* columns (frozen ones come from the first group anyway)
     const starts = new Map(GROUPS.map(([h, g], i) => [h, { g, i }]));
@@ -78,7 +79,7 @@ export default function Grid() {
       if (spans.length && spans[spans.length - 1].name === cur) spans[spans.length - 1].w += w;
       else spans.push({ name: cur, tone: curTone, w });
     }
-    return { order, left, frozenW: x, total: order.reduce((s, c) => s + widthOf(c), 0), spans };
+    return { order, left, frozenW: x, total: ACT_W + order.reduce((s, c) => s + widthOf(c), 0), spans };
   }, [cols]);
 
   const index = useMemo(() => (rows ?? []).map((r) => Object.values(r).join("\u0001").toLowerCase()), [rows]);
@@ -103,7 +104,7 @@ export default function Grid() {
     const s = slotsById.get(slotId(r));
     if (!s || !a) return;
     flyToSlot(a, s, dimsOf(a, p).ciocsPerSide);
-    nav("/explorer");
+    nav(ALLOCATE_LANDING_ROUTE);
   }
 
   return (
@@ -142,6 +143,7 @@ export default function Grid() {
                   ))}
                 </div>
                 <div className="flex border-b border-border" style={{ height: HEAD_H }}>
+                  <div className="sticky left-0 z-10 shrink-0 border-r border-border bg-raised" style={{ width: ACT_W }} aria-hidden />
                   {layout.order.map((c) => (
                     <div
                       key={c}
@@ -168,6 +170,17 @@ export default function Grid() {
                       className={cn("group/row absolute left-0 flex cursor-pointer border-b border-border/60 hover:bg-brand/10", tone?.tint, spare && "opacity-60")}
                       style={{ top: 0, height: ROW_H, transform: `translateY(${vi.start}px)`, width: "100%" }}
                     >
+                      <div className="sticky left-0 z-10 shrink-0 bg-surface" style={{ width: ACT_W }}>
+                        <button
+                          type="button"
+                          title="Show in 3D"
+                          aria-label={`Show ${r["Tag Name"]} in 3D`}
+                          onClick={(e) => (e.stopPropagation(), open(r))}
+                          className="grid h-full w-full place-items-center text-muted-foreground hover:text-brand"
+                        >
+                          <Boxes className="size-3.5" />
+                        </button>
+                      </div>
                       {layout.order.map((c) => {
                         const val = r[c] ?? "";
                         return (
