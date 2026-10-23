@@ -45,7 +45,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Import */
+        get: operations["get_import_api_projects__pid__import_get"];
         put?: never;
         /** Import Mdb */
         post: operations["import_mdb_api_projects__pid__import_post"];
@@ -72,6 +73,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Settings */
+        get: operations["get_settings_api_projects__pid__settings_get"];
+        /** Put Settings */
+        put: operations["put_settings_api_projects__pid__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/rules": {
         parameters: {
             query?: never;
@@ -83,6 +102,40 @@ export interface paths {
         get: operations["get_rules_api_projects__pid__rules_get"];
         /** Put Rules */
         put: operations["put_rules_api_projects__pid__rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rules/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rule Versions */
+        get: operations["rule_versions_api_projects__pid__rules_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Decisions */
+        get: operations["decisions_api_projects__pid__decisions_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -158,6 +211,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/tqs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tqs */
+        get: operations["list_tqs_api_projects__pid__tqs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/slots/{slot_id}/why": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Slot Why */
+        get: operations["slot_why_api_projects__pid__slots__slot_id__why_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rows
+         * @description The 76-column allocation rows exactly as written to Excel.
+         */
+        get: operations["rows_api_projects__pid__rows_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/whatif": {
         parameters: {
             query?: never;
@@ -209,6 +316,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/redo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Redo */
+        post: operations["redo_api_projects__pid__redo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/tqs/{tq_id}/apply": {
         parameters: {
             query?: never;
@@ -226,54 +350,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{pid}/tqs": {
+    "/api/projects/{pid}/tqs/{tq_id}/close": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Tqs */
-        get: operations["list_tqs_api_projects__pid__tqs_get"];
+        get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{pid}/slots/{slot_id}/why": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Slot Why */
-        get: operations["slot_why_api_projects__pid__slots__slot_id__why_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{pid}/rows": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Rows
-         * @description The 76-column allocation rows exactly as they will be written to Excel.
-         */
-        get: operations["rows_api_projects__pid__rows_get"];
-        put?: never;
-        post?: never;
+        /** Close Tq */
+        post: operations["close_tq_api_projects__pid__tqs__tq_id__close_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,6 +418,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/revisions/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch Revision */
+        post: operations["switch_revision_api_projects__pid__revisions_switch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/runs": {
         parameters: {
             query?: never;
@@ -374,6 +478,23 @@ export interface paths {
         };
         /** Exports */
         get: operations["exports_api_projects__pid__exports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/export/all.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export All */
+        get: operations["export_all_api_projects__pid__export_all_zip_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -673,6 +794,28 @@ export interface components {
              * @default false
              */
             overridden: boolean;
+        };
+        /** DecisionEntry */
+        DecisionEntry: {
+            /** Ts */
+            ts: string;
+            /**
+             * Who
+             * @default engineer
+             */
+            who: string;
+            /** Why */
+            why: string;
+            /** Tq Id */
+            tq_id?: string | null;
+            /** Rule Id */
+            rule_id?: string | null;
+            /** Patch */
+            patch?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ruleset Version */
+            ruleset_version?: number | null;
         };
         /** ExportFile */
         ExportFile: {
@@ -1496,6 +1639,37 @@ export interface operations {
             };
         };
     };
+    get_import_api_projects__pid__import_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_mdb_api_projects__pid__import_post: {
         parameters: {
             query?: never;
@@ -1566,6 +1740,72 @@ export interface operations {
             };
         };
     };
+    get_settings_api_projects__pid__settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_settings_api_projects__pid__settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_rules_api_projects__pid__rules_get: {
         parameters: {
             query?: never;
@@ -1599,7 +1839,9 @@ export interface operations {
     };
     put_rules_api_projects__pid__rules_put: {
         parameters: {
-            query?: never;
+            query?: {
+                why?: string;
+            };
             header?: never;
             path: {
                 pid: string;
@@ -1619,6 +1861,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllocationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rule_versions_api_projects__pid__rules_versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decisions_api_projects__pid__decisions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecisionEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -1762,6 +2068,102 @@ export interface operations {
             };
         };
     };
+    list_tqs_api_projects__pid__tqs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TQ"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    slot_why_api_projects__pid__slots__slot_id__why_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+                slot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhyStep"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rows_api_projects__pid__rows_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     whatif_api_projects__pid__whatif_post: {
         parameters: {
             query?: never;
@@ -1863,6 +2265,37 @@ export interface operations {
             };
         };
     };
+    redo_api_projects__pid__redo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apply_tq_api_projects__pid__tqs__tq_id__apply_post: {
         parameters: {
             query?: {
@@ -1897,12 +2330,15 @@ export interface operations {
             };
         };
     };
-    list_tqs_api_projects__pid__tqs_get: {
+    close_tq_api_projects__pid__tqs__tq_id__close_post: {
         parameters: {
-            query?: never;
+            query?: {
+                decision?: string;
+            };
             header?: never;
             path: {
                 pid: string;
+                tq_id: string;
             };
             cookie?: never;
         };
@@ -1914,72 +2350,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TQ"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    slot_why_api_projects__pid__slots__slot_id__why_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: string;
-                slot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WhyStep"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    rows_api_projects__pid__rows_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pid: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    }[];
+                    "application/json": components["schemas"]["AllocationResult"];
                 };
             };
             /** @description Validation Error */
@@ -2076,7 +2447,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RevisionImpact"];
+                    "application/json": components["schemas"]["RevisionImpact"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    switch_revision_api_projects__pid__revisions_switch_post: {
+        parameters: {
+            query: {
+                rev: string;
+            };
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationResult"];
                 };
             };
             /** @description Validation Error */
@@ -2123,7 +2527,9 @@ export interface operations {
     };
     verify_file_api_verify_file_post: {
         parameters: {
-            query?: never;
+            query?: {
+                project_id?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2185,6 +2591,37 @@ export interface operations {
             };
         };
     };
+    export_all_api_projects__pid__export_all_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_api_projects__pid__export__kind__get: {
         parameters: {
             query?: never;
@@ -2221,6 +2658,7 @@ export interface operations {
         parameters: {
             query?: {
                 n?: number;
+                nasty?: boolean;
             };
             header?: never;
             path: {

@@ -62,7 +62,7 @@ def pattern_parser(pattern: str) -> re.Pattern:
                 out.append(f"(?P<{tok}>{TOKEN_RX.get(tok, '.+?')})")
         else:
             out.append(re.escape(part))
-    return re.compile("^" + "".join(out) + "$")
+    return re.compile("^" + "".join(out) + "$", re.ASCII)
 
 
 @dataclass
@@ -316,19 +316,25 @@ def c_segregation(ctx: Ctx) -> CheckResult:
 
 
 def c_group(ctx: Ctx) -> CheckResult:
-    c = Check("C08", "Each IO grouping kept together in one cabinet", "group_together", ctx)
+    c = Check("C08", "Each IO grouping kept together, in consecutive cabinets", "group_together", ctx)
     if c.skip:
         return c.res
     p = ctx.params("group_together")
     ignore = {x.upper() for x in p.get("ignore", ["", "-"])}
-    by: dict[str, list[Row]] = defaultdict(list)
+    order: dict[tuple, list[str]] = defaultdict(list)     # domain → cabinets in physical order
+    by: dict[tuple, list[Row]] = defaultdict(list)
     for r in ctx.rows:
-        if r.status == "Field" and r.seg.upper() not in ignore:
-            by[r.seg].append(r)
-    for grp, rs_ in by.items():
-        cabs = sorted({r.cab for r in rs_})
-        if len(cabs) > 1:
-            c.fail(rs_[0].v(f"group '{grp}' is spread over {len(cabs)} cabinets ({', '.join(cabs)})"))
+        dom = (r.d.get("Technical Room", ""), r.d.get("Risk Area", ""))
+        if r.status == "Field":
+            if r.cab not in order[dom]:
+                order[dom].append(r.cab)
+            if r.seg.upper() not in ignore:
+                by[(dom, r.seg)].append(r)
+    for (dom, grp), rs_ in by.items():
+        idx = sorted({order[dom].index(r.cab) for r in rs_})
+        if idx != list(range(idx[0], idx[-1] + 1)):
+            cabs = [order[dom][i] for i in idx]
+            c.fail(rs_[0].v(f"group '{grp}' is split over non-consecutive cabinets ({', '.join(cabs)})"))
         else:
             c.ok()
     return c.res
@@ -606,7 +612,7 @@ def c_alarm(ctx: Ctx) -> CheckResult:
                 continue
             s = by_key.get(r.key)
             seq = derive(seq_rx, s.equipment) if s else None
-            if seq and seq.isdigit():
+            if seq and seq.isascii() and seq.isdigit():
                 m = re.search(r"(\d+)\s*$", r.cab)
                 if m and int(m.group(1)) != int(seq):
                     c.fail(r.v(f"cabinet alarm {r.tag} belongs to {s.equipment} but is in {r.cab}"))  # type: ignore[union-attr]

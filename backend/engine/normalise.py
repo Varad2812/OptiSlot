@@ -142,5 +142,8 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                    "instrument_type": s.instrument_type}
             if any(match_when(w, ctx) for w in alarm_rule.params.get("match_any", [])):
                 s.kind = "cabinet_alarm"
+                if any("cable" in w and match_when(w, ctx) for w in alarm_rule.params.get("match_any", [])):
+                    # internal wiring is not a field cable: no cable number, size or pair to land
+                    s.cable, s.cable_size, s.pair, s.pair_label, s.cable_spec = "", None, None, "-", "-"
         signals.append(s)
     return signals

@@ -30,7 +30,7 @@ FAMILY_RANK = {"A": 0, "B": 1, "-": 2}
 
 
 def natural(s: str) -> tuple:
-    return tuple(int(t) if t.isdigit() else t for t in re.split(r"(\d+)", s or ""))
+    return tuple(int(t) if i % 2 else t for i, t in enumerate(re.split(r"([0-9]+)", s or "")))
 
 
 # ───────────────────────────── data structures ─────────────────────────────
@@ -290,7 +290,7 @@ class Engine:
         seq_rx = self.names.get("derive", {}).get("cabinet_seq")
         for s in alarms:
             seq = derive(seq_rx, s.equipment)
-            if seq and seq.isdigit():
+            if seq and seq.isascii() and seq.isdigit():
                 if not any(c.ns == ns and c.seq == int(seq) for c in self.cabs):
                     self.new_cab(domain, ns, int(seq), declared=True)
         if not [c for c in self.cabs if c.ns == ns and c.domain == domain]:
@@ -365,7 +365,7 @@ class Engine:
         for s in sorted(alarms, key=lambda s: s.row):
             target = None
             dcm = derive(seq_rx, s.equipment)
-            if dcm and dcm.isdigit():
+            if dcm and dcm.isascii() and dcm.isdigit():
                 target = next((c for c in cabs if c.seq == int(dcm)), None)
                 if target:
                     target.alarm_why[s.row] = f"Equipment {s.equipment} is this marshalling cabinet"

@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import csv
 import hashlib
 import io
 import re
@@ -81,17 +82,40 @@ def read_table(src: str | Path | bytes, filename: str | None = None, sheet: str 
     data = src if isinstance(src, bytes) else Path(src).read_bytes()
     name = filename or (Path(src).name if not isinstance(src, bytes) else "upload.xlsx")
     sha = hashlib.sha256(data).hexdigest()
-    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    sheets: list[tuple[str, list[list[str]]]] = []
+    if data[:2] == b"PK":
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            for ws in wb.worksheets:
+                if sheet and ws.title != sheet:
+                    continue
+                sheets.append((ws.title, [[_cell_text(v) for v in r] for r in ws.iter_rows(values_only=True)]))
+        except Exception as e:
+            raise ValueError(f"'{name}' is not a readable .xlsx workbook ({type(e).__name__})") from e
+    elif data[:4] == b"\xd0\xcf\x11\xe0":
+        raise ValueError(f"'{name}' is a legacy .xls file — save it as .xlsx and upload again")
+    else:
+        text = None
+        for enc in ("utf-8-sig", "cp1252", "latin-1"):
+            try:
+                text = data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not text or "\x00" in text:
+            raise ValueError(f"'{name}' is not an .xlsx or CSV file")
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
+        except csv.Error:
+            dialect = csv.excel
+        sheets.append(("CSV", [[c.strip() for c in r] for r in csv.reader(io.StringIO(text), dialect)]))
 
     best = None  # (score, sheet, header_row_idx, rows)
-    for ws in wb.worksheets:
-        if sheet and ws.title != sheet:
-            continue
-        rows = [[_cell_text(v) for v in r] for r in ws.iter_rows(values_only=True)]
+    for title, rows in sheets:
         for i, r in enumerate(rows[:25]):
             s = _header_score(r)
             if best is None or s > best[0]:
-                best = (s, ws.title, i, rows)
+                best = (s, title, i, rows)
     if best is None or best[0] == 0:
         raise ValueError("No sheet with a recognisable header row (expected columns like Tag Number, I/O Type, Cable, Pair)")
     _, title, hi, rows = best

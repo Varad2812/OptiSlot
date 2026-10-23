@@ -26,8 +26,8 @@ def test_default_ruleset_validates():
     assert len({r.id for r in rs.rules}) == len(rs.rules)
 
 
-def test_stub_routes_answer():
-    c = TestClient(app)
-    assert c.get("/api/health").json() == {"ok": True}
-    assert c.get("/api/projects/demo/allocation").status_code == 200
-    assert c.get("/api/projects/demo/rules").status_code == 200
+def test_routes_answer():
+    with TestClient(app) as c:
+        assert c.get("/api/health").json() == {"ok": True}
+        assert c.get("/api/projects/demo/allocation").status_code == 200
+        assert c.get("/api/projects/demo/rules").status_code == 200

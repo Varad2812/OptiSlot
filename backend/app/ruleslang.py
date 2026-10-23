@@ -60,7 +60,10 @@ def derive(spec: dict | None, value: str) -> str | None:
     """Apply {"regex": ..., "format": "P{1}"} to a value; None when it does not match."""
     if not spec or not value:
         return None
-    m = re.search(spec.get("regex", "(.*)"), value)
+    try:
+        m = re.search(spec.get("regex", "(.*)"), value, re.ASCII)
+    except re.error:
+        return None
     if not m:
         return None
     out = spec.get("format", "{0}")
