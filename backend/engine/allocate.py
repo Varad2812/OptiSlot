@@ -58,6 +58,8 @@ class Block:
     pinned: bool = False
     pin_pos: tuple[int, int, int, int] | None = None  # (cab seq, cioc local, bp, ch) for revisions
     move_reason: str | None = None
+    fams: dict[str, str] = field(default_factory=dict)   # rule id → family, for every segregate rule after the first
+    fam_exceptions: dict[str, str] = field(default_factory=dict)  # rule id → TQ id when one cable mixes families
 
     @property
     def sort_key(self) -> tuple:
@@ -88,6 +90,7 @@ class Cab:
     alarm_exception: str | None = None
     alarm_minority: str | None = None
     alarm_lock: dict[int, str] = field(default_factory=dict)  # CIOC family fixed by cabinet alarms
+    locks: dict[tuple[str, int], str] = field(default_factory=dict)  # (rule id, CIOC local or 0 = cabinet) → family
 
 
 @dataclass
@@ -209,6 +212,23 @@ class Engine:
         self.dorder: dict[str, int] = {}
         self.deleted_pairs = {(s.cable, s.pair): s for s in signals if not s.live and s.cable and s.pair}
 
+    # ── segregation (any number of rules; the first also drives the A/B colouring) ──
+    @property
+    def seg_rules(self):
+        return self.rules.all("segregate")
+
+    @staticmethod
+    def fam_in(rule, group: str) -> str | None:
+        g = (group or "").strip().upper()
+        for fam, members in rule.params.get("families", {}).items():
+            if g in {m.upper() for m in members}:
+                return fam
+        return None
+
+    @staticmethod
+    def scope(rule, local: int) -> int:
+        return 0 if rule.params.get("level", "cioc") == "cabinet" else local
+
     # ── naming helpers ──
     def side(self, local: int) -> str:
         sides = self.names.get("sides") or {}
@@ -294,10 +314,24 @@ class Engine:
             family = "A" if "A" in fams else ("B" if "B" in fams else "-")
             groups = Counter(s.group for s in sigs if s.group not in ("", "-"))
             group = min(groups, key=lambda gname: (-groups[gname], group_rank[gname])) if groups else "-"
-            blocks.append(Block(id=cable, cable=cable, size=size, span=span, foot=foot,
-                                members={s.pair: s for s in sigs if s.pair}, family=family, group=group,
-                                group_rank=group_rank.get(group, 10 ** 6), domain=domain,
-                                first_row=min(s.row for s in sigs), exception_tq=self.exceptions.get(cable)))
+            b = Block(id=cable, cable=cable, size=size, span=span, foot=foot,
+                      members={s.pair: s for s in sigs if s.pair}, family=family, group=group,
+                      group_rank=group_rank.get(group, 10 ** 6), domain=domain,
+                      first_row=min(s.row for s in sigs), exception_tq=self.exceptions.get(cable))
+            primary = self.seg_rules[0] if self.seg_rules else None
+            if primary is not None and primary.params.get("level", "cioc") != "cioc" and family != "-":
+                b.fams[primary.id] = family
+            for rule in self.seg_rules[1:]:
+                found = sorted({f for f in (self.fam_in(rule, s.group) for s in sigs) if f})
+                if found:
+                    b.fams[rule.id] = found[0]
+                if len(found) > 1:
+                    b.fam_exceptions[rule.id] = self.book.add("segregation", "Segregation clash on one cable", "high",
+                                  f"Cable {cable} carries {' and '.join(found)} signals — rule {rule.id} ({rule.label}) cannot be met "
+                                  f"for this cable; placed with the {found[0]} family. Fix: re-tag or split the cable.",
+                                  rows=[s.row for s in sigs], tags=[s.tag for s in sigs], rules=[rule.id],
+                                  key=f"segclash:{rule.id}:{cable}").id
+            blocks.append(b)
         return sorted(blocks, key=lambda b: (b.domain, b.sort_key))
 
     # ── cabinet planning per domain ──
@@ -313,9 +347,13 @@ class Engine:
         return sorted([c for c in self.cabs if c.ns == ns and c.domain == domain], key=lambda c: c.seq)
 
     def compatible(self, cab: Cab, local: int, b: Block) -> bool:
-        if b.family == "-" or not self.rules.first("segregate"):
+        seg = self.seg_rules
+        if not seg:
             return True
-        return cab.family.get(local) in (None, b.family)
+        if b.family != "-" and seg[0].params.get("level", "cioc") == "cioc" and cab.family.get(local) not in (None, b.family):
+            return False
+        rules = {r.id: r for r in seg}
+        return all(cab.locks.get((rid, self.scope(rules[rid], local))) in (None, f) for rid, f in b.fams.items())
 
     def fits(self, cab: Cab, local: int, b: Block) -> bool:
         return layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is not None
@@ -327,6 +365,10 @@ class Engine:
             cab.family.setdefault(local, b.family)
             if cab.family[local] is None:
                 cab.family[local] = b.family
+        rules = {r.id: r for r in self.seg_rules}
+        for rid, f in b.fams.items():
+            if rid in rules:
+                cab.locks.setdefault((rid, self.scope(rules[rid], local)), f)
 
     def fits_fresh(self, b: Block) -> bool:
         probe = Cab(seq=1, ns=("", ""), domain="")
@@ -508,9 +550,14 @@ class Engine:
                 if res:
                     rid = self.rules.rid("future_spare_pct") if res[0][1] == "future" else self.rules.rid("reserve_baseplate")
                     reason = f"baseplate {res[0][0]} is now reserved ({res[0][1].replace('_', ' ')}, rule {rid})"
-                elif b.family != "-" and self.rules.first("segregate") and cab.family.get(local) not in (None, b.family):
-                    reason = (f"the cable is now {b.family}-family but CIOC {self.cioc_seq(cab, local):03d} holds "
-                              f"{cab.family[local]}-family signals (rule {seg})")
+                elif not self.compatible(cab, local, b):
+                    if b.family != "-" and cab.family.get(local) not in (None, b.family):
+                        reason = (f"the cable is now {b.family}-family but CIOC {self.cioc_seq(cab, local):03d} holds "
+                                  f"{cab.family[local]}-family signals (rule {seg})")
+                    else:
+                        rid = next(r for r, f in b.fams.items()
+                                   if cab.locks.get((r, self.scope(next(x for x in self.seg_rules if x.id == r), local))) not in (None, f))
+                        reason = f"its segregation family under rule {rid} now clashes with its neighbours"
                 else:
                     b.pinned = True
                     if layout(cab.blocks[local] + [b], self.usable(cab, local), self.g) is None:
@@ -636,7 +683,14 @@ class Engine:
                             slot.remarks = f"Excepted by {b.exception_tq}: A/B on one cable"
                             why.append(WhyStep(rule_id=self.rules.rid("segregate"),
                                                text=f"A/B clash on {b.cable} — placed on an A CIOC, covered by {b.exception_tq}"))
+                        for rid, tq_id in b.fam_exceptions.items():
+                            rule = next((r for r in self.seg_rules if r.id == rid), None)
+                            if rule and self.fam_in(rule, s.group) not in (None, b.fams.get(rid)):
+                                slot.tq_ids.append(tq_id)
+                                slot.remarks = f"Excepted by {tq_id}: segregation clash on one cable"
+                        remarks = slot.remarks
                         self.put_signal(slot, s, "Field", why)
+                        slot.remarks = remarks
             # cabinet alarms (positions packed before field assignment; see pack_alarms)
             if cab.alarms and alarm_rule:
                 local = int(alarm_rule.params.get("cioc", 1))

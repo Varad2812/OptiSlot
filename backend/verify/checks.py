@@ -172,8 +172,8 @@ def c_tags(ctx: Ctx) -> CheckResult:
     for r in ctx.rows:
         if r.status in ("Field", "Cabinet Alarm"):
             placed[r.key].append(r)
-    tq_rows = {n: t for t in ctx.tqs if t.status != "closed" for n in t.rows}
-    tq_tags = {_key(x): t for t in ctx.tqs if t.status != "closed" for x in t.tags}
+    tq_rows = {n: t for t in ctx.tqs for n in t.rows}      # open, applied or closed: a TQ still explains the gap
+    tq_tags = {_key(x): t for t in ctx.tqs for x in t.tags}
     for k, s in live.items():
         n = len(placed.get(k, []))
         if n == 1:
@@ -284,35 +284,45 @@ def c_cable(ctx: Ctx) -> CheckResult:
     return c.res
 
 
-def c_segregation(ctx: Ctx) -> CheckResult:
-    c = Check("C07", "A and B never on one CIOC", "segregate", ctx)
-    if c.skip:
-        return c.res
-    by: dict[tuple, list[Row]] = defaultdict(list)
-    for r in ctx.rows:
-        if r.status in ("Field", "Wired Spare", "Cabinet Alarm") and r.family in ("A", "B"):
-            by[(r.cab, r.cioc)].append(r)
-    for (cab, cioc), rs_ in by.items():
-        if len({r.family for r in rs_}) < 2:
-            c.ok()
-            continue
-        excused, rest = [], []
-        for r in rs_:
-            remark = r.d.get("Remarks", "") or ""
-            m = re.search(r"(TQ-[A-Z]+-\d+)", remark)
-            (excused if m and "except" in remark.lower() else rest).append((r, m.group(1) if m else None))
-        for r, tq in excused:
-            c.excuse(r.v(f"{r.family} signal on {cioc} with the other family — excepted by {tq}"))
-        fams = Counter(r.family for r, _ in rest)
-        if len(fams) < 2:
-            c.ok()
-            continue
-        minority = min(fams, key=lambda f: (fams[f], f != "B"))
-        other = "A" if minority == "B" else "B"
-        for r, _ in rest:
-            if r.family == minority:
-                c.fail(r.v(f"{r.family}-family {r.tag} shares CIOC {cioc} with {fams[other]} {other}-family signal(s)"))
-    return c.res
+def c_segregation(ctx: Ctx) -> list[CheckResult]:
+    """One check per segregate rule, at that rule's level (CIOC or cabinet)."""
+    out = []
+    rules = [r for r in ctx.rs.rules if r.type == "segregate" and r.enabled]
+    for n, rule in enumerate(rules):
+        c = Check("C07" if n == 0 else f"C07.{n + 1}", rule.label or "Segregation", None, ctx)
+        c.rule = rule
+        c.res.rule_id, c.res.severity = rule.id, rule.severity
+        fam_of = {m.upper(): f for f, ms in rule.params.get("families", {}).items() for m in ms}
+        cabinet = rule.params.get("level", "cioc") == "cabinet"
+        by: dict[tuple, list[tuple[Row, str]]] = defaultdict(list)
+        for r in ctx.rows:
+            f = fam_of.get(r.seg.upper())
+            if r.status in ("Field", "Wired Spare", "Cabinet Alarm") and f:
+                by[(r.cab,) if cabinet else (r.cab, r.cioc)].append((r, f))
+        for key, rs_ in by.items():
+            where = key[-1]
+            if len({f for _, f in rs_}) < 2:
+                c.ok()
+                continue
+            excused, rest = [], []
+            for r, f in rs_:
+                remark = r.d.get("Remarks", "") or ""
+                m = re.search(r"(TQ-[A-Z]+-\d+)", remark)
+                (excused if m and "except" in remark.lower() else rest).append((r, f, m.group(1) if m else None))
+            for r, f, tq in excused:
+                c.excuse(r.v(f"{f} signal on {where} with another family — excepted by {tq}"))
+            fams = Counter(f for _, f, _ in rest)
+            if len(fams) < 2:
+                c.ok()
+                continue
+            minority = min(fams, key=lambda f: (fams[f], f != "B"))
+            others = ", ".join(f"{fams[f]} {f}" for f in sorted(fams) if f != minority)
+            for r, f, _ in rest:
+                if f == minority:
+                    c.fail(r.v(f"{f}-family {r.tag} shares {'cabinet' if cabinet else 'CIOC'} {where} with {others}-family "
+                               f"signal(s) — rule {rule.id}"))
+        out.append(c.res)
+    return out
 
 
 def c_group(ctx: Ctx) -> CheckResult:
@@ -678,7 +688,7 @@ def c_capacity(ctx: Ctx) -> CheckResult:
     return c.res
 
 
-CHECKS: list[Callable[[Ctx], CheckResult]] = [
+CHECKS: list[Callable[[Ctx], Any]] = [
     c_tags, c_unique_address, c_unique_pair, c_formula, c_bp_prefix, c_cable, c_segregation, c_group, c_hardware,
     c_names, c_wired, c_future, c_grid, c_status, c_alarm, c_io_map, c_output, c_capacity,
 ]
@@ -697,14 +707,15 @@ def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleS
         results.append(res)
     for fn in CHECKS:
         try:
-            res = fn(ctx)
+            got = fn(ctx)
         except Exception as e:  # a malformed file must never crash the verifier
-            res = CheckResult(id=fn.__name__, label=fn.__name__, failed=1,
+            got = CheckResult(id=fn.__name__, label=fn.__name__, failed=1,
                               violations=[Violation(message=f"check could not run: {type(e).__name__}: {e}")])
-        if res.rule_id is None and res.id not in ("C00",) and fn not in (c_tags, c_unique_address, c_unique_pair, c_formula,
-                                                                          c_grid, c_status, c_capacity):
-            continue  # rule disabled → check not applicable
-        results.append(res)
+        for res in (got if isinstance(got, list) else [got]):
+            if res.rule_id is None and fn not in (c_tags, c_unique_address, c_unique_pair, c_formula, c_grid, c_status,
+                                                  c_capacity):
+                continue  # rule disabled → check not applicable
+            results.append(res)
     hard = sum(r.failed for r in results if r.severity == "hard")
     soft = sum(r.failed for r in results if r.severity == "soft")
     return RuleCheckReport(source=source, file=file, checks=results, checks_total=len(results),  # type: ignore[arg-type]

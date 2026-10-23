@@ -26,6 +26,8 @@ def _compute_b(svc: Service, st: ProjectState, record: bool = True) -> Computed:
     a = _rev_a(svc, st)
     revb: bytes = st.extra["mdb_b"]
     out, impact = revise(revb, a, st.ruleset, st.settings, filename=st.extra.get("mdb_b_name", "RevB.xlsx"))
+    from app.sandbox import apply_sandbox
+    out = apply_sandbox(svc, st, out)
     comp = svc.certify(st, out, t0, impact)
     st.current = comp
     if record:

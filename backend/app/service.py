@@ -119,6 +119,8 @@ class Service:
     def recompute(self, st: ProjectState, record: bool = True, kind: str = "allocate") -> Computed:
         t0 = time.perf_counter()
         out = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name)
+        from app.sandbox import apply_sandbox
+        out = apply_sandbox(self, st, out)
         comp = self.certify(st, out, t0)
         st.current = comp
         if record:
@@ -234,6 +236,8 @@ class Service:
             self.store.put_file(pid, "mdb_a", "mdb", hashlib.sha256(data).hexdigest(), data, ts)
             self.store.put(pid, "mdb_name", filename)
             self.store.put(pid, "overrides", {})
+            for key in ("sandbox_moves", "undo", "redo", "tq_ids", "tq_decisions"):
+                self.store.put(pid, key, {} if key in ("sandbox_moves", "tq_ids", "tq_decisions") else [])
             st.mdb, st.mdb_name, st.overrides = data, filename, {}
             st.project.mdb_file, st.project.revision, st.project.revisions = filename, "A", ["A"]
             st.extra.clear()

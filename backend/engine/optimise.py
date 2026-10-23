@@ -100,7 +100,8 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             for i in cand[b.id]:
                 by_cioc[i].append(b)
         used = [m.NewBoolVar(f"u{i}") for i in range(n)]
-        seg_on = engine.rules.first("segregate") is not None
+        seg_on = engine.rules.first("segregate") is not None and \
+            engine.rules.first("segregate").params.get("level", "cioc") == "cioc"
         for i, (cab, local) in enumerate(seq):
             bl = by_cioc.get(i, [])
             usable = len(engine.usable(cab, local))
@@ -129,6 +130,22 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
                         m.AddImplication(x[(b.id, i)], fb)
         cab_ids = sorted({id(c) for c, _ in seq})
         cab_of = [cab_ids.index(id(c)) for c, _ in seq]
+        # every further segregate rule (or a cabinet-level primary): one family per scope (CIOC or cabinet)
+        for rule in engine.seg_rules:
+            fams = sorted({b.fams[rule.id] for b in placed if rule.id in b.fams})
+            if not fams:
+                continue
+            cabinet = rule.params.get("level", "cioc") == "cabinet"
+            scopes: dict[int, dict[str, cp_model.IntVar]] = {}
+            for i in range(n):
+                key = cab_of[i] if cabinet else i
+                if key not in scopes:
+                    scopes[key] = {f: m.NewBoolVar(f"s{rule.id}{key}{f}") for f in fams}
+                    m.Add(sum(scopes[key].values()) <= 1)
+                for b in by_cioc.get(i, []):
+                    f = b.fams.get(rule.id)
+                    if f:
+                        m.AddImplication(x[(b.id, i)], scopes[key][f])
         cab_used = [m.NewBoolVar(f"c{j}") for j in range(len(cab_ids))]
         for i in range(n):
             m.AddImplication(used[i], cab_used[cab_of[i]])
@@ -179,11 +196,12 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             info["cpsat"] = g_score.__dict__
             return
         # tentatively re-commit and check layout + score; roll back if not strictly better
-        snapshot = {id(c): ({l: list(v) for l, v in c.blocks.items()}, dict(c.family)) for c, _ in seq}
+        snapshot = {id(c): ({l: list(v) for l, v in c.blocks.items()}, dict(c.family), dict(c.locks)) for c, _ in seq}
         for c, _ in seq:
             c.blocks.clear()
             c.family.clear()
             c.family.update(c.alarm_lock)
+            c.locks.clear()
         for b in sorted(placed, key=lambda b: b.sort_key):
             cab, local = seq[choice[b.id]]
             engine.commit(cab, local, b)
@@ -203,11 +221,13 @@ def make_cpsat_assign(time_limit_s: float = 2.0, window: int = 6, report: OptRep
             engine.renumber_controllers(ns)
         else:
             for c, _ in seq:
-                blocks_, fam = snapshot[id(c)]
+                blocks_, fam, locks = snapshot[id(c)]
                 c.blocks.clear()
                 c.blocks.update(blocks_)
                 c.family.clear()
                 c.family.update(fam)
+                c.locks.clear()
+                c.locks.update(locks)
             for c, _ in seq:
                 for l, bl in c.blocks.items():
                     for b in bl:

@@ -37,8 +37,12 @@ def baseline_from(out: RunOutput) -> Baseline:
 
 def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None,
            filename: str | None = None, from_rev: str = "A", to_rev: str = "B", rev_no: str = "01",
-           overrides=None, table=None) -> tuple[RunOutput, RevisionImpact]:
+           overrides=None, table=None, moves: dict[str, tuple] | None = None) -> tuple[RunOutput, RevisionImpact]:
+    """moves: {cable: (ns, cabinet seq, cioc local, bp, ch)} — engineer-requested positions (What-if Sandbox)."""
     base = baseline_from(prev)
+    for cable, (ns, seq, local, bp, ch) in (moves or {}).items():
+        if cable in base.blocks:
+            base.blocks[cable] = (ns, seq, local, bp, ch, base.blocks[cable][5])
     settings = (settings or prev.settings).model_copy(update={"cpsat_enabled": False})
     prev_sig = {s.tag_key: s for s in prev.signals if s.live and not s.quarantined}
 
@@ -55,14 +59,15 @@ def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings
 
     out = run(src, ruleset or prev.rules.rs, settings, overrides, filename, table=table, baseline=base,
               assign=Engine.assign_greedy, extra_tqs=[move_tqs])
-    impact = annotate(out, prev, base, from_rev, to_rev, rev_no)
+    impact = annotate(out, prev, base, from_rev, to_rev, rev_no, manual=set(moves or {}))
     out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
     out.kpis = compute_kpis(out.signals, out.alloc.slots, out.alloc.cabinets, out.tqs, out.rules,
                             stability_pct=impact.stability_pct)
     return out, impact
 
 
-def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_rev: str, rev_no: str) -> RevisionImpact:
+def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_rev: str, rev_no: str,
+             manual: set[str] | None = None) -> RevisionImpact:
     alloc: Allocation = out.alloc
     new_sig = {s.tag_key: s for s in out.signals if s.live and not s.quarantined}
     by_row = {s.row: s for s in out.signals}
@@ -113,7 +118,9 @@ def annotate(out: RunOutput, prev: RunOutput, base: Baseline, from_rev: str, to_
         hw_changed = any(x != y for x, y in hw)
         if slot.id != a.id:
             b = blocks.get(slot.cable)
-            if old and sig and (old.cable, old.pair) != (sig.cable, sig.pair):
+            if slot.cable in (manual or set()) and b is not None and b.pinned:
+                reason = "moved by the engineer in the What-if Sandbox (all hard rules re-checked)"
+            elif old and sig and (old.cable, old.pair) != (sig.cable, sig.pair):
                 reason = f"cable/pair changed ({old.cable} pair {old.pair} → {sig.cable} pair {sig.pair}) — follows its cable"
             elif b and b.move_reason:
                 reason = f"freezing overridden by a hard rule: {b.move_reason}"
