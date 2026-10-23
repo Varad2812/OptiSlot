@@ -86,6 +86,7 @@ class Cab:
     alarm_pos: dict[int, tuple[int, int]] = field(default_factory=dict)
     alarm_exception: str | None = None
     alarm_minority: str | None = None
+    alarm_lock: dict[int, str] = field(default_factory=dict)  # CIOC family fixed by cabinet alarms
 
 
 @dataclass
@@ -428,6 +429,7 @@ class Engine:
         if fams and self.rules.first("segregate"):
             minority = min(("A", "B"), key=lambda f: (counts[f], f != "B"))
             cab.family[local] = ("A" if minority == "B" else "B") if fams == {"A", "B"} else next(iter(fams))
+            cab.alarm_lock[local] = cab.family[local]
             cab.alarm_minority = minority
             if fams == {"A", "B"}:
                 t = self.book.add("segregation", "A/B cabinet alarms", "medium",

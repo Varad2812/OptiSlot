@@ -283,3 +283,43 @@ def test_junk_rows_never_crash(rows):
                    area=r["area"], equipment=r["equip"], spec=r["spec"]) for r in rows])
     out = run(b"", table=t, settings=ProjectSettings(max_cabinets_per_domain=6))
     assert_structure(out)
+
+
+# ───────────────────────── CP-SAT ─────────────────────────
+
+def test_cpsat_never_worse_than_greedy_and_greedy_alone_is_valid():
+    from engine.optimise import score
+    a = run(MDB)
+    g = run(MDB, settings=ProjectSettings(cpsat_enabled=False))
+    assert g.optimiser.method == "greedy" and g.kpis.allocated == 189
+    assert_structure(g)
+    assert a.optimiser.cpsat_ciocs <= a.optimiser.greedy_ciocs
+    assert_structure(a)
+    for dom in {b.domain for b in a.alloc.blocks}:
+        ba = [b for b in a.alloc.blocks if b.domain == dom and b.cab]
+        bg = [b for b in g.alloc.blocks if b.domain == dom and b.cab]
+        ns_a = next(c.ns for c in a.alloc.cabs if c.domain == dom)
+        assert score(a.alloc.cabs and _eng(a), dom, ns_a, ba).key() <= score(_eng(g), dom, ns_a, bg).key()
+
+
+def _eng(out):
+    """A minimal stand-in exposing what optimise.score needs."""
+    class E:
+        pass
+    e = E()
+    e.cabs = out.alloc.cabs
+    e.g = Geometry(4, 8, 12, 12)
+    return e
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(cable_mix)
+def test_cpsat_matches_or_beats_greedy_on_random_mixes(mix):
+    rows = []
+    for c, (size, grp, io, fill) in enumerate(mix):
+        for p in range(1, max(1, int(size * fill)) + 1):
+            rows.append(row(f"T{c}-{p}", io, f"CB-{c:03d}", p, size, group=grp, inst="XYV" if io == "DO" else "PT"))
+    a = run(b"", table=table(rows))
+    g = run(b"", table=table(rows), settings=ProjectSettings(cpsat_enabled=False))
+    assert a.kpis.cabinets <= g.kpis.cabinets and a.kpis.ciocs <= g.kpis.ciocs
+    assert_structure(a)
