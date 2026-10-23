@@ -81,8 +81,13 @@ def get_import(pid: str):
 
 
 @app.post("/api/projects/{pid}/import", response_model=ImportSummary)
-async def import_mdb(pid: str, file: UploadFile = File(...)):
-    return svc.import_mdb(pid, await _read(file), file.filename or "upload.xlsx")
+async def import_mdb(pid: str, file: UploadFile | None = File(None), files: list[UploadFile] = File(default_factory=list)):
+    """One MDB (`file`, .xlsx/.xlsm/.csv) or several (`files`, repeated field): several are merged with duplicate-tag
+    detection. Mappings below 70% confidence come back with needs_confirmation."""
+    ups = ([file] if file is not None else []) + list(files)
+    if not ups:
+        raise ValueError("no file uploaded (send `file`, or `files` for several)")
+    return svc.import_files(pid, [(await _read(f), f.filename or "upload.xlsx") for f in ups])
 
 
 @app.post("/api/projects/{pid}/mapping", response_model=ImportSummary)

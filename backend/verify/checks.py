@@ -24,7 +24,7 @@ TOKEN_RX = {"cioc3": r"\d{3}", "bp": r"\d+", "ch": r"\d+", "ctrl2": r"\d{2}", "c
 _SIZE = re.compile(r"^\s*0*(\d{1,3})\s*[PTQ]?X", re.I)
 
 
-_PAIR_RX = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})", re.I)  # same clean forms as the MDB reader accepts
+_PAIR_RX = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})(?:\.0+)?", re.I)  # same clean forms as the MDB reader accepts
 
 
 def _pair(v: str) -> int | None:
@@ -819,8 +819,14 @@ def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleS
                 tqs: list[TQ] | None = None, source: str = "memory", file: str | None = None,
                 missing_columns: list[str] | None = None, claims: dict[str, Any] | None = None) -> RuleCheckReport:
     """claims: optional CIOC counts from the other artefacts — {"kpi_ciocs": int, "bom": read_bom(...)}."""
-    rows = parse_rows(raw_rows, settings, rs)
-    ctx = Ctx(rows=rows, signals=signals, rs=rs, settings=settings, tqs=tqs or [], claims=claims or {})
+    try:
+        rows = parse_rows(raw_rows, settings, rs)
+        ctx = Ctx(rows=rows, signals=signals, rs=rs, settings=settings, tqs=tqs or [], claims=claims or {})
+    except Exception as e:  # unreadable rows: the verdict is FAIL (never a silent PASS, never a crash)
+        bad = CheckResult(id="C00", label="Allocation rows can be read", failed=1,
+                          violations=[Violation(message=f"rows could not be parsed: {type(e).__name__}: {e}")])
+        return RuleCheckReport(source=source, file=file, checks=[bad], checks_total=1, checks_passed=0,  # type: ignore[arg-type]
+                               violations=1, verdict="FAIL")
     results: list[CheckResult] = []
     if missing_columns is not None:
         res = CheckResult(id="C00", label="Workbook has every template column", passed=0 if missing_columns else 1,
@@ -828,13 +834,15 @@ def verify_rows(raw_rows: list[dict[str, str]], signals: list[Signal], rs: RuleS
                           violations=[Violation(row=1, message=f"missing column '{m}'") for m in missing_columns])
         results.append(res)
     for fn in CHECKS:
+        crashed = False
         try:
             got = fn(ctx)
-        except Exception as e:  # a malformed file must never crash the verifier
+        except Exception as e:  # a malformed file must never crash the verifier — and a crashed check is a FAIL, never skipped
+            crashed = True
             got = CheckResult(id=fn.__name__, label=fn.__name__, failed=1,
                               violations=[Violation(message=f"check could not run: {type(e).__name__}: {e}")])
         for res in (got if isinstance(got, list) else [got]):
-            if res.rule_id is None and fn not in (c_tags, c_unique_address, c_unique_pair, c_formula, c_grid, c_status,
+            if not crashed and res.rule_id is None and fn not in (c_tags, c_unique_address, c_unique_pair, c_formula, c_grid, c_status,
                                                   c_capacity, c_cioc_count):
                 continue  # rule disabled → check not applicable
             results.append(res)

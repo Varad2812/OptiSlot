@@ -75,24 +75,37 @@ class ProjectSettings(Model):
     loc_prefix_default: str = "P01"
     area_code_default: str = "10001"
     domain_keys: list[str] = Field(default_factory=lambda: ["room", "area"])
-    ciocs_per_cabinet: int = 4
-    baseplates_per_cioc: int = 8
-    channels_per_baseplate: int = 12
-    max_cabinets_per_controller: int = 1
-    max_cabinets_per_domain: int = 99
+    ciocs_per_cabinet: int = Field(4, ge=1, le=16)
+    baseplates_per_cioc: int = Field(8, ge=1, le=64)
+    channels_per_baseplate: int = Field(12, ge=1, le=64)
+    max_cabinets_per_controller: int = Field(1, ge=1, le=64)
+    max_cabinets_per_domain: int = Field(99, ge=1, le=10_000)
     revision: str = "00"
     deleted_statuses: list[str] = Field(default_factory=lambda: ["DELETED", "DELETE", "REMOVED", "VOID"])
     cpsat_enabled: bool = True
-    cpsat_time_limit_s: float = 2.0
+    cpsat_time_limit_s: float = Field(2.0, gt=0, le=60)
+
+
+def _optional_in_schema(*names: str):
+    """Keep newly added defaulted fields optional in the OpenAPI schema (and so in the generated TS types): older fixtures
+    and clients that do not send them stay valid."""
+    def tweak(schema: dict[str, Any]) -> None:
+        schema["required"] = [r for r in schema.get("required", []) if r not in names]
+        for n in names:  # openapi-typescript makes a property with a `default` non-optional
+            schema.get("properties", {}).get(n, {}).pop("default", None)
+    return tweak
 
 
 class ColumnMapping(Model):
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_optional_in_schema("needs_confirmation"))
+
     field: str
     label: str
     source: str | None = None
     confidence: float = 0.0
     required: bool = False
     overridden: bool = False
+    needs_confirmation: bool = False   # fuzzy guess under 70% confidence, or a required field with no column — the user must confirm
 
 
 class ImportSummary(Model):
@@ -105,6 +118,9 @@ class ImportSummary(Model):
     mapping: list[ColumnMapping]
     preview: list[dict[str, str]] = Field(default_factory=list)
     sha256: str
+    needs_confirmation: list[str] = Field(default_factory=list)   # canonical fields that need the user's confirmation
+    raw_headers: list[str] = Field(default_factory=list)          # every column header in the chosen sheet (for the override pickers)
+    notes: list[str] = Field(default_factory=list)                # which sheet/header row was chosen, files merged, …
 
 
 class Project(Model):

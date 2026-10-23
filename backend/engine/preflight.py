@@ -37,8 +37,11 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
     for s in live:
         if s.tag_key in first:
             f = first[s.tag_key]
-            t = book.add("data", "Duplicate tag", "high",
-                         f"Tag {s.tag} appears twice (rows {f.row} and {s.row}). Row {f.row} is kept as the signal, row {s.row} is quarantined.",
+            fs, ss = f.extra.get("source", ""), s.extra.get("source", "")
+            across = bool(fs and ss and fs.rsplit(":", 1)[0] != ss.rsplit(":", 1)[0])
+            where = f" ({fs} and {ss})" if fs and ss else ""
+            t = book.add("data", "Duplicate tag across files" if across else "Duplicate tag", "high",
+                         f"Tag {s.tag} appears twice (rows {f.row} and {s.row}){where}. Row {f.row} is kept as the signal, row {s.row} is quarantined.",
                          rows=[f.row, s.row], tags=[s.tag], field="Tag",
                          fixes=[{"label": f"Delete row {s.row}"}, {"label": f"Rename the tag on row {s.row}"}])
             book.quarantine_signal(s, f"duplicate of row {f.row}", t)

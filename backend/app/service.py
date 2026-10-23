@@ -15,7 +15,8 @@ from typing import Any
 
 from app.schemas import (
     ActivityEvent, AllocationResult, Certificate, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, Kpis,
-    OptimiserInfo, Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleSet, RunRecord, TQ,
+    OptimiserInfo, Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleSet, RunRecord, TQ, CheckResult,
+    Violation,
 )
 from engine.pipeline import RunOutput, run
 from engine.rules import load_ruleset
@@ -23,9 +24,11 @@ from store.db import Store
 from verify.certificate import certify, ruleset_hash
 from verify.checks import verify_rows
 from verify.xlsx import read_bom, verify_xlsx
-from xio.reader import auto_map, read_table
+from xio.reader import SOURCE_COL, auto_map, merge_tables, read_table
 from xio.reports import capacity_bom, revision_impact, rule_check_report, tq_register
-from xio.writer import write_allocation
+from xio.writer import write_allocation_safe, write_table
+from engine.failsafe import sys_tq
+from engine.tqs import TQBook
 
 ROOT = Path(__file__).resolve().parents[2]
 DEMO_MDB = ROOT / "data" / "Sample_IO_MDB_VIT_v2_1.xlsx"
@@ -136,10 +139,12 @@ class Service:
         if any(o != n for o, n in remap.items()):
             from xio.render import render_rows
             out.rows = render_rows(out.alloc.slots, out.signals, out.rules)
-        xlsx = write_allocation(out.rows)
+        xlsx, werr = write_allocation_safe(out.rows)
+        if werr is not None:  # the template/styling failed: a plain workbook was written instead — say so
+            out.tqs.append(sys_tq(TQBook(), "write", "The allocation workbook could not be written from the template — a plain "
+                                  "workbook with the same 76 columns was written instead.", exc=werr, severity="high"))
         tqs = self.decorate_tqs(st.project.id, out.tqs)
-        report = verify_xlsx(xlsx, out.signals, st.ruleset, st.settings, tqs, filename="(exported allocation)",
-                             claims=self.claims(out))
+        report = self.safe_verify(xlsx, out, st, tqs, "(exported allocation)", self.claims(out))
         cert = certify(out.table.sha256, st.ruleset, xlsx, report, st.settings.model_dump_json())
         opt = getattr(out, "optimiser", None) or OptimiserInfo(method="greedy", greedy_ciocs=out.kpis.ciocs, status="greedy only")
         kpis = out.kpis.model_copy(update={"violations": report.violations, "tqs_open": sum(t.status == "open" for t in tqs),
@@ -150,8 +155,22 @@ class Service:
     @staticmethod
     def claims(out: RunOutput) -> dict:
         """What the exported BOM and the KPIs say about the CIOCs — the verifier checks the rows agree with both."""
-        bom, _ = capacity_bom(out.alloc.cabinets, out.alloc.slots, out.kpis)
-        return {"kpi_ciocs": out.kpis.ciocs, "bom": read_bom(bom)}
+        try:
+            bom, _ = capacity_bom(out.alloc.cabinets, out.alloc.slots, out.kpis)
+            return {"kpi_ciocs": out.kpis.ciocs, "bom": read_bom(bom)}
+        except Exception as e:  # an unwritable BOM is a failed agreement for the verifier to report, not a crash
+            return {"kpi_ciocs": out.kpis.ciocs, "bom": {"ciocs": [], "cabinet_total": None, "error": f"{type(e).__name__}: {e}"}}
+
+    @staticmethod
+    def safe_verify(src, out: RunOutput, st: ProjectState, tqs: list[TQ], filename: str, claims: dict | None = None) -> RuleCheckReport:
+        """verify_xlsx that cannot crash: if the verifier itself fails the verdict is FAIL (never a silent PASS)."""
+        try:
+            return verify_xlsx(src, out.signals, st.ruleset, st.settings, tqs, filename=filename, claims=claims)
+        except Exception as e:
+            return RuleCheckReport(source="file", file=filename, checks=[CheckResult(
+                id="C00", label="Verifier ran", failed=1,
+                violations=[Violation(message=f"SYS-verify: the verifier failed — {type(e).__name__}: {e}")])],
+                checks_total=1, checks_passed=0, violations=1, verdict="FAIL")
 
     def record_run(self, st: ProjectState, comp: Computed, kind: str) -> None:
         rr = RunRecord(run_id=comp.cert.run_id, project_id=st.project.id, timestamp=comp.cert.timestamp, revision=st.project.revision,
@@ -224,8 +243,13 @@ class Service:
         for _, rec in t.rows[:10]:
             preview.append({f: rec.get(h, "") for f, h in src.items()})
         live = sum(1 for s in c.out.signals if s.live)
+        notes = list(t.notes)
+        if SOURCE_COL in t.headers:
+            files = list(dict.fromkeys(rec.get(SOURCE_COL, "").rsplit(":", 1)[0] for _, rec in t.rows))
+            notes.append(f"Merged from {len(files)} file(s): {', '.join(files)} — the 'Source file' column traces every row")
         return ImportSummary(file=st.mdb_name, sheet=t.sheet, header_row=t.header_row, rows=len(t.rows), live_rows=live,
-                             quarantined=len(c.out.quarantine), mapping=mapping, preview=preview, sha256=t.sha256)
+                             quarantined=len(c.out.quarantine), mapping=mapping, preview=preview, sha256=t.sha256,
+                             needs_confirmation=[m.field for m in mapping if m.needs_confirmation], raw_headers=list(t.headers), notes=notes)
 
     # ───────────── mutations ─────────────
     def touch(self, st: ProjectState) -> None:
@@ -259,6 +283,23 @@ class Service:
             self.activity(pid, "allocate", f"Allocated {comp.kpis.allocated}/{comp.kpis.signals} signals · "
                                            f"{comp.report.violations} violations · {comp.kpis.tqs_open} open TQs")
             return summ
+
+    def import_files(self, pid: str, files: list[tuple[bytes, str]]) -> ImportSummary:
+        """One file → import_mdb. Several → each is mapped on its own and merged into one table (a 'Source file' column
+        keeps the origin of every row); duplicate tags across files are caught by pre-flight as a TQ."""
+        if len(files) == 1:
+            return self.import_mdb(pid, *files[0])
+        tables = []
+        for data, name in files:
+            try:
+                tables.append(read_table(data, filename=name))
+            except ValueError as e:
+                raise ValueError(f"{name}: {e}") from e
+        merged = merge_tables(tables)
+        data = write_table(merged.headers, [[rec.get(h, "") for h in merged.headers] for _, rec in merged.rows])
+        summ = self.import_mdb(pid, data, merged.file[:120])
+        self.activity(pid, "import", "Merged " + ", ".join(f"{t.file} (sha {t.sha256[:8]})" for t in tables))
+        return summ
 
     def set_mapping(self, pid: str, mapping: list[ColumnMapping]) -> ImportSummary:
         st = self.get(pid)
@@ -316,8 +357,7 @@ class Service:
     def verify(self, pid: str) -> RuleCheckReport:
         st = self.get(pid)
         c = st.current or self.recompute(st)
-        rep = verify_xlsx(c.xlsx, c.out.signals, st.ruleset, st.settings, c.tqs, filename=self.export_name(st, "allocation"),
-                          claims=self.claims(c.out))
+        rep = self.safe_verify(c.xlsx, c.out, st, c.tqs, self.export_name(st, "allocation"), self.claims(c.out))
         self.activity(pid, "verify", f"Re-verified exported file: {rep.verdict} · {rep.checks_passed}/{rep.checks_total} checks")
         return rep
 
@@ -325,7 +365,7 @@ class Service:
         st = self.get(pid)
         c = st.current or self.recompute(st)
         t0 = time.perf_counter()
-        rep = verify_xlsx(data, c.out.signals, st.ruleset, st.settings, c.tqs, filename=filename)
+        rep = self.safe_verify(data, c.out, st, c.tqs, filename)
         sha = hashlib.sha256(data).hexdigest()
         rr = RunRecord(run_id="vf-" + sha[:12], project_id=pid, timestamp=now(), revision=st.project.revision, kind="verify-file",
                        mdb_sha256=c.cert.mdb_sha256, ruleset_hash=ruleset_hash(st.ruleset), output_sha256=sha,

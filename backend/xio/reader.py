@@ -19,6 +19,8 @@ from rapidfuzz import fuzz
 from app.schemas import ColumnMapping
 
 # canonical field → (label, required, synonyms in priority order)
+SOURCE_COL = "Source file"
+
 FIELDS: dict[str, tuple[str, bool, list[str]]] = {
     "tag": ("Tag", True, ["Tag Number", "Tag No", "TagNo", "Tag", "Tag Name", "TagNumber", "Instrument Tag"]),
     "status": ("Status", False, ["Status", "Tag Status", "Revision Status", "Line Status", "Signal Status"]),
@@ -46,7 +48,10 @@ FIELDS: dict[str, tuple[str, bool, list[str]]] = {
     "section": ("Section / sub unit", False, ["Section / Sub Unit", "Section", "Sub Unit"]),
 }
 
-FUZZY_THRESHOLD = 82
+FUZZY_THRESHOLD = 82            # optional fields: only near-exact header matches
+FUZZY_REQUIRED = 60             # required fields: a best-effort guess beats no allocation (flagged below CONFIRM_BELOW)
+CONFIRM_BELOW = 0.70            # mapped with less confidence than this → needs_confirmation
+HEADER_SCAN_ROWS = 25
 
 
 def norm_header(h: str) -> str:
@@ -78,6 +83,49 @@ def _header_score(cells: list[str]) -> int:
     return sum(1 for c in cells if c and norm_header(c) in syn)
 
 
+def _mapping_score(cells: list[str]) -> tuple[float, int]:
+    """How well a candidate header row maps: Σ confidence of mapped fields (+1 per required field) and #required mapped."""
+    headers = [c for c in cells if c]
+    if len(headers) < 2:
+        return 0.0, 0
+    m = auto_map(headers)
+    got = [x for x in m if x.source]
+    req = sum(1 for x in got if x.required)
+    return sum(x.confidence for x in got) + req, req
+
+
+def _candidate_rows(rows: list[list[str]]) -> list[int]:
+    """Header-row candidates in a sheet: rows with exact synonym hits, else the most text-heavy rows."""
+    scan = rows[:HEADER_SCAN_ROWS]
+    exact = sorted(((_header_score(r), -i) for i, r in enumerate(scan)), reverse=True)
+    out = [-i for sc, i in exact if sc > 0][:4]
+    if not out:  # no exact synonym anywhere: try the most text-heavy rows (fuzzy header names)
+        def texty(r: list[str]) -> int:
+            return sum(1 for c in r if c and not c.replace(".", "", 1).replace("-", "", 1).isdigit())
+        ranked = sorted(range(len(scan)), key=lambda i: (-texty(scan[i]), i))
+        out = [i for i in ranked[:3] if texty(scan[i]) >= 3]
+    return out
+
+
+def _choose_sheet(sheets: list[tuple[str, list[list[str]]]]) -> tuple[str, int, list[list[str]], list[str]]:
+    """Pick the (sheet, header row) with the best column-mapping score; ties go to the sheet with more data rows."""
+    scored = []
+    for title, rows in sheets:
+        for i in _candidate_rows(rows):
+            sc, req = _mapping_score(rows[i])
+            data = sum(1 for r in rows[i + 1:] if any(r))
+            scored.append((sc, data, -len(scored), req, title, i, rows))
+    scored = [x for x in scored if x[3] >= 1]
+    if not scored:
+        raise ValueError("No sheet with a recognisable header row (expected columns like Tag Number, I/O Type, Cable, Pair)")
+    sc, data, _, req, title, i, rows = max(scored, key=lambda x: (x[0], x[1], x[2]))
+    notes = [f"Sheet '{title}', header row {i + 1} (mapping score {sc:.1f}, {data} data rows)"]
+    others = {x[4] for x in scored if x[4] != title}
+    if others:
+        notes.append("Other sheet(s) ignored: " + ", ".join(f"'{t}'" for t in sorted(others)))
+    return title, i, rows, notes
+
+
 def read_table(src: str | Path | bytes, filename: str | None = None, sheet: str | None = None) -> RawTable:
     data = src if isinstance(src, bytes) else Path(src).read_bytes()
     name = filename or (Path(src).name if not isinstance(src, bytes) else "upload.xlsx")
@@ -107,18 +155,12 @@ def read_table(src: str | Path | bytes, filename: str | None = None, sheet: str 
         try:
             dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
         except csv.Error:
-            dialect = csv.excel
+            first = text.splitlines()[0] if text.strip() else ""
+            delim = max(",;\t|", key=first.count)
+            dialect = csv.excel if first.count(delim) == 0 else type("D", (csv.excel,), {"delimiter": delim})
         sheets.append(("CSV", [[c.strip() for c in r] for r in csv.reader(io.StringIO(text), dialect)]))
 
-    best = None  # (score, sheet, header_row_idx, rows)
-    for title, rows in sheets:
-        for i, r in enumerate(rows[:25]):
-            s = _header_score(r)
-            if best is None or s > best[0]:
-                best = (s, title, i, rows)
-    if best is None or best[0] == 0:
-        raise ValueError("No sheet with a recognisable header row (expected columns like Tag Number, I/O Type, Cable, Pair)")
-    _, title, hi, rows = best
+    title, hi, rows, notes = _choose_sheet(sheets)
 
     headers: list[str] = []
     seen: dict[str, int] = {}
@@ -139,7 +181,8 @@ def read_table(src: str | Path | bytes, filename: str | None = None, sheet: str 
             continue
         rec = {headers[j]: (r[j] if j < len(r) else "") for j in range(len(headers))}
         out.append((k, rec))
-    return RawTable(file=name, sheet=title, header_row=hi + 1, headers=headers, rows=out, sha256=sha, blank_rows=blank)
+    return RawTable(file=name, sheet=title, header_row=hi + 1, headers=headers, rows=out, sha256=sha, blank_rows=blank,
+                    notes=notes)
 
 
 def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None) -> list[ColumnMapping]:
@@ -147,14 +190,15 @@ def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None)
     overrides = overrides or {}
     normed = {h: norm_header(h) for h in headers}
     candidates: list[tuple[float, int, str, str]] = []  # (score, -priority, field, header)
-    for f, (_, _, syns) in FIELDS.items():
+    for f, (_, req, syns) in FIELDS.items():
+        floor = FUZZY_REQUIRED if req else FUZZY_THRESHOLD
         for pri, syn in enumerate(syns):
             ns = norm_header(syn)
             for h, nh in normed.items():
                 if not nh:
                     continue
                 score = 100.0 if nh == ns else fuzz.ratio(nh, ns)
-                if score >= FUZZY_THRESHOLD:
+                if score >= floor:
                     candidates.append((score, -pri, f, h))
     candidates.sort(key=lambda c: (-c[0], -c[1]))
     chosen: dict[str, tuple[str, float]] = {}
@@ -172,9 +216,33 @@ def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None)
     for f, (label, req, _) in FIELDS.items():
         src, conf = chosen.get(f, (None, 0.0))
         result.append(ColumnMapping(field=f, label=label, source=src, confidence=conf, required=req,
-                                    overridden=f in overrides))
+                                    overridden=f in overrides,
+                                    needs_confirmation=f not in overrides and ((bool(src) and conf < CONFIRM_BELOW) or (req and not src))))
     return result
 
 
 def mapping_dict(mapping: list[ColumnMapping]) -> dict[str, str]:
     return {m.field: m.source for m in mapping if m.source}
+
+
+def unmapped_mapping() -> list[ColumnMapping]:
+    """Every field unmapped — the fallback when the mapper itself fails."""
+    return [ColumnMapping(field=f, label=label, required=req) for f, (label, req, _) in FIELDS.items()]
+
+
+def merge_tables(tables: list[RawTable]) -> RawTable:
+    """Several MDB files → one table with canonical headers (each file mapped on its own) plus a 'Source file' column
+    ('A.xlsx:12') so every row, TQ and duplicate tag can be traced to its file. Only fields some file maps are kept."""
+    canon = {f: syns[0] for f, (_, _, syns) in FIELDS.items()}
+    maps = [mapping_dict(auto_map(t.headers)) for t in tables]
+    fields = [f for f in FIELDS if any(f in m for m in maps)]
+    headers = [canon[f] for f in fields] + [SOURCE_COL]
+    rows: list[tuple[int, dict[str, str]]] = []
+    for t, m in zip(tables, maps):
+        for r, rec in t.rows:
+            out = {canon[f]: rec.get(m[f], "") if f in m else "" for f in fields}
+            out[SOURCE_COL] = f"{t.file}:{r}"
+            rows.append((len(rows) + 2, out))
+    sha = hashlib.sha256("".join(t.sha256 for t in tables).encode()).hexdigest()
+    return RawTable(file=" + ".join(t.file for t in tables), sheet="merged", header_row=1, headers=headers, rows=rows, sha256=sha,
+                    notes=[f"Merged {len(tables)} files: " + ", ".join(f"{t.file} ({len(t.rows)} rows)" for t in tables)])

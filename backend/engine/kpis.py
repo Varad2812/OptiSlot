@@ -12,9 +12,10 @@ def compute_kpis(signals: list[Signal], slots: list[Slot], cabinets: list[Cabine
                  violations: int = 0, stability_pct: float | None = None) -> Kpis:
     live = [s for s in signals if s.live]
     placed = {s.tag_key for s in slots if s.status in ("Field", "Cabinet Alarm")}
-    allocated = sum(1 for s in live if s.tag_key in placed)
+    ok = [s for s in live if s.tag_key in placed and not s.quarantined]   # a quarantined duplicate is not the placed signal
+    allocated = len(ok)
     tq_rows = {r for t in tqs for r in t.rows}
-    explained = sum(1 for s in live if s.tag_key not in placed and (s.row in tq_rows or s.quarantined))
+    explained = sum(1 for s in live if (s.tag_key not in placed or s.quarantined) and (s.row in tq_rows or s.quarantined))
     status = Counter(s.status for s in slots)
 
     pct = float(rules.params("wired_spare_pct").get("pct", 10)) if rules.first("wired_spare_pct") else 0.0

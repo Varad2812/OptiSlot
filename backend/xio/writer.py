@@ -124,3 +124,38 @@ def new_book() -> openpyxl.Workbook:
 
 def save_book(wb: openpyxl.Workbook) -> bytes:
     return _save(wb)
+
+
+def write_allocation_safe(rows: list[dict[str, str]], template: Path = TEMPLATE) -> tuple[bytes, BaseException | None]:
+    """write_allocation, but a template/styling failure falls back to a plain workbook with the same 76 columns."""
+    try:
+        return write_allocation(rows, template), None
+    except Exception as e:
+        return _write_plain(rows), e
+
+
+def _write_plain(rows: list[dict[str, str]]) -> bytes:
+    cols = list(catalog()["template"]["columns"])
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = catalog()["template"]["sheet"]
+    ws.append(cols)
+    for c in ws[1]:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1F3864")
+    for r in rows:
+        ws.append([_cell_value(r.get(c, "-")) for c in cols])
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{max(len(rows) + 1, 2)}"
+    ws.freeze_panes = "D2"
+    return _save(wb)
+
+
+def write_table(headers: list[str], rows: list[list[str]], sheet: str = "MDB") -> bytes:
+    """A plain, deterministic workbook (used to store several merged MDB files as one)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = sheet
+    ws.append(headers)
+    for r in rows:
+        ws.append(list(r))
+    return _save(wb)

@@ -26,6 +26,7 @@ from app.schemas import (
 )
 from engine.hardware import resolve, signal_ctx, spare_slot_hw
 from engine.rules import Rules, catalog, derive, first_match, fmt, seg_family, seg_field, seg_level, seg_value
+from engine.failsafe import EngineFailure
 from engine.tqs import TQBook
 
 FAMILY_RANK = {"A": 0, "B": 1, "-": 2}
@@ -370,13 +371,16 @@ class Engine:
             for rule in self.seg_rules:
                 if rule is primary:
                     continue
-                found = sorted({f for f in (self.fam_in(rule, s) for s in sigs) if f})
+                count = Counter(f for f in (self.fam_in(rule, s) for s in sigs) if f)
+                found = sorted(count)
+                dominant = min(found, key=lambda f: (-count[f], f)) if found else None   # most signals; ties → alphabetical
                 if found:
-                    b.fams[rule.id] = found[0]
+                    b.fams[rule.id] = dominant  # type: ignore[assignment]
                 if len(found) > 1:
                     b.fam_exceptions[rule.id] = self.book.add("segregation", "Segregation clash on one cable", "high",
                                   f"Cable {cable} carries {' and '.join(found)} signals — rule {rule.id} ({rule.label}) cannot be met "
-                                  f"for this cable; placed with the {found[0]} family. Fix: re-tag or split the cable.",
+                                  f"for this cable; placed with the {dominant} family (the one most of its signals have). "
+                                  f"Fix: re-tag or split the cable.",
                                   rows=[s.row for s in sigs], tags=[s.tag for s in sigs], rules=[rule.id],
                                   key=f"segclash:{rule.id}:{cable}").id
             blocks.append(b)
@@ -430,7 +434,9 @@ class Engine:
             if not self.fits_fresh(b):
                 t = self.book.add("capacity", "Cable too large", "high",
                                   f"Cable {b.cable} ({b.size} pairs) cannot fit in one CIOC "
-                                  f"({self.g.bps} baseplates × {self.g.chs} channels) — not allocated.",
+                                  f"({self.g.bps} baseplates × {self.g.chs} channels, reserved baseplates excluded) — rule "
+                                  f"{self.rules.rid('capacity') or 'r-capacity'} cannot be met; not allocated. "
+                                  f"Fix: split the cable or enlarge the CIOC in Project Settings.",
                                   rows=[s.row for s in b.members.values()], tags=[s.tag for s in b.members.values()],
                                   rules=[self.rules.rid("capacity") or "r-capacity"])
                 for s in b.members.values():
@@ -448,8 +454,9 @@ class Engine:
                     break
                 if len(cabs) >= self.settings.max_cabinets_per_domain:
                     t = self.book.add("capacity", "Cabinet capacity", "high",
-                                      f"Domain {domain} is capped at {self.settings.max_cabinets_per_domain} cabinet(s) — "
-                                      f"cable {b.cable} does not fit. Raise the cap or free capacity.",
+                                      f"Domain {domain} is capped at {self.settings.max_cabinets_per_domain} cabinet(s) and every CIOC is "
+                                      f"full or segregated away from cable {b.cable} — rule {self.rules.rid('capacity') or 'r-capacity'} "
+                                      f"(capacity) cannot be met; not allocated. Raise the cap or free capacity.",
                                       rows=[s.row for s in b.members.values()], tags=[s.tag for s in b.members.values()],
                                       rules=[self.rules.rid("capacity") or "r-capacity"], key=f"cap:{domain}")
                     for s in b.members.values():
@@ -681,8 +688,36 @@ class Engine:
             else:
                 self.commit(cab, local, b)  # type: ignore[arg-type]
 
+    def drop_unfittable(self, cab: Cab, local: int, bl: list[Block]) -> None:
+        """Remove the last unpinned block (else the last block) of a CIOC whose blocks cannot all be laid out, and
+        quarantine its signals with a TQ that names the rules and the CIOC."""
+        victim = next((b for b in sorted(bl, key=lambda b: b.sort_key, reverse=True) if not b.pinned), bl[-1])
+        bl.remove(victim)
+        victim.cab, victim.cioc = None, None
+        rids = [self.rules.rid("capacity") or "r-capacity", self.rules.rid("cable_contiguous") or "r-cable", *self.g.bp_seg]
+        t = self.book.add("capacity", "Unsatisfiable layout", "high",
+                          f"Cable {victim.cable} ({victim.size} pairs) cannot be laid out on CIOC {self.cioc_seq(cab, local):03d} of "
+                          f"{self.name('marshalling', cab)} together with the other cables assigned to it: rules {', '.join(rids)} "
+                          f"(capacity, contiguous pairs, baseplate segregation) cannot all be met — not allocated; everything "
+                          f"else is placed. Fix: split the cable, relax a rule or raise capacity.",
+                          rows=[x.row for x in victim.members.values()], tags=[x.tag for x in victim.members.values()],
+                          rules=rids, key=f"nolayout:{victim.cable}")
+        for x in victim.members.values():
+            self.book.quarantine_signal(x, "no feasible layout for its cable", t)
+            self.unplaced.append(x)
+
     # ── run ──
     def run(self, assign: Callable[["Engine", str, tuple[str, str], list[Block]], None] | None = None) -> Allocation:
+        """Any unexpected error is re-raised as EngineFailure(stage, domain) so the pipeline can isolate that domain."""
+        self.ctx: tuple[str, str | None] = ("allocate", None)
+        try:
+            return self._run(assign)
+        except EngineFailure:
+            raise
+        except Exception as e:
+            raise EngineFailure(*self.ctx, e) from e
+
+    def _run(self, assign: Callable[["Engine", str, tuple[str, str], list[Block]], None] | None = None) -> Allocation:
         live = [s for s in self.signals if s.live and not s.quarantined]
         domains: dict[str, list[Signal]] = defaultdict(list)
         for s in live:
@@ -696,6 +731,7 @@ class Engine:
                 if not any(c.ns == ns and c.seq == seq for c in self.cabs):
                     self.new_cab(domain, ns, seq, declared)
         for domain in ordered:
+            self.ctx = ("allocate", domain)
             sigs = domains[domain]
             ns = Counter((s.loc, s.area_code) for s in sigs).most_common(1)[0][0]
             alarms = [s for s in sigs if s.kind == "cabinet_alarm"] if self.rules.first("reserve_baseplate") else []
@@ -707,11 +743,14 @@ class Engine:
             default = Engine.assign_balanced if self.strategy == "balanced" else Engine.assign_greedy
             (assign or default)(self, domain, ns, dblocks)
         for cab in self.cabs:
+            self.ctx = ("layout", cab.domain)
             for local, bl in cab.blocks.items():
                 pos = layout(bl, self.usable(cab, local), self.g)
-                assert pos is not None, "assignment produced an infeasible CIOC"
+                while pos is None and bl:  # an assignment that does not lay out: place what fits, TQ the rest
+                    self.drop_unfittable(cab, local, bl)
+                    pos = layout(bl, self.usable(cab, local), self.g)
                 for b in bl:
-                    b.bp, b.ch = pos[b.id]
+                    b.bp, b.ch = (pos or {})[b.id]
         slots = self.fill()
         self.wired_spares(slots)
         cabinets = self.cabinet_infos(slots)
@@ -748,6 +787,7 @@ class Engine:
         slots: list[Slot] = []
         alarm_rule = self.rules.first("reserve_baseplate")
         for cab in sorted(self.cabs, key=lambda c: (c.dorder, c.ns, c.seq)):
+            self.ctx = ("layout", cab.domain)
             locals_ = self.instantiated(cab)
             grid: dict[tuple[int, int, int], Slot] = {}
             for local in locals_:
@@ -864,6 +904,7 @@ class Engine:
         io_order = list(dict.fromkeys(self.rules.params("io_type_map").get("map", {}).values())) or ["AIR", "AOR", "DIR", "DOR"]
         blocks_by_id = {b.id: b for b in self.blocks}
         for ctrl, cs in by_ctrl.items():
+            self.ctx = ("layout", cs[0].domain)
             field = Counter(s.io_type for s in cs if s.status == "Field")
             cand: dict[str, list[Slot]] = defaultdict(list)  # block id → free pairs in pair order
             for s in sorted(cs, key=lambda s: (s.block_id or "", s.remarks == "Tag Deleted", s.pair or 0)):
