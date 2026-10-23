@@ -13,7 +13,7 @@ and the 10k stress project in `shots/stress/`). Every PNG and frame was opened a
 | 0.5 | Dive 50 % | Slots for blocks not yet dropped were blank holes in the grid | Static "socket" outlines under each block; the block falls into them | fixed |
 | 0.6 | Plant | With 3 cabinets the plant fit sat right at the tier threshold → a mix of detail and heat-map cabinets | Plant tier below 0.85× cabinet scale; floor labels (name + fill) at Plant level | fixed |
 
-## Round 1 (23:40) — full pass, 78 captures, 0 browser errors
+## Round 1 (23:33) — full pass, 78 captures, 0 browser errors
 FPS (headless Chromium, rAF deltas during the glide): demo **avg 58–60 fps**, p95 17 ms; stress10k (10,009 signals,
 46 cabinets) **avg 59 fps**, p95 17 ms. Grid navigation on stress10k: 1.35 s (includes the 10k fetch).
 
@@ -28,7 +28,7 @@ FPS (headless Chromium, rAF deltas during the glide): demo **avg 58–60 fps**, 
 | 1.7 | Flip mid-frame | The header plate says FRONT while the crumb already says (R) | Accepted: the plate swaps at the flip's midpoint (edge-on), which reads correctly in motion | accepted |
 | 1.8 | Palette | Clean; tag search finds `320-CE` cables and tags with their slot address | — | ok |
 
-## Round 2 (00:05) — 78 captures, 0 browser errors
+## Round 2 (23:39) — 78 captures, 0 browser errors
 FPS: demo **avg 61–62 fps** (p95 17 ms, worst 17 ms); stress10k **avg 59–60 fps** (p95 17 ms).
 Offline drill: built app served by `vite preview` with no backend → the World renders from `src/mock` fixtures,
 "Offline" chip in the top bar, 0 page errors.
@@ -43,7 +43,7 @@ Offline drill: built app served by `vite preview` with no backend → the World 
 | 2.6 | Top bar (offline) | "Offline fixtures" chip and the Rev pill wrapped onto two lines at 1440 | Short "Offline" chip with a tooltip; `shrink-0 whitespace-nowrap` on both | fixed |
 | 2.7 | Inspector | Selected slot stays visible left of the drawer; Why-here timeline shows rule chips | — | ok |
 
-## Round 3 (00:20) — 78 captures + motion re-shoot (36), 0 browser errors
+## Round 3 (23:45) — 78 captures + motion re-shoot (36), 0 browser errors
 FPS: demo **avg 57–62 fps** (p95 17–33 ms); stress10k **avg 55–59 fps** (p95 17–33 ms, worst 50 ms on one glide).
 Numbers are from headless Chromium; a real GPU window on the stage laptop is expected to be equal or better.
 
