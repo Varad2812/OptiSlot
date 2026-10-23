@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import type { components } from "@/api/types";
 import { useUi } from "@/store/ui";
 
-import { getJson, postJson } from "./client";
+import { getJson, postForm, postJson, putJson } from "./client";
 
 export type S = components["schemas"];
 export type AllocationResult = S["AllocationResult"];
@@ -19,6 +19,8 @@ export type RuleSet = S["RuleSet"];
 export type RunRecord = S["RunRecord"];
 export type ExportFile = S["ExportFile"];
 export type RuleCheckReport = S["RuleCheckReport"];
+export type ProjectSettings = S["ProjectSettings"];
+export type ColumnMapping = S["ColumnMapping"];
 
 // Offline fallbacks: the generated fixtures (lazy, so the 1.5 MB allocation never sits in the main bundle).
 const fx = {
@@ -119,5 +121,85 @@ export function useVerify() {
       fn(`Verifier: ${rep.verdict}`, { description: `${rep.violations} violations · ${rep.checks_passed}/${rep.checks_total} checks` });
     },
     onError: (e) => toast.error("Verify failed", { description: String((e as Error).message) }),
+  });
+}
+
+/** A new MDB / mapping / settings change re-runs the whole pipeline server-side; refetch everything derived from it. */
+function refreshAll(qc: ReturnType<typeof useQueryClient>) {
+  return qc.invalidateQueries();
+}
+
+export function useSettings() {
+  const pid = useProjectId();
+  return useQuery({ queryKey: ["settings", pid], queryFn: () => getJson<ProjectSettings>(`/projects/${pid}/settings`) });
+}
+
+export function useImportMdb() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const f = new FormData();
+      f.append("file", file);
+      return postForm<ImportSummary>(`/projects/${pid}/import`, f);
+    },
+    onSuccess: async (sum) => {
+      qc.setQueryData(["import", pid], sum);
+      await refreshAll(qc);
+    },
+    onError: (e) => toast.error("Import failed", { description: String((e as Error).message) }),
+  });
+}
+
+export function useSetMapping() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (m: ColumnMapping[]) => postJson<ImportSummary>(`/projects/${pid}/mapping`, m),
+    onSuccess: async (sum) => {
+      qc.setQueryData(["import", pid], sum);
+      await refreshAll(qc);
+    },
+    onError: (e) => toast.error("Mapping failed", { description: String((e as Error).message) }),
+  });
+}
+
+export function usePutSettings() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (s: ProjectSettings) => putJson<AllocationResult>(`/projects/${pid}/settings`, s),
+    onSuccess: async (res) => {
+      qc.setQueryData(["allocation", pid], res);
+      await refreshAll(qc);
+    },
+    onError: (e) => toast.error("Settings failed", { description: String((e as Error).message) }),
+  });
+}
+
+export function useApplyTq() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; option: number }) => postJson<AllocationResult>(`/projects/${pid}/tqs/${encodeURIComponent(v.id)}/apply?option=${v.option}`),
+    onSuccess: async (res) => {
+      qc.setQueryData(["allocation", pid], res);
+      await refreshAll(qc);
+    },
+    onError: (e) => toast.error("Apply failed", { description: String((e as Error).message) }),
+  });
+}
+
+export function useCloseTq() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; decision: string }) =>
+      postJson<AllocationResult>(`/projects/${pid}/tqs/${encodeURIComponent(v.id)}/close?decision=${encodeURIComponent(v.decision)}`),
+    onSuccess: async (res) => {
+      qc.setQueryData(["allocation", pid], res);
+      await refreshAll(qc);
+    },
+    onError: (e) => toast.error("Close failed", { description: String((e as Error).message) }),
   });
 }
