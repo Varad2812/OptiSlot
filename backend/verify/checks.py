@@ -24,6 +24,14 @@ TOKEN_RX = {"cioc3": r"\d{3}", "bp": r"\d+", "ch": r"\d+", "ctrl2": r"\d{2}", "c
 _SIZE = re.compile(r"^\s*0*(\d{1,3})\s*[PTQ]?X", re.I)
 
 
+_PAIR_RX = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})", re.I)  # same clean forms as the MDB reader accepts
+
+
+def _pair(v: str) -> int | None:
+    m = _PAIR_RX.fullmatch((v or "").strip())
+    return int(m.group(1)) if m and int(m.group(1)) > 0 else None
+
+
 def _int(v: str) -> int | None:
     try:
         return int(str(v).strip())
@@ -158,7 +166,7 @@ def parse_rows(raw: list[dict[str, str]], ctx_settings: ProjectSettings, rs: Rul
         r = Row(n=i, d=d, status=g("Tag Status"), tag=g("Tag Name"), key=_key(g("Tag Name")), io=g("IO Type"),
                 cab=g("Electronic/ Marshalling Cabinet"), cioc=g("CIOC/CSLS Name"), baseplate=g("Baseplate"),
                 controller=g("Controller"), syscab=g("System Cabinet"), cable=g("Field Cable No"),
-                pair=_int(re.sub(r"\D", "", g("Field Cable Pair")) or "x"), ch=_int(g("Channel_No")),
+                pair=_pair(g("Field Cable Pair")), ch=_int(g("Channel_No")),
                 charm_no=_int(g("CHARM_No")), seg=g("Segregation"))
         r.family = fam_of.get(r.seg.upper(), DASH)
         m = cioc_rx.match(r.cioc)

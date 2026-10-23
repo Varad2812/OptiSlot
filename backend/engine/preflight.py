@@ -9,6 +9,7 @@ from collections import Counter, defaultdict
 
 from app.schemas import ProjectSettings, Signal
 from engine.hardware import resolve, signal_ctx
+from engine.normalise import blank
 from engine.rules import Rules, seg_field, seg_value
 from engine.tqs import TQBook
 
@@ -69,13 +70,19 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                          rules=[rules.rid("cable_contiguous") or "r-cable"], fixes=[{"label": "Add the cable number in the MDB"}])
             book.quarantine_signal(s, "missing cable", t)
         elif s.pair is None:
-            if s.cable_size == 1:
+            if s.cable_size == 1 and blank(s.pair_label):
                 s.pair = 1
                 continue
-            t = book.add("data", "Missing pair", "high", f"{s.tag} (row {s.row}) on cable {s.cable} has no pair number — quarantined. "
-                         "Fix: add the pair in the MDB; everything else unchanged.", rows=[s.row], tags=[s.tag], field="Pair",
-                         rules=[rules.rid("cable_contiguous") or "r-cable"], fixes=[{"label": "Add the pair number in the MDB"}])
-            book.quarantine_signal(s, "missing pair", t)
+            unreadable = not blank(s.pair_label)
+            t = book.add("data", "Unreadable pair" if unreadable else "Missing pair", "high",
+                         (f"{s.tag} (row {s.row}) on cable {s.cable} has pair '{s.pair_label}', which is not a clean pair number "
+                          "(expected e.g. 'Pair 10' or '10') — quarantined. Fix: correct the pair in the MDB; everything else unchanged.")
+                         if unreadable else
+                         (f"{s.tag} (row {s.row}) on cable {s.cable} has no pair number — quarantined. "
+                          "Fix: add the pair in the MDB; everything else unchanged."), rows=[s.row], tags=[s.tag], field="Pair",
+                         rules=[rules.rid("cable_contiguous") or "r-cable"],
+                         fixes=[{"label": "Correct the pair number in the MDB" if unreadable else "Add the pair number in the MDB"}])
+            book.quarantine_signal(s, "unreadable pair" if unreadable else "missing pair", t)
 
     # 4 ── cable-level consistency (cabinet alarms on real cables are checked too)
     exceptions: dict[str, str] = {}

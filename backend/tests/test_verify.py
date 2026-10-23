@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import io
+import os
 from pathlib import Path
 
 import openpyxl
@@ -215,7 +216,7 @@ def test_engine_and_verifier_agree(m, ab_clash, strategy):
 junk = st.text(alphabet=st.characters(blacklist_categories=("Cs",)), max_size=10)
 
 
-@settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=int(os.environ.get("JUNK_EXAMPLES", 150)), deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(st.lists(st.fixed_dictionaries({
     "tag": st.one_of(junk, st.sampled_from(["", "T-1", "T-2"])), "io": st.sampled_from(["AI", "AO", "DI", "DO", "XX", ""]),
     "cable": st.one_of(junk, st.sampled_from(["C-1", "C-2", "Internal Wiring", ""])),
@@ -229,5 +230,22 @@ def test_junk_engine_and_verifier_agree(rows, strategy):
     t = table([row(r["tag"], r["io"], r["cable"], r["pair"], group=r["group"], status=r["status"], equipment=r["equip"],
                    spec=r["spec"], inst=r["inst"]) for r in rows])
     out = run(b"", with_strategy(load_ruleset(), strategy), table=t, settings=ProjectSettings(max_cabinets_per_domain=8))
+    rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs, claims=claims(out))
+    assert rep.verdict == "PASS", [(c.id, c.violations[:3]) for c in rep.checks if c.failed]
+
+
+@pytest.mark.parametrize("label,pair", [("1:0", None), ("3-4", None), ("10/11", None), ("1.5", None), ("Pair 10", 10),
+                                        ("10", 10), ("Triad 1", 1), ("pair #7", 7)])
+def test_only_clean_pair_forms_are_pairs(label, pair):
+    from engine.normalise import parse_pair
+    assert parse_pair(label) == pair
+
+
+def test_unclean_pair_is_quarantined_and_verifier_agrees():
+    """Hypothesis minimal case: pair '1:0' used to be pair 1 in the engine and pair 10 in the verifier."""
+    rows = [row("0", "AI", "0", "1:0", 24, group="A")] + [row(f"T{p}", "AI", "0", p, 24, group="A") for p in range(2, 12)]
+    out = run(b"", table=table(rows), settings=ProjectSettings(max_cabinets_per_domain=8))
+    assert any(q.reason == "unreadable pair" for q in out.quarantine)
+    assert any(t.category == "Unreadable pair" for t in out.tqs)
     rep = verify_rows(out.rows, out.signals, out.rules.rs, out.settings, out.tqs, claims=claims(out))
     assert rep.verdict == "PASS", [(c.id, c.violations[:3]) for c in rep.checks if c.failed]

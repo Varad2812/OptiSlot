@@ -11,7 +11,8 @@ from xio.reader import RawTable
 EMPTY = {"", "-", "--", "N/A", "NA", "NONE", "NULL", "NAN", "TBA", "TBC"}
 _SIZE = re.compile(r"^\s*0*(\d{1,3})\s*(?:PX|TX|QX|P\b|PR\b|PAIRS?\b|T\b|TRIADS?\b|C\b|CORES?\b|X)", re.I)
 _SIZE_LOOSE = re.compile(r"(\d{1,3})\s*(?:PX|TX|PAIRS?|PR|TRIADS?)", re.I)
-_PAIR = re.compile(r"(\d+)")
+# only clean pair forms: "Pair 10", "Triad 1", "10", "Pair #10" — anything else ("1:0", "3-4", "10/11") is not a pair
+_PAIR = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})", re.I)
 PASSTHROUGH = ("operating_area", "unit", "service", "location", "is_type", "external_power", "system2",
                "old_tag", "loop_name", "section")
 
@@ -41,7 +42,7 @@ def parse_cable_size(spec: str) -> int | None:
 def parse_pair(p: str) -> int | None:
     if blank(p):
         return None
-    m = _PAIR.search(str(p))
+    m = _PAIR.fullmatch(str(p).strip())
     if not m:
         return None
     n = int(m.group(1))
