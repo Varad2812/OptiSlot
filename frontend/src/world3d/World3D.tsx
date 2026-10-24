@@ -329,13 +329,14 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
         )}
       </div>
 
-      <div className="absolute bottom-4 left-5 z-10">{room ? <Legend active={filters.io} onToggle={toggleIo} /> : <Legend />}</div>
-      <div className="pointer-events-none absolute bottom-4 right-5 z-10 text-right text-[11px] text-muted-foreground" data-testid="room-hint">
-        {diving
-          ? "Upload Dive — press any key to skip"
-          : room
-            ? "Click to zoom in · ←/→ siblings · F other face · / find tag · drag to orbit · scroll to dolly"
-            : "Click to zoom in · ←/→ siblings · F other face · drag to orbit · scroll to dolly"}
+      {/* legend + hint stack bottom-left: side by side they collide once the Room's change list narrows the view */}
+      <div className="absolute bottom-4 left-5 z-10 flex max-w-[calc(100%-40px)] flex-col items-start gap-1.5">
+        <div className="pointer-events-none pl-1 text-[11px] text-muted-foreground" data-testid="room-hint">
+          {diving
+            ? "Upload Dive — press any key to skip"
+            : `Click to zoom in · ←/→ siblings · F other face${room ? " · / find tag" : ""} · drag to orbit · scroll to dolly`}
+        </div>
+        {room ? <Legend active={filters.io} onToggle={toggleIo} /> : <Legend />}
       </div>
 
       <AnimatePresence>

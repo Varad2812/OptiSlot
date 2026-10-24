@@ -1,5 +1,5 @@
 import {
-  Boxes, Download, FileUp, FlaskConical, GitCompareArrows, LayoutDashboard, MessageSquareWarning, ShieldCheck,
+  Box, Boxes, Download, FileUp, FlaskConical, GitCompareArrows, LayoutDashboard, MessageSquareWarning, ShieldCheck,
   SlidersHorizontal, Table2, type LucideIcon,
 } from "lucide-react";
 
@@ -15,6 +15,7 @@ export interface Screen {
 // CLAUDE.md §10.2 sidebar, in order. scripts/shots.mjs captures the same paths.
 export const SCREENS: Screen[] = [
   { path: "/", title: "Mission Control", icon: LayoutDashboard, group: "story", blurb: "The whole project at a glance — every tile is live data." },
+  { path: "/room", title: "3D Room", icon: Box, group: "story", blurb: "The marshalling room in 3D: dive Room → cabinet → CIOC → baseplate → CHARM, and see every change land." },
   { path: "/explorer", title: "Cabinet Explorer", icon: Boxes, group: "story", blurb: "Walk the marshalling room: every slot of every cabinet, and why it is there." },
   { path: "/lab", title: "Try-out Lab", icon: FlaskConical, group: "story", blurb: "Move slots, toggle rules and see the impact before you commit.", phase: "U3" },
   { path: "/proof", title: "Proof Center", icon: ShieldCheck, group: "story", blurb: "An independent verifier re-reads the output. A tampered copy fails." },

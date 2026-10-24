@@ -7,7 +7,7 @@ import { useAllocate, useAllocation, useProject, useVerify } from "@/api/hooks";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { useUi } from "@/store/ui";
-import { cabinetOrder, flyToSlot } from "@/world/actions";
+import { ALLOCATE_LANDING_ROUTE, cabinetOrder, flyToSlot } from "@/world/actions";
 
 import { SCREENS } from "./routes";
 
@@ -52,7 +52,7 @@ export function CommandPalette() {
           {tags.length > 0 && (
             <CommandGroup heading="Tags">
               {tags.map((s) => (
-                <CommandItem key={s.id} value={`tag ${s.id}`} onSelect={() => run(() => (nav("/explorer"), flyToSlot(a!, s, dimsOf(a, p).ciocsPerSide)))}>
+                <CommandItem key={s.id} value={`tag ${s.id}`} onSelect={() => run(() => (nav(ALLOCATE_LANDING_ROUTE), flyToSlot(a!, s, dimsOf(a, p).ciocsPerSide)))}>
                   <span className="size-2 rounded-full" style={{ background: IO_COLOURS[ioKey(s)] }} />
                   <span className="font-mono">{s.tag}</span>
                   <span className="ml-auto font-mono text-[11px] text-muted-foreground">{s.cabinet} · {s.baseplate} · ch {s.ch}</span>
@@ -72,7 +72,7 @@ export function CommandPalette() {
               </CommandItem>
             )}
             {match("Replay Upload Dive") && (
-              <CommandItem value="dive" onSelect={() => run(() => (nav("/explorer"), replayDive()))}>
+              <CommandItem value="dive" onSelect={() => run(() => (nav(ALLOCATE_LANDING_ROUTE), replayDive()))}>
                 <Sparkles /> Replay Upload Dive
               </CommandItem>
             )}
@@ -104,7 +104,7 @@ export function CommandPalette() {
             <CommandGroup heading="Cabinets">
               {cabinets.map((c, i) =>
                 match(c) ? (
-                  <CommandItem key={c} value={`cab ${c}`} onSelect={() => run(() => (nav("/explorer"), goCabinet(i)))}>
+                  <CommandItem key={c} value={`cab ${c}`} onSelect={() => run(() => (nav(ALLOCATE_LANDING_ROUTE), goCabinet(i)))}>
                     <Search /> <span className="font-mono">{c}</span>
                   </CommandItem>
                 ) : null,

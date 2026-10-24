@@ -211,7 +211,7 @@ const KIND_DOT: Record<string, string> = {
   import: "bg-io-ai", allocate: "bg-brand", verify: "bg-ok", tq: "bg-warn", rule: "bg-io-ao", revision: "bg-io-alarm", export: "bg-io-di", whatif: "bg-muted-foreground",
 };
 const KIND_TO: Record<string, string> = {
-  import: "/import", allocate: "/explorer", verify: "/proof", tq: "/tqs", rule: "/rules", revision: "/revisions", export: "/export", whatif: "/lab",
+  import: "/import", allocate: "/room", verify: "/proof", tq: "/tqs", rule: "/rules", revision: "/revisions", export: "/export", whatif: "/lab",
 };
 
 /**

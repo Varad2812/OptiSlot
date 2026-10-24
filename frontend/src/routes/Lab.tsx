@@ -1,6 +1,7 @@
 import { motion, useAnimationControls } from "framer-motion";
 import { FlipHorizontal2, FlaskConical, Redo2, ShieldAlert, Undo2, X } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { dimsOf, worldModel, type Dims, type WorldModel } from "@/api/derive";
 import { useAllocation, useProject, useRules, type AllocationResult, type Project, type RuleSet } from "@/api/hooks";
@@ -74,6 +75,25 @@ function LabInner({ live, p, rules }: { live: AllocationResult; p: Project | und
   useEffect(() => {
     if (sel && !block) setSel(null);
   }, [sel, block]);
+
+  // Deep link from the 3D Room's "Try changes" (§10.8): ?tag= preselects that signal's cable block and shows its cabinet
+  // and side; ?slot= / ?cabinet=&cioc= just aim the stage there.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const tag = params.get("tag"), slotId = params.get("slot"), cabinet = params.get("cabinet");
+    if (!tag && !slotId && !cabinet) return;
+    const key = tag?.replace(/\s+/g, "").toLowerCase();
+    const s = key
+      ? sb.proposed.slots.find((x) => x.status !== "Spare Slot" && x.tag_key.replace(/\s+/g, "").toLowerCase() === key)
+      : slotId ? propModel.bySlotId.get(slotId) : undefined;
+    const idx = propModel.cabIndexByName.get(s?.cabinet ?? cabinet ?? "");
+    const local = s?.cioc_local ?? Number(params.get("cioc") || 0);
+    if (idx != null) useUi.setState({ cabIdx: idx, side: local > dims.ciocsPerSide ? "R" : "F" });
+    if (s?.block_id && s.status !== "Cabinet Alarm") setSel(s.block_id);
+    for (const k of ["tag", "slot", "cabinet", "cioc", "bp"]) params.delete(k);
+    setParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const rows = useMemo(() => (block ? targetsFor(propModel, stage.idx, block, dims, seg) : null), [block, propModel, stage.idx, dims, seg]);
 
   const [flight, setFlight] = useState<Flight | null>(null);

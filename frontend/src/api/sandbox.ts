@@ -38,3 +38,20 @@ export function useRevisionImpact() {
     staleTime: Infinity,
   });
 }
+
+// Signal Workbench sandbox (docs/api_workbench.md §3): the working state against the committed base — drives the 3D Before | Now.
+export type PlacementChangeSet = S["PlacementChangeSet"];
+export type PlacementMove = S["PlacementMove"];
+
+/** Polled while the 3D Room is open, so a move applied in the Workbench shows up (and animates) without a reload. */
+export function usePlacementChanges() {
+  const pid = useProjectId();
+  return useQuery({
+    queryKey: ["placement-changes", pid],
+    queryFn: () => getJson<PlacementChangeSet>(`/projects/${pid}/placement/changes`),
+    refetchInterval: 4000,
+    refetchOnWindowFocus: true,
+    retry: false,
+    staleTime: 1500,
+  });
+}

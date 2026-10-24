@@ -76,7 +76,8 @@ function Explorer3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   );
 }
 
-function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
+/** The 2.5D cabinet World — the Explorer's 2D view, and the 3D Room's fallback (no WebGL, or too slow). */
+export function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   const dims = useMemo(() => dimsOf(a, p), [a, p]);
   const model = useMemo(() => worldModel(a, dims), [a, dims]);
   const n = model.cabinets.length;

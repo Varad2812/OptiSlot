@@ -53,7 +53,7 @@ const RIGS = 3;
 const TRAILS_MAX = 48;
 const OVERLAY_MAX = 512;
 const BLOOM = 0.66;
-const RIG_LIGHT = 2.6; // prototype 7: its point light left hot white spots on the glass and hinges
+const RIG_LIGHT = 1.8; // prototype 7: its point light left hot white spots on the glass and hinges
 
 export type Level = 0 | 1 | 2 | 3 | 4;
 /** Public address: cab 0-based, cioc/bp/ch 1-based (Slot fields), -1 = not applicable at this level. */
@@ -298,8 +298,8 @@ export class World3DEngine {
     dl.position.set(6, 12, 10);
     this.scene.add(dl);
     // satin floor: still catches the cabinets' glow, without mirror-sharp blobs under each light
-    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.std({ color: 0x0a0d14, roughness: 0.55, metalness: 0.5 }));
-    (this.floor.material as THREE.MeshStandardMaterial).envMapIntensity = 0.18;
+    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.std({ color: 0x090c12, roughness: 0.72, metalness: 0.28 }));
+    (this.floor.material as THREE.MeshStandardMaterial).envMapIntensity = 0.08; // no grey sheen at grazing angles
     this.floor.rotation.x = -Math.PI / 2;
     this.scene.add(this.floor);
     this.grid = this.makeGrid(60);
@@ -417,8 +417,9 @@ export class World3DEngine {
    * Fly to a level. Multi-level jumps are staged in real-life order — cabinet door opens → CIOC → baseplates
    * explode → CHARM — and going up reverses it (the door closes last). Calm mode cuts straight to the target.
    */
-  async goTo(level: Level, a: Partial<Address> = {}): Promise<void> {
+  async goTo(level: Level, a: Partial<Address> & { face?: "F" | "R" } = {}): Promise<void> {
     if (!this.L) return;
+    if (a.face && level <= 1) this.face = a.face === "R" ? 1 : 0;
     const tgt = this.internal(level, a);
     if (!tgt) return;
     const token = ++this.navToken;
@@ -910,7 +911,8 @@ export class World3DEngine {
         writeT(ma, i, x, y, z, kind !== NONE && wp < 0);
         if (wp >= 0) writeT(ha, wp, x, y, z, true);
         if (this.outPos[i] >= 0) (writeT(oa, this.outPos[i], x, y, z, true), (ov = true));
-        if (this.ghostPos[i] >= 0) (writeT(ga, this.ghostPos[i], x, y, z, true), (ov = true));
+        // the ghost floats just proud of the cabinet face, so it never z-fights the (now spare) CHARM under it
+        if (this.ghostPos[i] >= 0) (writeT(ga, this.ghostPos[i], x, y, z + (isRear(L, k) ? -1 : 1) * L.charm.d * 0.55, true), (ov = true));
       }
     }
     this.charms.instanceMatrix.needsUpdate = true;
@@ -950,7 +952,7 @@ export class World3DEngine {
     };
     const steelMat = this.std({ color: 0x4d5666, metalness: 0.7, roughness: 0.45, transparent: true });
     const panelMat = this.std({ color: 0x232a37, metalness: 0.5, roughness: 0.6, transparent: true });
-    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.28, specularIntensity: 0.25, depthWrite: false, transparent: true, opacity: 0.16 });
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.36, specularIntensity: 0.1, depthWrite: false, transparent: true, opacity: 0.16 });
     glassMat.envMapIntensity = 0.35;
     const bpMat = this.std({ color: 0x2c3442, metalness: 0.6, roughness: 0.5, transparent: true });
     const steel = mk(steelParts, steelMat, L.n);
@@ -1049,14 +1051,15 @@ export class World3DEngine {
         add(new THREE.BoxGeometry(0.08, 0.08, L.D), steel(), sx * hw, 3.3, 0);
         add(new THREE.BoxGeometry(0.03, 3.2, L.D), this.std({ color: 0x232a37, metalness: 0.5, roughness: 0.6 }), sx * hw, 1.6, 0);
       }
-      add(new THREE.BoxGeometry(L.W, 0.1, L.D + 0.1), steel(), 0, 0.05, 0);
+      // plinth: darker than the frame steel — lit from the rig light straight above, it read as a white slab
+      add(new THREE.BoxGeometry(L.W, 0.1, L.D + 0.1), this.std({ color: 0x262c37, metalness: 0.6, roughness: 0.6 }), 0, 0.05, 0);
       const leafW = hw - 0.04;
       for (const face of [1, -1])
         for (const side of [-1, 1]) {
           const piv = new THREE.Group();
           piv.position.set(side * hw, 1.65, face * hd);
           g.add(piv);
-          const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.28, specularIntensity: 0.25, depthWrite: false });
+          const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.36, specularIntensity: 0.1, depthWrite: false });
           glassM.envMapIntensity = 0.35;
           const gl = new THREE.Mesh(new THREE.BoxGeometry(leafW, 3.2, 0.03), reg1(glassM, 0.16, -1, -1, 1));
           gl.position.x = (-side * leafW) / 2;
@@ -1337,7 +1340,7 @@ export class World3DEngine {
       return;
     }
     const cab = L.cab[sc];
-    let box: THREE.Box3, az = 0, pol = 1.4, pad = 0.25;
+    let box: THREE.Box3, az = 0, pol = 1.4, pad = 0.25, padT = -1;
     if (level == 1) {
       box = bx(cab.x, 1.7, cab.z, L.W + 0.3, 3.6, 2);
       az = this.face * Math.PI + 0.35;
@@ -1348,6 +1351,7 @@ export class World3DEngine {
       if (level == 2) {
         box = bx(x, stackY(L, 1), z, 1.5, frameH(L, 1), 0.6);
         pol = 1.45;
+        padT = 0.6; // the HUD sits over the top edge; baseplate 1 must clear it
       } else if (level == 3) {
         // the 12 CHARMs centred with margin: cable label above, the tags hanging below
         box = bx(x, bpY(L, 1, sb) + 0.17, z, L.bpW + 0.22, 0.92, 0.36);
@@ -1361,7 +1365,7 @@ export class World3DEngine {
       }
     }
     void ctrl.rotateTo(turn(az), pol, t);
-    void ctrl.fitToBox(box, t, { paddingLeft: pad, paddingRight: pad, paddingTop: pad, paddingBottom: pad });
+    void ctrl.fitToBox(box, t, { paddingLeft: pad, paddingRight: pad, paddingTop: padT >= 0 ? padT : pad, paddingBottom: pad });
   }
 
   /** Staged path between two selections: up to the common ancestor (sibling cabinets hop at cabinet level), then down one level at a time. */
