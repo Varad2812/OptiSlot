@@ -267,8 +267,9 @@ def m_scale_2000(g: Grid, r: random.Random) -> bool:
                 continue
             new = dict(rec)
             tag = str(rec.get(tag_h, "")) if tag_h else ""
-            for h, v in rec.items():
-                if isinstance(v, str) and v and ((tag and v == tag) or h == cab_h):
+            key = re.sub(r"[\s-]", "", tag)
+            for h, v in rec.items():       # every spelling of the tag (the MDB repeats it, without dashes, in other columns) and the cable
+                if isinstance(v, str) and v and ((key and re.sub(r"[\s-]", "", v) == key) or h == cab_h):
                     new[h] = f"{v}-R{j}"
             out.append(new)
     g.recs = out[:2000]
