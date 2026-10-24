@@ -118,9 +118,9 @@ export function ChecksPanel({ delay, limit = 20 }: { delay?: number; limit?: num
   );
 }
 
-const SEV: Record<string, string> = { critical: "bg-err/20 text-err", high: "bg-err/15 text-err", medium: "bg-warn/15 text-warn", low: "bg-raised text-muted-foreground", info: "bg-raised text-muted-foreground" };
+export const SEV: Record<string, string> = { critical: "bg-err/20 text-err", high: "bg-err/15 text-err", medium: "bg-warn/15 text-warn", low: "bg-raised text-muted-foreground", info: "bg-raised text-muted-foreground" };
 
-const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+export const SEV_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
 export function TqPanel({ delay, limit = 5, to }: { delay?: number; limit?: number; to?: string }) {
   const { data: a } = useAllocation();
