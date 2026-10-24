@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.migrate import current_stamp, merge_defaults
 from app.schemas import (
     ActivityEvent, AllocationResult, Certificate, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, Kpis,
     OptimiserInfo, Project, ProjectSettings, RevisionImpact, RuleCheckReport, RuleSet, RunRecord, TQ, CheckResult,
@@ -90,6 +91,7 @@ class Service:
         self.states: dict[str, ProjectState] = {}
         self._lock = threading.RLock()
         self._tl = threading.local()
+        self._stamps: dict[str, dict] = {}     # project id → the engine stamp it was last checked against in this process
 
     # ───────────── lifecycle ─────────────
     def ensure_demo(self) -> None:
@@ -106,10 +108,67 @@ class Service:
         self.store.put_ruleset(pid, 1, rs.model_dump(), ts, "default rule set")
         self.store.put(pid, "settings", ProjectSettings().model_dump())
         self.store.put(pid, "overrides", {})
+        self.store.put(pid, "engine_stamp", current_stamp())
+        self._stamps[pid] = current_stamp()
         self.activity(pid, "import", f"Created project '{name}' from {filename}")
         return p
 
+    # ───────────── self-healing of an older database ─────────────
+    def heal(self, pid: str) -> str | None:
+        """Bring a project written by an older build up to date: merge the fields the current default rule set has and the
+        stored one lacks (a new rule-set version plus a decision-log entry), drop the in-memory run state so the next view
+        recomputes from the stored inputs, and stamp the project. The uploaded MDBs, the decision history, the run history
+        and every user edit are kept. Returns the one-line notice when the rule set changed, else None."""
+        stamp = current_stamp()
+        with self._lock:
+            if self._stamps.get(pid) == stamp:
+                return None
+            self._stamps[pid] = stamp
+            if self.store.get(pid, "engine_stamp") == stamp:
+                return None
+            note = self._migrate_ruleset(pid)
+            self.store.put(pid, "engine_stamp", stamp)
+            st = self.states.get(pid)
+            if st is not None:                       # already loaded: its cached run was made by the older build
+                with st.lock:
+                    if note:
+                        st.ruleset = RuleSet.model_validate(self.store.get_ruleset(pid))
+                        st.project.ruleset_version = self.store.latest_ruleset_version(pid)
+                    st.current = None
+                    st.extra.pop("chain_cache", None)
+            return note
+
+    def _migrate_ruleset(self, pid: str) -> str | None:
+        stored = self.store.get_ruleset(pid)
+        if stored is None:
+            return None
+        deleted = {d["patch"]["rule_id"] for d in self.store.log("decisions", pid, 100000)
+                   if (d.get("patch") or {}).get("op") == "delete" and d["patch"].get("rule_id")}
+        merged, added = merge_defaults(stored, deleted)
+        if not added:
+            return None
+        old = self.store.latest_ruleset_version(pid)
+        version = old + 1
+        merged["version"] = version
+        try:
+            rs = RuleSet.model_validate(merged)
+        except Exception:        # an unreadable stored rule set is reported by the normal load, not hidden by a half merge
+            return None
+        ts = now()
+        why = f"auto-migrated to engine {current_stamp()['engine_version']}"
+        self.store.put_ruleset(pid, version, rs.model_dump(), ts, why)
+        self.store.append("decisions", pid, ts, DecisionEntry(
+            ts=ts, who="system", why=f"{why}: rule set v{old} → v{version}, added {len(added)} default field(s): "
+                                     f"{', '.join(added[:12])}{' …' if len(added) > 12 else ''}",
+            patch={"op": "auto-migrate", "added": added}, ruleset_version=version).model_dump())
+        note = (f"Auto-migrated to engine {current_stamp()['engine_version']}: rule set v{old} → v{version} "
+                f"({len(added)} new default field(s) merged; your edits and custom rules kept)")
+        self.activity(pid, "rule", note)
+        return note
+
     def get(self, pid: str) -> ProjectState:
+        if self.store.get_project(pid) is not None:
+            self.heal(pid)
         with self._lock:
             st = self.states.get(pid)
             if st is None:

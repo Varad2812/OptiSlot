@@ -13,6 +13,7 @@ import { screenFor } from "./routes";
 import { AllocationGate, ErrorBoundary } from "./states";
 import { TopBar } from "./TopBar";
 import { useGlobalHotkeys } from "./useHotkeys";
+import { useMigrationNotice } from "./useMigrationNotice";
 import { useRouteTitle } from "./useRouteTitle";
 
 /** Page transition (reference): fade + 12 px slide-up, 0.45 s. Calm mode and reduced motion get a short fade only. */
@@ -32,6 +33,7 @@ function usePageVariants() {
 export function AppShell() {
   useGlobalHotkeys();
   useRouteTitle();
+  useMigrationNotice();
   const loc = useLocation();
   const outlet = useOutlet();
   const variants = usePageVariants();

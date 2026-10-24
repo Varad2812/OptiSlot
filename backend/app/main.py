@@ -413,7 +413,7 @@ def switch_revision(pid: str, rev: str = Query(...)):
 @app.get("/api/projects/{pid}/runs", response_model=list[RunRecord])
 def runs(pid: str):
     svc.get(pid)
-    return [RunRecord.model_validate(r) for r in svc.store.log("runs", pid, 100)]
+    return [RunRecord.model_validate({"engine_version": "unstamped", **r}) for r in svc.store.log("runs", pid, 100)]  # rows from before stamping
 
 
 @app.post("/api/verify-file", response_model=RuleCheckReport)
