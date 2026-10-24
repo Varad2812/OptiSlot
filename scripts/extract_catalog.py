@@ -30,7 +30,10 @@ def _rows(path: Path):
 def main() -> None:
     charms: dict[str, Counter] = defaultdict(Counter)
     tbs: dict[str, Counter] = defaultdict(Counter)
+    spare: Counter = Counter()
     for r in _rows(REF):
+        if r.get("Tag Status") == "Spare Slot":
+            spare[(r.get("CHARM Type", "-"), r.get("CHARM TB Part No", "-"))] += 1
         if r.get("CHARM Type") and r["CHARM Type"] != "-":
             charms[r["CHARM Type"]][r.get("Charm Description", "")] += 1
         if r.get("CHARM TB Part No") and r["CHARM TB Part No"] != "-":
@@ -44,6 +47,7 @@ def main() -> None:
         "source": REF.name,
         "charms": {k: v.most_common(1)[0][0] for k, v in sorted(charms.items())},
         "terminal_blocks": {k: v.most_common(1)[0][0] for k, v in sorted(tbs.items())},
+        "spare_slot": dict(zip(("charm", "tb"), spare.most_common(1)[0][0])),   # hardware of a slot with no cable
         "template": {
             "file": TEMPLATE.name,
             "sheet": ws.title,

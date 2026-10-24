@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from app.schemas import ProjectSettings, Signal
-from engine.hardware import resolve, signal_ctx
+from engine.hardware import default_hw, listed_hw, resolve, signal_ctx
 from engine.normalise import blank
 from engine.rules import Rules, seg_field, seg_value
 from engine.tqs import TQBook
@@ -57,7 +57,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
     for raw, sigs in by_raw.items():
         fixes = [{"label": f"Map '{raw}' → {t}", "rule_patch": {"rule_id": io_rule, "op": "map_set", "path": "map",
                                                                  "key": raw.upper(), "value": t}}
-                 for t in ("AIR", "AOR", "DIR", "DOR")]
+                 for t in rules.io_types()]
         t = book.add("io", "Unknown IO type", "high",
                      f"IO type '{raw}' is not in the IO type map — {len(sigs)} signal(s) excluded ({_span(_rows(sigs))}). "
                      f"Fix: map it to an IO type; everything else unchanged.",
@@ -248,12 +248,17 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
         if hw.review:
             review.append(s)
             review_msg = hw.review
+    std = default_hw(rules)
+    std_txt = f"standard DO {std[0]} + {std[1]}" if std else "the hardware map's default DO"
+    hi = listed_hw(rules, "high_current_do")
+    hi_txt = f"isolated DO {hi[0]} + fused TB {hi[1]}" if hi else "the high-current DO hardware"
+    hi_short = f"{hi[0]} + {hi[1]}" if hi else "high-current hardware"
     for inst, sigs in unknown.items():
         book.add("hardware", "Unknown DO type", "medium",
                  f"DO instrument type '{inst}' is not in the hardware map ({len(sigs)} signal(s), {_span(_rows(sigs))}). "
-                 f"Allocated with standard DO SE4302T01 + SE4501 — confirm the load/inrush.",
+                 f"Allocated with {std_txt} — confirm the load/inrush.",
                  rows=_rows(sigs), tags=[s.tag for s in sigs], field="Instrument type", rules=[hw_rule],
-                 fixes=[{"label": f"Treat {inst} as high-current: isolated DO SE4302T02 + fused TB SE4502",
+                 fixes=[{"label": f"Treat {inst} as high-current: {hi_txt}",
                          "rule_patch": {"rule_id": hw_rule, "op": "list_add", "path": "lists.high_current_do", "value": inst}},
                         {"label": f"Confirm {inst} as standard DO",
                          "rule_patch": {"rule_id": hw_rule, "op": "list_add", "path": "lists.normal_do", "value": inst}}],
@@ -263,7 +268,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
         book.add("hardware", "DO hardware conflict", "medium", f"{review_msg} Instrument type(s) {', '.join(insts)}, "
                  f"{len(review)} signal(s).", rows=_rows(review), tags=[s.tag for s in review], field="Instrument type",
                  rules=[hw_rule], confidence="candidate",
-                 fixes=[{"label": f"Treat {i} as high-current (SE4302T02 + SE4502)",
+                 fixes=[{"label": f"Treat {i} as high-current ({hi_short})",
                          "rule_patch": {"rule_id": hw_rule, "op": "list_add", "path": "lists.high_current_do", "value": i}}
                         for i in insts] + [{"label": "Keep standard DO (as in the sample)",
                                             "rule_patch": {"rule_id": hw_rule, "op": "list_remove", "path": "lists.review_do",

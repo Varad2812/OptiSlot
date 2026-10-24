@@ -208,9 +208,9 @@ class Slot(Model):
     pair: int | None = None
     pair_label: str = "-"
     block_id: str | None = None
-    charm: str = "SE6103"
+    charm: str = "-"
     charm_desc: str = ""
-    tb: str = "SE4501"
+    tb: str = "-"
     tb_desc: str = ""
     tb1: str = "-"
     tb2: str = "-"

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 import openpyxl
 
+from engine.hardware import default_hw, listed_hw
 from engine.pipeline import RunOutput
 
 
@@ -73,11 +74,15 @@ def build(mdb: bytes, out: RunOutput) -> tuple[bytes, list[Step]]:
     steps.append(Step(1, "delete", victim.tag, f"Status → DELETED ({victim.cable} pair {victim.pair})"))
 
     # 2 — a standard DO becomes a solenoid (XYV): hardware swap in place
-    std_do = next((s for s in live if s.io_type == "DOR" and hw.get(s.row) and hw[s.row].charm == "SE4302T01"), None)
+    hi_list = out.rules.params("hardware_map").get("lists", {}).get("high_current_do") or []
+    std_hw = listed_hw(out.rules, "normal_do") or default_hw(out.rules)
+    std_do = next((s for s in live if s.io_type == "DOR" and hi_list and hw.get(s.row) and std_hw
+                   and (hw[s.row].charm, hw[s.row].tb) == std_hw), None)
     if std_do:
-        setv(std_do.row, "instrument_type", "XYV")
+        solenoid = hi_list[0]       # the first high-current instrument type of the hardware map
+        setv(std_do.row, "instrument_type", solenoid)
         setv(std_do.row, "instrument_desc", "Solenoid Valve")
-        steps.append(Step(2, "modify", std_do.tag, f"Instrument type {std_do.instrument_type} → XYV (solenoid)"))
+        steps.append(Step(2, "modify", std_do.tag, f"Instrument type {std_do.instrument_type} → {solenoid} (solenoid)"))
 
     # 3 — a new tag on a spare pair of an existing cable (prefer a wired spare position)
     spare = next((s for s in slots if s.status == "Wired Spare" and s.cable in by_cable), None) or \

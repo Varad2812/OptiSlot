@@ -13,6 +13,10 @@
     "SE4501": "Standard CHARM Terminal Block",
     "SE4502": "Fused-Injected-Power Terminal Block"
   },
+  "spare_slot": {
+    "charm": "SE6103",
+    "tb": "SE4501"
+  },
   "template": {
     "file": "Blank_IO_Allocation_Template.xlsx",
     "sheet": "IO Assignment",

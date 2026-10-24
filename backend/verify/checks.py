@@ -429,11 +429,16 @@ def _sig_ctx(ctx: Ctx, s: Signal, kind: str) -> dict:
             "kind": kind, "cable": s.cable, "group": s.group, "tag": s.tag, "room": s.room, "area": s.area, **s.extra}
 
 
+def _spare_slot(ctx: Ctx) -> dict:
+    """Hardware a slot with no cable must carry: the hardware map's `spare_slot`, else the catalogue's."""
+    return ctx.params("hardware_map").get("spare_slot") or catalog().get("spare_slot") or {}
+
+
 def _expected_hw(ctx: Ctx) -> Callable[[Row], tuple[dict | None, str, str | None]]:
     """Row → (expected hardware incl. terminals, description, error). Spare slots → the protection cover, no terminals.
     A wired spare is modelled on the first field signal of its IO type on its cable (skipping TQ-excepted clash rows),
     re-derived from the MDB so a tampered field row cannot cascade."""
-    spare = ctx.params("hardware_map").get("spare_slot", {"charm": "SE6103", "tb": "SE4501"})
+    spare = _spare_slot(ctx)
     by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
     field_on_cable: dict[tuple[str, str], list[Row]] = defaultdict(list)
     for r in ctx.rows:
@@ -463,7 +468,7 @@ def _expected_hw(ctx: Ctx) -> Callable[[Row], tuple[dict | None, str, str | None
                    else _hardware(ctx, _sig_ctx(ctx, s, "field")) or {})
             return exp, f"wired spare {r.tag} (modelled on {t.tag})", None
         if r.status == "Spare Slot":
-            return {"charm": spare.get("charm"), "tb": spare.get("tb"), "tb1": DASH, "tb2": DASH, "tb3": DASH}, "spare slot", None
+            return {"charm": spare.get("charm", DASH), "tb": spare.get("tb", DASH), "tb1": DASH, "tb2": DASH, "tb3": DASH}, "spare slot", None
         return None, "", None
 
     return expect
@@ -698,7 +703,7 @@ def c_cioc_count(ctx: Ctx) -> CheckResult:
 
 def c_status(ctx: Ctx) -> CheckResult:
     c = Check("C14", "Tag Status discipline", "capacity", ctx, always=True)
-    spare = ctx.params("hardware_map").get("spare_slot", {"charm": "SE6103"}).get("charm", "SE6103")
+    spare = _spare_slot(ctx).get("charm", "-")
     for r in ctx.rows:
         charm = (r.d.get("CHARM Type", "") or "").strip()
         e = None

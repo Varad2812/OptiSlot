@@ -49,7 +49,7 @@ def resolve(ctx: dict[str, Any], rules: Rules) -> Hardware:
         hw.charm, hw.tb = row.get("charm", ""), row.get("tb", "")
         hw.tq = row.get("tq")
         hw.why.append((hm.id, f"{ctx.get('io_type')} → {hw.charm} + {hw.tb}"
-                       + (f" (instrument {ctx.get('instrument_type')})" if ctx.get("io_type") == "DOR" else "")))
+                       + (f" (instrument {ctx.get('instrument_type')})" if "instrument_type" in (row.get("when") or {}) else "")))
     for r in rules.all("custom_expr"):
         try:
             cond, assigns = compiled_expr(r.params.get("expr", ""))
@@ -63,7 +63,7 @@ def resolve(ctx: dict[str, Any], rules: Rules) -> Hardware:
             hw.why.append((r.id, f"custom rule: {r.label}"))
     if hm:
         review = p.get("review")
-        if review and hw.charm != "SE4302T02" and any(match_when(w, ctx, lists) for w in review.get("when_any", [])):
+        if review and hw.charm not in review.get("exempt_charms", []) and any(match_when(w, ctx, lists) for w in review.get("when_any", [])):
             hw.review = review.get("message")
         hctx = {**ctx, "charm": hw.charm, "tb": hw.tb}
         t = first_match(p.get("terminals", []), hctx, lists)
@@ -76,5 +76,20 @@ def resolve(ctx: dict[str, Any], rules: Rules) -> Hardware:
 
 
 def spare_slot_hw(rules: Rules) -> tuple[str, str]:
-    p = rules.params("hardware_map").get("spare_slot", {})
-    return p.get("charm", "SE6103"), p.get("tb", "SE4501")
+    """Hardware of a slot with no cable: the hardware map's `spare_slot`, else the catalogue's (learned from the reference)."""
+    p = rules.params("hardware_map").get("spare_slot") or catalog().get("spare_slot", {})
+    return p.get("charm", "-"), p.get("tb", "-")
+
+
+def listed_hw(rules: Rules, list_name: str) -> tuple[str, str] | None:
+    """CHARM + TB of the hardware-map row that selects on `@list_name` (e.g. the high-current DO list) — used to word fix
+    options from the map instead of hard-coding part numbers."""
+    row = next((r for r in rules.params("hardware_map").get("rows", [])
+                if "@" + list_name in map(str, r.get("when", {}).values())), None)
+    return (row.get("charm", ""), row.get("tb", "")) if row else None
+
+
+def default_hw(rules: Rules) -> tuple[str, str] | None:
+    """CHARM + TB of the hardware-map row that asks for a TQ (the fallback for an unknown instrument type)."""
+    row = next((r for r in rules.params("hardware_map").get("rows", []) if r.get("tq")), None)
+    return (row.get("charm", ""), row.get("tb", "")) if row else None

@@ -74,6 +74,12 @@ class Rules:
         family colouring; every other segregate rule (e.g. IS / NON-IS per baseplate) is a secondary rule."""
         return next((r for r in self.all("segregate") if seg_field(r) == "group" and seg_level(r) != "baseplate"), None)
 
+    def io_types(self) -> list[str]:
+        """The IO types this rule set knows, in a stable order: the IO map's targets, then the hardware map's."""
+        mapped = self.params("io_type_map").get("map", {}).values()
+        hw = [r.get("when", {}).get("io_type") for r in self.params("hardware_map").get("rows", [])]
+        return [t for t in dict.fromkeys([*mapped, *hw]) if isinstance(t, str) and t]
+
     @property
     def ab_rid(self) -> str | None:
         r = self.primary_seg

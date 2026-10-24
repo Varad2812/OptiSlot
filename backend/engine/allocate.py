@@ -670,7 +670,7 @@ class Engine:
     @staticmethod
     def alarm_remark(rule, s: Signal) -> str:
         """`remarks` is a string (every alarm) or a first-match table [{when, value}] over the signal's fields."""
-        r = rule.params.get("remarks", "Internal Cabinet Alarm.")
+        r = rule.params.get("remarks", "-")
         if isinstance(r, list):
             hit = first_match(r, signal_ctx(s))
             return str(hit.get("value", "-")) if hit else "-"
@@ -947,7 +947,7 @@ class Engine:
         by_ctrl: dict[str, list[Slot]] = defaultdict(list)
         for s in slots:
             by_ctrl[s.controller].append(s)
-        io_order = list(dict.fromkeys(self.rules.params("io_type_map").get("map", {}).values())) or ["AIR", "AOR", "DIR", "DOR"]
+        io_order = self.rules.io_types()      # unknown types sort after these, alphabetically
         blocks_by_id = {b.id: b for b in self.blocks}
         for ctrl, cs in by_ctrl.items():
             self.ctx = ("layout", cs[0].domain)
