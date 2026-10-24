@@ -11,7 +11,7 @@ const ROOM_BG = "#0A0D13"; // the 3D Room's clear colour: the curtain ends exact
  * Upload Dive, which has already started underneath.
  */
 export function DiveCurtain() {
-  const { phase, rect, from, clear } = useCurtain();
+  const { phase, rect, from, label, clear } = useCurtain();
   const calm = useCalm();
   const vw = typeof window === "undefined" ? 1440 : window.innerWidth;
   const vh = typeof window === "undefined" ? 900 : window.innerHeight;
@@ -54,12 +54,14 @@ export function DiveCurtain() {
             />
           )}
           <motion.div
-            className="absolute inset-x-0 bottom-[22%] text-center text-[12px] tracking-[0.18em] text-[#8C95A8]"
+            key={label}
+            className="absolute inset-x-0 bottom-[22%] text-center text-[12px] uppercase tracking-[0.18em] text-[#8C95A8]"
             initial={{ opacity: 0 }}
-            animate={{ opacity: phase === "hold" ? 1 : 0 }}
-            transition={{ duration: 0.3, delay: phase === "hold" ? 0.9 : 0 }} // only when the room takes a while (10k signals)
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: phase === "hold" ? 0.6 : dur + 0.2 }} // only once the wait is noticeable
           >
-            OPENING THE MARSHALLING ROOM
+            {label}
+            <span className="ml-1 inline-block w-4 animate-pulse text-left">…</span>
           </motion.div>
         </motion.div>
       )}

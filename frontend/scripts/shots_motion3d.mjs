@@ -2,6 +2,7 @@
 //   SHOTS_URL=http://127.0.0.1:8766 node scripts/shots_motion3d.mjs      (a running `make demo` on a scratch DB: this pass
 //                                                                          applies sandbox moves and injects Rev B)
 //   SHOTS_MOMENTS=scan,tamper,move,refuse,revdiff,dive   (default: all)  · SHOTS_HEADLESS=1 = SwiftShader instead of the GPU
+//   SHOTS_CALM=1 = the Calm motion setting (cuts and fades) → <name>__calm.png
 //   → /shots/motion3d/<moment>__p<NNN>.png  (+ dive-handoff__<n>.jpg: the Import → Room transition, every ~70 ms)
 // Every moment is started for real (button / API / bus), then frozen with window.__optislot.world3d.seek(p).
 import { mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -19,6 +20,8 @@ const pct = (p) => String(Math.round(p * 100)).padStart(3, "0");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const problems = [];
 const headless = !!process.env.SHOTS_HEADLESS;
+const calm = !!process.env.SHOTS_CALM; // Calm motion: cuts and fades → <name>__calm.png
+const sfx = calm ? "__calm" : "";
 const browser = await chromium.launch(
   headless
     ? { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }
@@ -29,7 +32,7 @@ const api = (p, body, method = "POST") =>
 let n = 0;
 const fps = [];
 
-async function open(route, { motion = "cinematic", wait3d = true } = {}) {
+async function open(route, { motion = calm ? "calm" : "cinematic", wait3d = true } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript((m) => {
     try {
@@ -54,7 +57,7 @@ const raf2 = (page) => page.evaluate(() => new Promise((r) => requestAnimationFr
 async function shot(page, name) {
   await raf2(page);
   await sleep(60);
-  await page.screenshot({ path: path.join(out, `${name}.png`) });
+  await page.screenshot({ path: path.join(out, `${name}${sfx}.png`) });
   n++;
 }
 
@@ -91,7 +94,7 @@ try {
       await page.waitForFunction(() => window.__optislot.world3d.moment() !== "scan", null, { timeout: 30_000 });
       await frames(page, "tamper", { live: 600 });
       await sleep(400);
-      await page.screenshot({ path: path.join(out, "tamper__panel.png") });
+      await page.screenshot({ path: path.join(out, `tamper__panel${sfx}.png`) });
       n++;
       const verdict = await page.getByTestId("verdict-chip").innerText();
       if (!/FAIL/.test(verdict)) problems.push(`tamper: verdict is ${verdict}`);
@@ -124,7 +127,7 @@ try {
       await room.bringToFront();
       await seen("move").then(() => frames(room, "move", { live: 0 }), () => problems.push("move: the Room did not fly the move in"));
       await sleep(600);
-      await room.screenshot({ path: path.join(out, "move__after.png") });
+      await room.screenshot({ path: path.join(out, `move__after${sfx}.png`) });
       n++;
     }
     await api("/placement/reset");
@@ -163,14 +166,14 @@ try {
 
   // ───── 4. Upload Dive: Import → Allocate → curtain → 3D Room dive (burst of the hand-off, then the dive frozen) ─────
   if (want.has("dive")) {
-    for (const f of readdirSync(out)) if (f.startsWith("dive-handoff__")) rmSync(path.join(out, f));
+    for (const f of readdirSync(out)) if (f.startsWith(`dive-handoff${sfx}__`)) rmSync(path.join(out, f));
     const { ctx, page } = await open("/import", { wait3d: false });
     await page.getByTestId("preview-table").waitFor({ timeout: 30_000 });
     let burst = true, k = 0;
     const sizes = [];
     const loop = (async () => {
       while (burst && k < 80) {
-        const f = path.join(out, `dive-handoff__${String(k++).padStart(2, "0")}.jpg`);
+        const f = path.join(out, `dive-handoff${sfx}__${String(k++).padStart(2, "0")}.jpg`);
         await page.screenshot({ path: f, type: "jpeg", quality: 45 }).catch(() => {});
         try { sizes.push(statSync(f).size); } catch { /* navigation in flight */ }
       }
@@ -182,7 +185,7 @@ try {
     await loop;
     console.log(`dive hand-off: ${k} burst frames, jpeg KB ${sizes.map((x) => Math.round(x / 1024)).join(" ")}`);
     fps.push({ name: "dive", ...(await page.evaluate(() => window.__optislot.fps.measure(1500))) });
-    await frames(page, "dive");
+    if (!calm) await frames(page, "dive"); // Calm: the dive is a 0.35 s cut to L1 — the burst above is the record
     await ctx.close();
   }
 } finally {

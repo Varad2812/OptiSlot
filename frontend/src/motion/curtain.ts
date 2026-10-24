@@ -19,7 +19,9 @@ interface Curtain {
   /** The grid's own background colour (light or dark theme) — the zoom starts from it. */
   from: string;
   holdAt: number;
-  start: (rect: Rect, from: string) => void;
+  /** What the hold is waiting for, said plainly (it only shows when the wait is noticeable). */
+  label: string;
+  start: (rect: Rect, from: string, label?: string) => void;
   hold: () => void;
   lift: () => void;
   clear: () => void;
@@ -35,16 +37,17 @@ export const useCurtain = create<Curtain>((set, get) => ({
   rect: null,
   from: "#10141C",
   holdAt: 0,
-  start: (rect, from) => {
+  label: "",
+  start: (rect, from, label = "") => {
     window.clearTimeout(safety);
     window.clearTimeout(liftT);
-    set({ phase: "zoom", rect, from, holdAt: 0 });
+    set({ phase: "zoom", rect, from, holdAt: 0, label });
     safety = window.setTimeout(() => get().lift(), SAFETY_MS * 2);
   },
   hold: () => {
     if (!get().phase) return;
     window.clearTimeout(safety);
-    set({ phase: "hold", holdAt: performance.now() });
+    set({ phase: "hold", holdAt: performance.now(), label: "Opening the marshalling room" });
     safety = window.setTimeout(() => get().lift(), SAFETY_MS);
   },
   lift: () => {

@@ -65,7 +65,8 @@ export default function Import() {
     const grid = document.querySelector<HTMLElement>('[data-testid="preview-table"]')?.closest("section") ?? document.querySelector<HTMLElement>('[data-testid="import-page"]');
     const r = grid?.getBoundingClientRect();
     const zoom = new Promise((res) => window.setTimeout(res, calm ? ZOOM_CALM_MS : ZOOM_MS));
-    if (r) useCurtain.getState().start({ x: r.left, y: r.top, w: r.width, h: r.height }, getComputedStyle(grid!).backgroundColor);
+    if (r) useCurtain.getState().start({ x: r.left, y: r.top, w: r.width, h: r.height }, getComputedStyle(grid!).backgroundColor, imp ? `Allocating ${imp.live_rows} signals` : "Allocating");
+    void import("@/world3d/World3D"); // warm the 3D chunk while the engine allocates: the Room mounts without a Suspense gap
     await allocate.mutateAsync().catch(() => null);
     await zoom;
     try {
