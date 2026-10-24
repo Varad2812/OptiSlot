@@ -52,7 +52,7 @@ def test_unreadable_file_returns_a_result_with_a_read_tq(blob):
 
 
 def test_mapper_failure_is_a_tq(monkeypatch):
-    monkeypatch.setattr(pipeline, "auto_map", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(pipeline, "map_table", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     out = run(b"", table=table(two_domain_rows()))
     assert "SYS-map" in sys_cats(out) and out.kpis.allocated == 0
     assert any(t.category == "Required column missing" for t in out.tqs)
