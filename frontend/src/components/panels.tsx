@@ -66,7 +66,7 @@ export function CertificatePanel({ delay, to }: { delay?: number; to?: string })
           <div className={cn("text-[22px] font-semibold leading-tight tnum", pass ? "text-ok" : "text-err")}>
             {c.violations} violations <span className="text-muted-foreground">·</span> <span className="text-text">{ruleChecks(c)}</span>
           </div>
-          {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.signals.toLocaleString("en-US")} signals checked</div>}
+          {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.allocated.toLocaleString("en-US")} placed signals checked</div>}
           <dl className="mt-3 grid grid-cols-[96px_1fr] gap-y-1.5 text-[12px]">
             {([["Input MDB", c.mdb_sha256], ["Rule set", c.ruleset_hash], ["Output", c.output_sha256]] as const).map(([k, v]) => (
               <div key={k} className="contents">

@@ -44,7 +44,7 @@ follow (`backend/tests/test_no_hardcoded_literals.py` asserts that no part numbe
 | 20 | Extra wired spares for one IO type, on top of the global % | custom `extra_spares` | `CustomPlan.extra_target` | custom check (C23+) |
 | 21 | Future space: 10 % of each cabinet's baseplates (≈ 3–4 of 32) kept free at the END of the cabinet | `r-future` | `Engine.reserve` | **C12** |
 | 22 | Cabinet alarms (internal wiring / equipment is a cabinet) on baseplate 1 of CIOC 1 of each marshalling cabinet, exclusively | `r-alarm-bp` | `place_alarms`, `pack_alarms`, `alarm_remark` (remark text comes from the rule) | **C15** |
-| 23 | Names follow the project patterns (system cabinet, controller, marshalling cabinet, CIOC, baseplate, wired-spare tag, visualization) | `r-names` | `Engine.tokens`, `name()` | **C10** |
+| 23 | Names follow the project patterns (system cabinet, controller, marshalling cabinet, CIOC, baseplate, wired-spare tag, visualization). A cable lands together, so its rows share ONE location: a row with a blank/unmapped room or area inherits the cable's (`app/cabledomain.py`, one function used by pre-flight and by C10) | `r-names` | `Engine.tokens`, `name()`, pre-flight §4 (`cable_homes`) | **C10** (expects the cable-resolved location, not the row's raw area) |
 | 24 | Engineering columns are copied from the MDB (tag, service, signal type, …) | `r-out` | `xio/render.py` | **C17** |
 | 25 | Tag Status discipline: Field / Wired Spare / Spare Slot / Cabinet Alarm are not interchanged (guide "Common mistakes") | — | `Engine.put_signal`, `fill` | **C14** |
 | 26 | The CIOC count in the rows, the Capacity BOM and the KPIs agree | — | `compute_kpis`, `capacity_bom` | **C19** |

@@ -96,7 +96,7 @@ function Status({ collapsed }: { collapsed: boolean }) {
   if (collapsed) return <div className="flex justify-center py-1" title={a ? `Verifier: ${a.report.verdict}` : "No run yet"}><span className={cn("size-2 rounded-full", dot)} /></div>;
   return (
     <div className="rounded-chip border border-border bg-raised/50 px-2.5 py-2 text-[11.5px]" data-testid="rail-status">
-      <div className="flex items-center gap-2"><span className={cn("size-2 shrink-0 rounded-full", dot)} />{a ? (ok ? "Verified — 0 violations" : `${a.report.violations} violations`) : "No run yet"}</div>
+      <div className="flex items-center gap-2"><span className={cn("size-2 shrink-0 rounded-full", dot)} />{a ? (ok ? `Verified — 0 violations${a.kpis.allocated < a.kpis.signals ? ` · ${a.kpis.signals - a.kpis.allocated} unplaced` : ""}` : `${a.report.violations} violations`) : "No run yet"}</div>
       {a && <div className="mt-1 truncate font-mono text-[10.5px] text-muted-foreground" title={a.certificate.run_id}>{a.certificate.engine_version} · run {a.run_id.replace(/^run-/, "").slice(0, 8)}</div>}
     </div>
   );

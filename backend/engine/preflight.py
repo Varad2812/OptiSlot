@@ -5,8 +5,9 @@ Returns the set of cables that are allocated as TQ-covered exceptions (A+B famil
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 
+from app.cabledomain import cable_homes
 from app.schemas import ProjectSettings, Signal
 from engine.hardware import default_hw, listed_hw, resolve, signal_ctx
 from engine.normalise import blank
@@ -107,6 +108,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
 
     # 4 ── cable-level consistency (cabinet alarms on real cables are checked too)
     exceptions: dict[str, str] = {}
+    homes = cable_homes(signals, rules.params("naming_pattern").get("derive", {}), settings)
     cables: dict[str, list[Signal]] = defaultdict(list)
     for s in signals:
         if s.live and not s.quarantined and (s.kind == "field" or (s.cable and s.cable_size and s.pair)):
@@ -195,14 +197,18 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                 seen[s.pair] = s  # type: ignore[index]
 
         ok = [s for s in sigs if not s.quarantined]
-        domains = Counter(s.domain for s in ok)
-        if len(domains) > 1:
-            main = ok[0].domain
-            book.add("cable", "Cable spans domains", "medium",
-                     f"Cable {cable} has rows in {len(domains)} controller domains ({', '.join(domains)}) — kept together in {main}.",
-                     rows=_rows(ok), field="Technical room", confidence="candidate")
+        home = homes.get(cable)
+        if home and any(s.domain != home.domain for s in ok):
+            if home.conflicting:
+                msg = (f"Cable {cable} has rows in {len(home.domains)} controller domains ({', '.join(home.domains)}) — "
+                       f"kept together in {home.domain} (the domain of most of its rows).")
+            else:
+                msg = (f"Cable {cable}: {_span(list(home.inherited))} {'has' if len(home.inherited) == 1 else 'have'} no usable "
+                       f"room/area, so {'it takes' if len(home.inherited) == 1 else 'they take'} the cable's domain {home.domain} "
+                       f"from the other rows — kept together in {home.domain}.")
+            book.add("cable", "Cable spans domains", "medium", msg, rows=_rows(ok), field="Technical room", confidence="candidate")
             for s in ok:
-                s.domain = main
+                s.domain, s.loc, s.area_code, s.area4 = home.domain, home.loc, home.area_code, home.area4
 
         fams = {s.family for s in ok} - {"-"}
         if {"A", "B"} <= fams:

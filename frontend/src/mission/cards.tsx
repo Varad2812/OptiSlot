@@ -135,7 +135,7 @@ export function CertCard({ delay }: { delay?: number }) {
             <CountUp value={c.violations} /> violation{c.violations === 1 ? "" : "s"} <span className="text-muted-foreground">·</span>{" "}
             <span className="text-text">{c.checks_passed === c.checks_total ? <><CountUp value={c.checks_total} /> rule checks</> : <><CountUp value={c.checks_passed} />/{c.checks_total} rule checks</>}</span>
           </div>
-          {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.signals.toLocaleString("en-US")} signals checked</div>}
+          {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.allocated.toLocaleString("en-US")} placed signals checked</div>}
           <dl className="mt-3 grid grid-cols-[88px_1fr] gap-y-1.5 text-[12px]">
             {([["# Input MDB", c.mdb_sha256], ["# Rule set", c.ruleset_hash], ["# Output", c.output_sha256]] as const).map(([k, v]) => (
               <div key={k} className="contents">

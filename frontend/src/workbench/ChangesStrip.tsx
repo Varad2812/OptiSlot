@@ -31,7 +31,7 @@ export function ImpactBar({ a, state }: { a: AllocationResult; state: PlacementS
   const viol = ch ? ch.violations_now : a.report.violations;
   const tiles: Tile[] = [
     { label: "Violations", now: viol, was: a.report.violations, goodWhenLower: true, alert: viol > 0 },
-    { label: "Allocated", now: kn.allocated_pct, was: kb.allocated_pct, dec: kn.allocated_pct % 1 ? 1 : 0, suffix: "%" },
+    { label: "Placed", now: kn.allocated_pct, was: kb.allocated_pct, dec: kn.allocated_pct % 1 ? 1 : 0, suffix: "%" },
     { label: "Moved", now: ch?.moves?.length ?? 0, was: 0 },
     { label: "CIOCs", now: kn.ciocs, was: kb.ciocs, goodWhenLower: true },
     { label: "Cabinets", now: kn.cabinets, was: kb.cabinets, goodWhenLower: true },

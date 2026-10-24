@@ -81,7 +81,7 @@ def test_sample_counts(sample):
     k = sample.kpis
     assert k.signals == 189
     assert k.allocated == 189
-    assert k.allocated_pct == 100.0
+    assert k.allocated_pct == 100.0 and k.accounted_pct == 100.0
     # balanced (default): 3 cabinets × 4 CIOCs; controller 02 now carries field cables, so it gets its own spares
     assert k.status_counts == {"Field": 177, "Wired Spare": 24, "Cabinet Alarm": 12, "Spare Slot": 939}
     assert k.ciocs == 12 and len(sample.rows) == 1152

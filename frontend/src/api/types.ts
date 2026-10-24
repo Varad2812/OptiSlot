@@ -1335,6 +1335,8 @@ export interface components {
             allocated: number;
             /** Allocated Pct */
             allocated_pct: number;
+            /** Accounted Pct */
+            accounted_pct: number;
             /** Unallocated With Tq */
             unallocated_with_tq: number;
             /** Tqs Open */

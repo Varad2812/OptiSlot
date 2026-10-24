@@ -13,6 +13,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from app.cabledomain import cable_homes, row_home
 from app.ruleslang import ExprError, catalog, compiled_expr, derive, eval_cond, first_match, fmt, match_when
 from app.schemas import CheckResult, ProjectSettings, RuleCheckReport, RuleSet, Signal, TQ, Violation
 
@@ -536,6 +537,7 @@ def c_names(ctx: Ctx) -> CheckResult:
     rx = {k: pattern_parser(pats[k]) for k in ("system_cabinet", "controller", "marshalling", "cioc", "baseplate") if k in pats}
     derive_spec = p.get("derive", {})
     by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
+    homes = cable_homes(ctx.signals, derive_spec, ctx.settings)   # a cable lands together: its rows share ONE location
     for r in ctx.rows:
         errs: list[str] = []
         got: dict[str, dict] = {}
@@ -576,10 +578,12 @@ def c_names(ctx: Ctx) -> CheckResult:
                 errs.append(f"DSTName '{r.d.get('DSTName')}' ≠ '{dst}'")
         if r.status in ("Field", "Cabinet Alarm") and r.key in by_key and "loc" in toks:
             s = by_key[r.key]
-            loc = derive(derive_spec.get("loc"), s.room) or ctx.settings.loc_prefix_default
-            area = derive(derive_spec.get("area"), s.area) or ctx.settings.area_code_default
+            own = row_home(s, derive_spec, ctx.settings)
+            home = homes.get(s.cable)
+            loc, area = (home.loc, home.area_code) if home else (own.loc, own.area_code)
             if loc != toks.get("loc") or ("area" in toks and area != toks["area"]):
-                errs.append(f"{r.tag} (room {s.room}, area {s.area} → {loc}/{area}) is in cabinet {r.cab}")
+                via = f"; cable {s.cable} resolves to {loc}/{area}" if home and (loc, area) != (own.loc, own.area_code) else ""
+                errs.append(f"{r.tag} (room {s.room}, area {s.area} → {own.loc}/{own.area_code}{via}) is in cabinet {r.cab}")
         if errs:
             c.fail(r.v("; ".join(errs)))
         else:

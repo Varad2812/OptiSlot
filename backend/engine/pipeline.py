@@ -196,7 +196,7 @@ def _attempt(table: RawTable, mapping: list[ColumnMapping], rules: Rules, settin
         kpis = compute_kpis(signals, alloc.slots, alloc.cabinets, book.tqs, rules)
     except Exception as e:
         sys_tq(book, "render", "The scoreboard numbers could not be computed.", exc=e, severity="medium")
-        kpis = Kpis(signals=len(live), allocated=0, allocated_pct=0.0, unallocated_with_tq=0, tqs_open=len(book.tqs), violations=0,
+        kpis = Kpis(signals=len(live), allocated=0, allocated_pct=0.0, accounted_pct=0.0, unallocated_with_tq=0, tqs_open=len(book.tqs), violations=0,
                     cabinets=0, ciocs=0, baseplates_used=0, fill_pct=0.0, wired_spares=0, wired_target=0, status_counts={},
                     tq_by_category={}, spare_compliance=[], spares_per_cabinet=[])
     t5 = time.perf_counter()

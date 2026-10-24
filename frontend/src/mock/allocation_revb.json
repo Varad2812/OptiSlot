@@ -69509,6 +69509,7 @@
   "signals": 199,
   "allocated": 198,
   "allocated_pct": 100.0,
+  "accounted_pct": 100.0,
   "unallocated_with_tq": 1,
   "tqs_open": 3,
   "violations": 0,

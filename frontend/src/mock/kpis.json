@@ -2,6 +2,7 @@
  "signals": 189,
  "allocated": 189,
  "allocated_pct": 100.0,
+ "accounted_pct": 100.0,
  "unallocated_with_tq": 0,
  "tqs_open": 1,
  "violations": 0,

@@ -19,7 +19,7 @@ def main() -> None:
     out = run(a.mdb, load_ruleset(a.ruleset))
     k = out.kpis
     print(f"\n  OptiSlot · {out.table.file} · sheet {out.table.sheet} (header row {out.table.header_row})")
-    print(f"  {k.signals} live signals → {k.allocated} allocated ({k.allocated_pct}% allocated or TQ-explained)")
+    print(f"  {k.signals} live signals → {k.allocated} allocated ({k.allocated_pct}% placed, {k.accounted_pct}% placed or TQ-explained)")
     print("\n  Tag Status")
     for st in ("Field", "Wired Spare", "Cabinet Alarm", "Spare Slot"):
         print(f"    {st:14} {k.status_counts.get(st, 0):6}")

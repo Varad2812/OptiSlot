@@ -367,7 +367,8 @@ class CabinetSpares(Model):
 class Kpis(Model):
     signals: int                 # live signals in the MDB
     allocated: int
-    allocated_pct: float         # (allocated + TQ-explained) / live
+    allocated_pct: float         # PLACED: allocated / live — a slot exists for the signal
+    accounted_pct: float         # ACCOUNTED FOR: (allocated + TQ-explained) / live — every live signal has a slot or a TQ
     unallocated_with_tq: int
     tqs_open: int
     violations: int

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from app.schemas import (
-    BaseplateInfo, CabinetInfo, CiocInfo, ProjectSettings, Signal, Slot, WhyStep,
+    BaseplateInfo, CabinetInfo, CiocInfo, ProjectSettings, Signal, Slot, TQ, WhyStep,
 )
 from engine.hardware import resolve, signal_ctx, spare_slot_hw
 from engine.rules import Rules, catalog, derive, first_match, fmt, seg_family, seg_field, seg_level, seg_value
@@ -261,6 +261,7 @@ class Engine:
         self.cabs: list[Cab] = []
         self.blocks: list[Block] = []
         self.unplaced: list[Signal] = []
+        self.alarm_ovf: dict[tuple, dict] = {}   # (namespace, cabinet seq) → extra alarm baseplates and unplaced alarms
         self.by_row = {s.row: s for s in signals}
         self.dorder: dict[str, int] = {}
         self.deleted_pairs = {(s.cable, s.pair): s for s in signals if not s.live and s.cable and s.pair}
@@ -585,6 +586,28 @@ class Engine:
         for cab in cabs:
             self.pack_alarms(cab)
 
+    def alarm_overflow(self, cab: Cab, rule, extra_bp: int | None = None, lost: list[Signal] = ()) -> TQ:
+        """ONE "Cabinet alarm overflow" TQ per cabinet, however many extra baseplates it reserved or alarms it could not
+        place: the message names every extra baseplate and the rows/tags are the locations that were not allocated."""
+        st = self.alarm_ovf.setdefault((cab.ns, cab.seq), {"bps": set(), "lost": []})
+        if extra_bp is not None:
+            st["bps"].add(extra_bp)
+        st["lost"].extend(lost)
+        name = self.name("marshalling", cab)
+        bps = sorted(st["bps"])
+        more = (f"baseplate{'s' if len(bps) > 1 else ''} {', '.join(map(str, bps))} also reserved" if bps else "")
+        n = len({s.row for s in st["lost"]})
+        if n:
+            msg = (f"No room left for cabinet alarms in {name} — {n} alarm{'s' if n > 1 else ''} not allocated"
+                   + (f"; {more}" if more else "") + ".")
+        else:
+            msg = f"More cabinet alarms than one baseplate in {name} — {more}."
+        t = self.book.add("capacity", "Cabinet alarm overflow", "high" if n else "low", msg,
+                          rows=[s.row for s in st["lost"]], tags=[s.tag for s in st["lost"]], rules=[rule.id],
+                          key=f"alarmovf:{cab.ns}:{cab.seq}")
+        t.message, t.severity = msg, "high" if n else "low"
+        return t
+
     def pack_alarms(self, cab: Cab) -> None:
         """Give each cabinet alarm a channel on the reserved baseplate(s) — BEFORE field cables are assigned,
         so an overflow baseplate is reserved while it is still empty. Alarm cables keep their pairs contiguous."""
@@ -630,19 +653,14 @@ class Engine:
                 if spot is None:
                     b += 1
             if spot is None:
-                t = self.book.add("capacity", "Cabinet alarm overflow", "high",
-                                  f"No room left for cabinet alarms in {self.name('marshalling', cab)} — not allocated.",
-                                  rows=[s.row for s in group], tags=[s.tag for s in group], rules=[rule.id],
-                                  key=f"alarmfull:{cab.ns}:{cab.seq}")
+                t = self.alarm_overflow(cab, rule, lost=group)
                 for s in group:
                     self.book.quarantine_signal(s, "no room on the cabinet-alarm baseplates", t)
                     self.unplaced.append(s)
                 continue
             b, c0 = spot
             if b != bp0 and cab.reserved.get((local, b)) is None:
-                self.book.add("capacity", "Cabinet alarm overflow", "low",
-                              f"More cabinet alarms than one baseplate in {self.name('marshalling', cab)} — baseplate {b} also reserved.",
-                              rules=[rule.id], key=f"alarmovf:{cab.ns}:{cab.seq}:{b}")
+                self.alarm_overflow(cab, rule, extra_bp=b)
             cab.reserved[(local, b)] = "cabinet_alarm"
             for s in group:
                 c = c0 + ((s.pair or 1) - 1 if cabled else 0)

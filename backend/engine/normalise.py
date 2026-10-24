@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+from app.cabledomain import domain_of
 from app.schemas import ProjectSettings, Signal
 from engine.failsafe import sys_tq
 from engine.rules import Rules, derive, match_when
@@ -97,6 +98,7 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
 
     signals: list[Signal] = []
     notes_ignored: list[int] = []
+    blank_status: list[Signal] = []        # rows whose Status cell is empty although a Status column exists
     for row_no, rec in table.rows:
         try:
             if all(blank(col(rec, f)) for f in ("tag", "io_type", "cable", "pair")):
@@ -113,6 +115,8 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                 book.quarantine_signal(s, "no tag", t, {k: v for k, v in rec.items() if v and k in mapping.values()})
                 signals.append(s)
                 continue
+            if "status" in mapping and not status:
+                blank_status.append(s)
 
             raw_io = col(rec, "io_type").strip()
             s.io_type_raw = raw_io
@@ -152,7 +156,7 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                              rows=[row_no], field="Design area", key="unmapped-area")
             s.loc, s.area_code = loc, area_code
             s.area4 = derive(names.get("area4"), area_code) or area_code[:4]
-            s.domain = "|".join(getattr(s, k, "") if hasattr(s, k) else s.extra.get(k, "") for k in settings.domain_keys) or "ALL"
+            s.domain = domain_of(s, settings)
 
             if alarm_rule:
                 ctx = {"cable": s.cable, "equipment": s.equipment, "tag": s.tag, "io_type": s.io_type,
@@ -173,6 +177,16 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                        tags=[tag] if tag else [], severity="high")
             book.quarantine_signal(bad, "SYS-normalise: unexpected error", t)
             signals.append(bad)
+    if blank_status:     # ONE TQ for the whole column, never one per row
+        n = len(blank_status)
+        shown = ", ".join(str(s.row) for s in blank_status[:8]) + (" …" if n > 8 else "")
+        book.add("data", "Status blank", "low",
+                 f"Status blank — treated as New: {'row' if n == 1 else 'rows'} {shown} "
+                 f"{'has an empty Status cell and is' if n == 1 else 'have an empty Status cell and are'} allocated as live. "
+                 "Confirm the status (a DELETED row would not be allocated).",
+                 rows=[s.row for s in blank_status], tags=[s.tag for s in blank_status], field="Status",
+                 fixes=[{"label": "Set the status in the MDB"}, {"label": "Accept: blank means New"}],
+                 unchanged="Allocation is unchanged; the rows are allocated as New.", key="blank-status")
     if notes_ignored:
         table.notes.append(f"{len(notes_ignored)} note/separator row(s) with no tag, IO type, cable or pair ignored "
                            f"(rows {', '.join(map(str, notes_ignored[:8]))}{' …' if len(notes_ignored) > 8 else ''})")

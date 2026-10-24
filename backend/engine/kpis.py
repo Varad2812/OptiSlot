@@ -48,7 +48,8 @@ def compute_kpis(signals: list[Signal], slots: list[Slot], cabinets: list[Cabine
     open_tqs = [t for t in tqs if t.status == "open"]
     return Kpis(
         signals=len(live), allocated=allocated,
-        allocated_pct=round(100 * (allocated + explained) / len(live), 1) if live else 100.0,
+        allocated_pct=round(100 * allocated / len(live), 1) if live else 100.0,
+        accounted_pct=round(100 * (allocated + explained) / len(live), 1) if live else 100.0,
         unallocated_with_tq=explained, tqs_open=len(open_tqs), violations=violations,
         cabinets=len(cabinets), ciocs=sum(len(c.ciocs) for c in cabinets),  # instantiated = the rows and the BOM
         baseplates_used=used_bps,

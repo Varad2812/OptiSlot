@@ -17,12 +17,16 @@ interface Tile {
   sub?: string;
 }
 
+/** "181/188 placed · 100% accounted": placed = a slot exists; accounted for = a slot, or a TQ that says why not. Never conflated. */
+const placedSub = (k: { allocated: number; signals: number; accounted_pct: number }) =>
+  `${k.allocated}/${k.signals} placed · ${k.accounted_pct % 1 ? k.accounted_pct.toFixed(1) : k.accounted_pct}% accounted`;
+
 /** §10.2 scoreboard strip — the judging criteria as live numbers. Every tile links to its screen. */
 export function Scoreboard() {
   const { data: a } = useAllocation();
   const k = a?.kpis;
   const tiles: Tile[] = [
-    { label: "Allocated", to: "/grid", value: k?.allocated_pct ?? null, decimals: k && k.allocated_pct % 1 ? 1 : 0, suffix: "%", tone: k && k.allocated_pct >= 100 ? "ok" : "warn", sub: k ? `${k.allocated}/${k.signals} signals` : undefined },
+    { label: "Placed", to: "/grid", value: k?.allocated_pct ?? null, decimals: k && k.allocated_pct % 1 ? 1 : 0, suffix: "%", tone: k && k.allocated_pct >= 100 ? "ok" : "warn", sub: k ? placedSub(k) : undefined },
     { label: "Violations", to: "/proof", value: a?.report.violations ?? null, tone: a && a.report.violations > 0 ? "err" : "ok", sub: a ? ruleChecks(a.report) : undefined },
     { label: "Open TQs", to: "/tqs", value: k?.tqs_open ?? null, tone: k && k.tqs_open > 0 ? "warn" : "ok", sub: a ? `${a.tqs.length} raised · ${k!.unallocated_with_tq} unplaced` : undefined },
     { label: "Untouched", to: "/revisions", value: k?.stability_pct ?? null, decimals: 1, suffix: "%", tone: "brand", sub: k?.stability_pct == null ? "after Rev B" : "in place vs Rev A" },

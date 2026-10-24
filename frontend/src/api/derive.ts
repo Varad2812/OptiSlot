@@ -150,7 +150,7 @@ export function flowSteps(p: Project | undefined, a: AllocationResult | undefine
   return [
     { key: "upload", label: "Upload", path: "/import", state: p?.mdb_file ? "done" : "todo", hint: p?.mdb_file ?? "No MDB yet" },
     { key: "rules", label: "Rules", path: "/rules", state: (p?.ruleset_version ?? 0) >= 1 ? "done" : "todo", hint: `Rule set v${p?.ruleset_version ?? "–"}` },
-    { key: "allocate", label: "Allocate", path: "/allocate", state: a?.run_id ? "done" : "todo", hint: a ? `${a.kpis.allocated}/${a.kpis.signals} signals` : "Not run" },
+    { key: "allocate", label: "Allocate", path: "/allocate", state: a?.run_id ? "done" : "todo", hint: a ? `${a.kpis.allocated}/${a.kpis.signals} placed` : "Not run" },
     {
       key: "verify", label: "Verify", path: "/proof", state: !a ? "todo" : verified ? "done" : "warn",
       hint: a ? verifierLine(a.report, a.kpis.signals) : "Not run",

@@ -232,7 +232,7 @@ function Hooks({ a, t }: { a: AllocationResult | undefined; t: (d: number) => ob
       body: (
         <>
           <Big><Num to={k.signals} /><Small>signals → {k.cabinets} cabinet{k.cabinets === 1 ? "" : "s"}</Small></Big>
-          <Foot><b className="font-mono text-text"><Num to={k.allocated_pct} decimals={k.allocated_pct % 1 ? 1 : 0} />%</b> allocated · solved in <b className="font-mono text-text"><Num to={a.runtime_ms / 1000} decimals={1} /></b> s</Foot>
+          <Foot><b className="font-mono text-text"><Num to={k.allocated_pct} decimals={k.allocated_pct % 1 ? 1 : 0} />%</b> placed{k.allocated < k.signals && <> · {k.accounted_pct % 1 ? k.accounted_pct.toFixed(1) : k.accounted_pct}% accounted for (TQs)</>} · solved in <b className="font-mono text-text"><Num to={a.runtime_ms / 1000} decimals={1} /></b> s</Foot>
           <Meter pct={k.allocated_pct} />
         </>
       ),
@@ -243,7 +243,7 @@ function Hooks({ a, t }: { a: AllocationResult | undefined; t: (d: number) => ob
       body: (
         <>
           <Big className={fail ? "text-err" : "text-ok"}><Num to={cert.violations} /><Small>violation{cert.violations === 1 ? "" : "s"}</Small></Big>
-          <Foot>independently verified · <b className="font-mono text-text"><Num to={cert.checks_total} /></b> rule checks · {k.signals.toLocaleString("en-US")} signals</Foot>
+          <Foot>independently verified · <b className="font-mono text-text"><Num to={cert.checks_total} /></b> rule checks · {k.allocated.toLocaleString("en-US")}{k.allocated < k.signals && <> of {k.signals.toLocaleString("en-US")}</>} signals placed</Foot>
           <Ticks checks={a.report.checks} />
         </>
       ),
