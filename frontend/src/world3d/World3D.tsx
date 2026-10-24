@@ -16,7 +16,7 @@ import { useUi } from "@/store/ui";
 import { HeaderPlate, Legend } from "@/world/Plates";
 
 import { world3dData, type World3DData } from "./data";
-import { World3DEngine, type Level, type Selection, type WorldEvent } from "./engine";
+import { World3DEngine, type Level, type RevDiff3D, type Selection, type WorldEvent } from "./engine";
 
 /** Before | Now overlay (§10.8): slots that replace the allocation's, outlined changed CHARMs, ghosts at old slots. */
 export interface Overlay3D {
@@ -37,6 +37,10 @@ interface Props {
   /** Extra HUD controls at the top right (the Room's Before | Now toggle). */
   hudRight?: React.ReactNode;
   onEngine?: (e: World3DEngine | null) => void;
+  /** Upload Dive triggers (?dive=1, Replay dive, first visit). Default: on in the Room, off where the World is embedded. */
+  dive?: boolean;
+  /** Embedded stage (Proof, Revisions): no legend / hint line — the page has its own. */
+  minimal?: boolean;
 }
 
 const ROOM: Selection = { level: 0, cab: -1, cioc: -1, bp: -1, ch: -1, face: "F" };
@@ -49,12 +53,13 @@ const allowFallbackInDemo = (() => {
 })();
 
 /** React wrapper for the World3DEngine: mounts it, feeds it the allocation, and draws the HTML overlay in our design system. */
-export default function World3D({ model, dims, match, onFail, room, overlay, hudRight, onEngine }: Props) {
+export default function World3D({ model, dims, match, onFail, room, overlay, hudRight, onEngine, dive: diveOn = !!room, minimal }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const eng = useRef<World3DEngine | null>(null);
   const [ready, setReady] = useState(false);
   const [sel, setSel] = useState<Selection>(ROOM);
   const [diving, setDiving] = useState(false);
+  const [moment, setMoment] = useState<string | null>(null); // a motion moment owns the view: cards wait for its end
   const data = useMemo(() => world3dData(model, dims), [model, dims]);
   const [params, setParams] = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -75,6 +80,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
     const offs = [
       e.on("level", (s) => (setSel(s), card.clear())),
       e.on("hover", (h) => card.feed(h)),
+      e.on("moment", (m) => m.phase !== "frame" && (setMoment(m.phase === "start" ? m.name : null), card.clear())),
       e.on("select", (s) => {
         const st = useUi.getState();
         if (s.cab >= 0 && s.cab !== st.cabIdx) useUi.setState({ cabIdx: s.cab });
@@ -134,7 +140,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
   const nonce = useUi((s) => s.diveNonce);
   const lastNonce = useRef(nonce);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !diveOn) return;
     let want = false;
     if (params.get("dive") === "1") {
       want = true;
@@ -240,7 +246,15 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
       flyToSlot: (id: string) => eng.current?.flyToSlot(id),
       sibling: (d: 1 | -1) => eng.current?.sibling(d),
       flip: () => eng.current?.flip(),
-      animateMove: (from: string[], to: string[]) => eng.current?.animateMove(from, to),
+      animateMove: (from: string[], to: string[], o?: object) => eng.current?.animateMove(from, to, o),
+      // motion moments (§10.7): start one, then freeze it with seek(p) for frames at 0/25/50/75/100 %
+      scan: (fails?: string[]) => eng.current?.playVerifyScan({ fails }),
+      tamper: (ids: string[]) => eng.current?.playTamper(ids),
+      refuse: (id: string) => eng.current?.playRefuse(id),
+      revdiff: (d: RevDiff3D) => eng.current?.playRevDiff(d),
+      moment: () => eng.current?.momentName ?? null,
+      seek: (p: number) => eng.current?.seek(p),
+      skipMoment: () => eng.current?.skipMoment(),
       hoverAt: (x: number, y: number) => {
         const cv = host.current?.querySelector("canvas");
         const r = cv?.getBoundingClientRect();
@@ -330,7 +344,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
       </div>
 
       {/* legend + hint stack bottom-left: side by side they collide once the Room's change list narrows the view */}
-      <div className="absolute bottom-4 left-5 z-10 flex max-w-[calc(100%-40px)] flex-col items-start gap-1.5">
+      <div className={cn("absolute bottom-4 left-5 z-10 flex max-w-[calc(100%-40px)] flex-col items-start gap-1.5", minimal && "hidden")}>
         <div className="pointer-events-none pl-1 text-[11px] text-muted-foreground" data-testid="room-hint">
           {diving
             ? "Upload Dive — press any key to skip"
@@ -340,10 +354,10 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
       </div>
 
       <AnimatePresence>
-        {selSlot && !diving && <CharmPanel key={selSlot.id} slot={selSlot} model={model} dims={dims} />}
-        {room && !selSlot && !diving && <SelectionCard key={`${sel.level}-${sel.cab}-${sel.cioc}-${sel.bp}`} sel={sel} model={model} data={data} dims={dims} />}
+        {selSlot && !diving && !moment && <CharmPanel key={selSlot.id} slot={selSlot} model={model} dims={dims} />}
+        {room && !selSlot && !diving && !moment && <SelectionCard key={`${sel.level}-${sel.cab}-${sel.cioc}-${sel.bp}`} sel={sel} model={model} data={data} dims={dims} />}
       </AnimatePresence>
-      {card.h && !diving && (
+      {card.h && !diving && !moment && (
         <HoverCard h={card.h} model={model} data={data} dims={dims} overlay={overlay} hostW={host.current?.clientWidth ?? 0} hostH={host.current?.clientHeight ?? 0} lock={card.lock} />
       )}
     </div>

@@ -27,10 +27,12 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import type { Slot } from "@/api/hooks";
-import { IO_COLOURS, ioKey } from "@/lib/io";
+import { IO_COLOURS, ioKey, type IoKey } from "@/lib/io";
 
 import { KIND_KEYS, NONE, SPARE, ST_ALARM, ST_FIELD, ST_SPARE, ST_WIRED, type World3DData } from "./data";
 import { bpY, chX, decode, frameH, idxOf, isRear, ixOf, stackY, zOf, type Layout } from "./layout";
+import { DIVE, type DiveScript } from "./dive";
+import { ArcCurve, buildArcTrails, buildBeam, easeInOut, easeOut3, ringGeometry, span, type ArcTrails, type Beam } from "./fx";
 import { buildTrails, type Trails } from "./trails";
 
 CameraControls.install({
@@ -54,6 +56,14 @@ const TRAILS_MAX = 48;
 const OVERLAY_MAX = 512;
 const BLOOM = 0.66;
 const RIG_LIGHT = 1.8; // prototype 7: its point light left hot white spots on the glass and hinges
+const MARKS_MAX = 96;
+// motion-moment colours (§10.1): ok green for a verified CHARM, err red, warn amber, brand-2 cyan for live / new
+const OK = new THREE.Color(0x34d399);
+const ERR = new THREE.Color(0xf87171);
+const WARN = new THREE.Color(0xfbbf24);
+const LIVE = new THREE.Color(0x22d3ee);
+const BRAND = new THREE.Color(0xa78bfa);
+const DARK = new THREE.Color(0.09, 0.1035, 0.135); // a Spare Slot's protection cover (paint())
 
 export type Level = 0 | 1 | 2 | 3 | 4;
 /** Public address: cab 0-based, cioc/bp/ch 1-based (Slot fields), -1 = not applicable at this level. */
@@ -78,6 +88,8 @@ interface EventMap {
   select: WorldEvent;
   hover: WorldEvent | null;
   level: Selection;
+  /** A moment started / ended; `frame` fires once, after the moment's first frame is on screen (the Import curtain lifts then). */
+  moment: { name: MomentName; phase: "start" | "frame" | "end" };
 }
 export interface EngineStats {
   firstFrameMs: number | null;
@@ -90,6 +102,56 @@ export interface EngineStats {
 export interface EngineOptions {
   /** Calm motion: cuts instead of staged camera flights, no dive choreography. Read on every call. */
   calm?: () => boolean;
+}
+/** The running motion moment (verify scan, tamper, move, refused move, Rev B diff, dive) — see `seek`. */
+export type MomentName = "scan" | "tamper" | "move" | "refuse" | "revdiff" | "dive";
+export interface MomentOptions {
+  /** Start held at p = 0: the caller drives it with seek(p) from its own sequence (Proof / Revisions / Room). */
+  drive?: boolean;
+  /** Fly the camera to where the moment happens (default true). */
+  follow?: boolean;
+}
+/** Rev B diff for playRevDiff (slot ids of the CURRENT allocation; `io` = the slot's look in the previous revision). */
+export interface RevDiff3D {
+  added: string[];
+  removed: { id: string; io: IoKey }[];
+  changed: { id: string; io: IoKey }[];
+  moved: { from: string; to: string; io: IoKey }[];
+}
+
+interface Pose {
+  p: THREE.Vector3;
+  t: THREE.Vector3;
+}
+/** A seekable camera flight: start and end pose, interpolated in spherical coordinates around a moving target. */
+interface Flight {
+  a: Pose;
+  b: Pose;
+  hump: number;
+}
+interface Moment {
+  name: MomentName;
+  dur: number;
+  p: number;
+  held: boolean;
+  shown: boolean;
+  /** Put every non-colour piece of state at progress p (camera, fades, matrices, beams). Idempotent. */
+  apply(p: number): void;
+  /** Colour overrides after the base paint (only while the moment runs). */
+  paint?(p: number): void;
+  /** Leave the end state behind and release what the moment owns. Called exactly once. */
+  finish(): void;
+  resolve(): void;
+  off: () => void;
+}
+interface FadeSnap {
+  reg: Float32Array;
+  far: number;
+  door: number[];
+  spread: number[][];
+  charm: Float32Array;
+  b: number;
+  jb: number;
 }
 
 interface Sel {
@@ -209,15 +271,31 @@ export class World3DEngine {
   private kind = new Int8Array(0);
   private status = new Uint8Array(0);
   private slots: (Slot | null)[] = [];
-  private hidden = new Uint8Array(0); // 1 = drawn by a flyer right now (animateMove) — the slot itself waits
-  // overlays: changed-CHARM outlines, ghosts at the old slot, flyers for animateMove, the hover outline, L3 tags
+  // overlays: changed-CHARM outlines, ghosts at the old slot, flyers for moves, the hover outline, L3 tags
   private outline!: THREE.InstancedMesh;
   private ghosts!: THREE.InstancedMesh;
   private flyers!: THREE.InstancedMesh;
   private outPos = new Int32Array(0);
   private ghostPos = new Int32Array(0);
-  private flights: { from: THREE.Vector3; to: THREE.Vector3; out: number; t0: number; dur: number; lift: number }[] = [];
-  private flightDone: (() => void) | null = null;
+  // motion moments (§10.7): one at a time, every piece of it a function of its progress p → seekable for ?demo=1
+  private moment: Moment | null = null;
+  private fade: FadeSnap | null = null; // set while a moment drives the fades (the tick's smoothing pauses)
+  private cx = new Float32Array(0);     // instance → world x (the scan beam's position test)
+  private beam: Beam | null = null;
+  private marks!: THREE.InstancedMesh;  // coloured frames around CHARMs a moment points at (fail, refused, changed)
+  private rings!: THREE.InstancedMesh;  // ripples around them
+  private markIdx: number[] = [];       // instance index per mark (they follow the baseplate spread)
+  private arcs: ArcTrails | null = null;
+  private kept: { i: number; c: THREE.Color; a: number }[] | null = null;
+  private v1 = new THREE.Vector3();
+  private v2 = new THREE.Vector3();
+  private v3 = new THREE.Vector3();
+  private v4 = new THREE.Vector3();
+  private v5 = new THREE.Vector3();
+  private s1 = new THREE.Spherical();
+  private s2 = new THREE.Spherical();
+  private s3 = new THREE.Spherical();
+  private c1 = new THREE.Color();
   private hoverBox!: THREE.Mesh;
   private hoverGeo = new Map<string, THREE.BufferGeometry>();
   private hov: { c: number; k: number; b: number; m: number } | null = null;
@@ -236,13 +314,12 @@ export class World3DEngine {
   private trails: Trails | null = null;
   private trailA = 0;
   private trailT = 0;
-  private diveT = -1;
+  private trailClock = 0;
 
   // selection
   private sel: Sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
   private navToken = 0;
   private diving = false;
-  private diveSkip: (() => void) | null = null;
   private pd: { x: number; y: number; t: number } | null = null;
   private lastHv = 0;
   private ray = new THREE.Raycaster();
@@ -389,14 +466,17 @@ export class World3DEngine {
     if (this.data === data) return;
     const keep = this.data ? this.sel : null;
     this.data = data;
+    this.endMoment(); // a moment points at instance indices of the old layout
     const L = (this.L = data.layout);
     this.clearDyn();
     this.kind = data.kind.slice();
     this.status = data.status.slice();
     this.slots = data.slots.slice();
-    this.hidden = new Uint8Array(L.N);
-    this.flights = [];
-    this.flightDone?.();
+    this.cx = new Float32Array(L.N);
+    for (let i = 0; i < L.N; i++) {
+      const { c, k, m } = decode(L, i);
+      this.cx[i] = L.cab[c].x + ixOf(L, k) + chX(L, m);
+    }
     this.hov = null;
     this.layoutRoom(L);
     this.buildCharms(L);
@@ -518,47 +598,6 @@ export class World3DEngine {
     this.colourDirty = true;
   }
 
-  /**
-   * Workbench move (§10.7 motion 4, §10.8): each CHARM lifts off its old slot, flies an arc and settles on the new one
-   * (pairs of a cable fly together), then the new slots glow. A ghost stays at the old slot when the overlay has one.
-   */
-  animateMove(from: string[], to: string[]): Promise<void> {
-    const d = this.data, L = this.L;
-    if (!d || !L) return Promise.resolve();
-    this.flightDone?.();
-    const toIdx: number[] = [];
-    this.flights = [];
-    const fa = this.flyers;
-    for (let j = 0; j < Math.min(from.length, to.length, OVERLAY_MAX); j++) {
-      const a = d.index.get(from[j]), b = d.index.get(to[j]);
-      if (a == null || b == null || a === b) continue;
-      toIdx.push(b);
-      const p0 = this.charmPos(a), p1 = this.charmPos(b);
-      const k = this.kind[b] >= 0 ? this.kind[b] : d.kind[a];
-      fa.setColorAt(this.flights.length, k >= 0 ? IOC[k].clone().multiplyScalar(1.6 * IOGAIN[k]) : new THREE.Color(0x8c95a8));
-      const dist = p0.distanceTo(p1);
-      const out = isRear(L, decode(L, b).k) ? -1 : 1;
-      this.flights.push({ from: p0, to: p1, out, t0: this.el + j * 0.035, dur: Math.min(1.1, 0.55 + dist * 0.12), lift: Math.min(1.2, 0.18 + dist * 0.25) });
-    }
-    if (!this.flights.length) return Promise.resolve();
-    fa.count = this.flights.length;
-    fa.instanceColor!.needsUpdate = true;
-    const calm = this.opts.calm?.();
-    if (calm) for (const f of this.flights) f.dur = 0.01;
-    for (const i of toIdx) this.hidden[i] = 1;
-    this.retarget();
-    return new Promise<void>((res) => {
-      this.flightDone = () => {
-        this.flightDone = null;
-        this.flights = [];
-        this.flyers.count = 0;
-        for (const i of toIdx) this.hidden[i] = 0;
-        this.retarget();
-        res();
-      };
-    }).then(() => (calm ? undefined : this.pulse(to, "#22D3EE", 900)));
-  }
-
   /** Previous / next sibling at the current level (←/→): cabinet, CIOC, baseplate or CHARM. */
   sibling(dir: 1 | -1) {
     const L = this.L, d = this.data;
@@ -613,93 +652,425 @@ export class World3DEngine {
     void this.ctrl.dolly(this.ctrl.distance * k, true);
   }
 
-  // Later motion moments (§10.7 motion 2, 5, 6) build on the API above; they resolve immediately until then.
-  playVerifyScan(): Promise<void> { return Promise.resolve(); }
-  playRevDiff(_diff: unknown): Promise<void> { return Promise.resolve(); }
-  playTour(): Promise<void> { return Promise.resolve(); }
+  // ───────────── motion moments (§10.7) ─────────────
+  // One moment runs at a time. Each is a pure function of its progress p: the engine plays it on its own clock (any key or
+  // click skips to the end), or a page drives it with seek(p) from the sequence that also ticks its HTML (Proof, Revisions,
+  // Room). Calm mode turns flights into cuts and ripples / flights into fades.
+
+  /** The running moment (Playwright waits for it before seeking), or null. */
+  get momentName(): MomentName | null {
+    return this.moment?.name ?? null;
+  }
+
+  /** Freeze the running moment at p ∈ [0, 1]; p = 1 ends it (its end state stays). */
+  seek(p: number) {
+    const m = this.moment;
+    if (!m) return;
+    m.held = true;
+    m.p = Math.min(1, Math.max(0, p));
+    m.apply(m.p);
+    this.colourDirty = true;
+    if (m.p >= 1) this.endMoment();
+  }
+
+  /** Jump the running moment to its end state. */
+  skipMoment() {
+    this.endMoment();
+  }
 
   /**
-   * Upload Dive: fly in (wide FOV settles), cabinets light left → right, trails stream from the junction box to the
-   * baseplates that received cables (allocation order), camera sweeps the row, pushes through, lands at L1 of cabinet 1.
-   * Any key or pointer skips to the end state.
+   * Verify scan: a cyan light curtain sweeps the room left → right; every CHARM it crosses flashes green — red where the
+   * verifier failed it — and keeps a faint tint behind the beam until the certificate stamps. Windows match the Proof
+   * sequence (beam 0.04–0.62, stamp from 0.64), so Proof drives it with seek(p) and the beam and the check ticks are one motion.
    */
-  async playDive(): Promise<void> {
+  playVerifyScan(o: MomentOptions & { fails?: string[]; seconds?: number } = {}): Promise<void> {
+    const L = this.L, d = this.data;
+    if (!L || !d) return Promise.resolve();
+    this.prep();
+    const calm = !!this.opts.calm?.();
+    const fail = new Uint8Array(L.N);
+    for (const id of o.fails ?? []) {
+      const i = d.index.get(id);
+      if (i != null) fail[i] = 1;
+    }
+    const beam = this.ensureBeam(L);
+    let x0 = Infinity, x1 = -Infinity;
+    for (const c of L.cab) (x0 = Math.min(x0, c.x)), (x1 = Math.max(x1, c.x));
+    x0 -= L.W / 2 + 1;
+    x1 += L.W / 2 + 1;
+    const room: Sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
+    const fl = o.follow !== false && this.sel.level !== 0 ? this.flightOrCut(room, 0.1, calm) : null;
+    let bx = x0, on = 0, trail = 0, wash = 0, P = 0;
+    const { kind, cx } = this;
+    return this.begin("scan", calm ? 0.6 : (o.seconds ?? 2.2), !!o.drive, {
+      apply: (p) => {
+        P = p;
+        if (fl) this.fly(fl, easeInOut(span(p, 0, 0.1)));
+        bx = x0 + (x1 - x0) * span(p, 0.04, 0.62);
+        on = span(p, 0.02, 0.07) * (1 - span(p, 0.6, 0.66));
+        trail = 1 - span(p, 0.64, 0.92);
+        wash = Math.sin(Math.PI * span(p, 0.04, 0.7));
+        beam.set(bx, calm ? 0 : on);
+      },
+      paint: () => {
+        for (let i = 0; i < L.N; i++) {
+          if (kind[i] === NONE) continue;
+          const f = fail[i];
+          let amt: number, gain: number;
+          if (calm) (amt = wash * (f ? 0.8 : 0.3)), (gain = f ? 2 : 1.6);
+          else {
+            const dd = (cx[i] - bx) / 0.5, hit = on * Math.exp(-dd * dd);
+            const behind = P >= 0.62 || cx[i] < bx ? trail * span(P, 0.04, 0.06) : 0;
+            amt = Math.min(1, hit * 0.95 + behind * (f ? 0.8 : 0.22));
+            gain = (f ? 2.2 : 1.5) + hit * 1.6;
+          }
+          if (amt > 0.004) this.mixCol(i, f ? ERR : OK, amt, gain);
+        }
+      },
+      finish: () => beam.set(0, 0),
+    });
+  }
+
+  /**
+   * Tamper caught: the camera flies to the first failing slot; every failing CHARM flashes red ×3 inside a red frame while
+   * rings ripple out. The frames stay after the moment (cleared by the next one).
+   */
+  playTamper(ids: string[], o: MomentOptions = {}): Promise<void> {
+    const L = this.L, d = this.data;
+    const idx = ids.map((id) => d?.index.get(id)).filter((i): i is number => i != null).slice(0, MARKS_MAX);
+    if (!L || !d || !idx.length) return Promise.resolve();
+    this.prep();
+    const calm = !!this.opts.calm?.();
+    const { c, k, b, m } = decode(L, idx[0]);
+    const fl = o.follow !== false ? this.flightOrCut({ level: 4, c, k, b, m }, 0.18, calm) : null;
+    const F0 = fl && !calm ? 0.46 : 0;
+    let u = 0, fa = 0;
+    return this.begin("tamper", calm ? 0.7 : fl ? 3.4 : 2, !!o.drive, {
+      apply: (p) => {
+        if (fl) this.fly(fl, easeInOut(span(p, 0, 0.48)));
+        u = span(p, F0, 1);
+        fa = span(p, F0, F0 + 0.08);
+        idx.forEach((i, j) => {
+          if (calm) return this.mark(j, i, ERR, 1.5 * fa);
+          const q = Math.min(2.999, u * 3), lo = q % 1, q2 = (q + 0.5) % 1;
+          this.mark(j, i, ERR, 1.6 * fa, 0.08 + 0.3 * easeOut3(lo), u < 1 ? Math.pow(1 - lo, 1.5) * fa * 1.6 : 0, 0.08 + 0.3 * easeOut3(q2), u > 0.17 && u < 0.83 ? Math.pow(1 - q2, 1.5) * 1.1 : 0);
+        });
+        this.marks.count = idx.length;
+        this.rings.count = idx.length * 2;
+      },
+      paint: () => {
+        const pulse = calm ? fa : 0.5 - 0.5 * Math.cos(u * Math.PI * 6);
+        for (const i of idx) this.mixCol(i, ERR, Math.max(0.4 * fa, pulse * fa), 2.4);
+      },
+      finish: () => this.keepMarks(idx.map((i) => ({ i, c: ERR, a: 2.2 }))),
+    });
+  }
+
+  /**
+   * Workbench move (§10.7 motion 4, §10.8): the camera frames both ends (follow), each CHARM lifts off its old slot and flies
+   * an arc with a light trail behind it (pairs of a cable fly together), the old slot keeps a ghost of it, the new slot
+   * lights up as it lands. The slots themselves already hold the new state (Before | Now overlay) — the moment only draws.
+   */
+  animateMove(from: string[], to: string[], o: MomentOptions = {}): Promise<void> {
+    const L = this.L, d = this.data;
+    if (!L || !d) return Promise.resolve();
+    const pairs: [number, number][] = [];
+    for (let j = 0; j < Math.min(from.length, to.length, OVERLAY_MAX); j++) {
+      const a = d.index.get(from[j]), b = d.index.get(to[j]);
+      if (a != null && b != null && a !== b) pairs.push([a, b]);
+    }
+    if (!pairs.length) return Promise.resolve();
+    this.prep();
+    const calm = !!this.opts.calm?.();
+    let fl: Flight | null = null;
+    if (o.follow !== false) {
+      // frame both ends: the baseplate / CIOC / cabinet they share, else the destination's cabinet
+      const A = decode(L, pairs[0][0]), B = decode(L, pairs[0][1]);
+      const lv: Level = A.c !== B.c ? 1 : A.k !== B.k ? 1 : A.b !== B.b ? 2 : 3;
+      const tgt: Sel = { level: lv, c: B.c, k: lv >= 2 ? B.k : -1, b: lv >= 3 ? B.b : -1, m: -1 };
+      const s = this.sel;
+      const inView = s.level === lv && s.c === tgt.c && s.k === tgt.k && s.b === tgt.b;
+      if (lv === 1) this.face = isRear(L, B.k) ? 1 : 0;
+      if (!inView) fl = this.flightOrCut(tgt, 0.08, calm);
+    }
+    const fx = this.flightsFx(pairs, fl && !calm ? 0.3 : 0.04, 0.84, calm);
+    return this.begin("move", calm ? 0.6 : fl ? 3 : 2.2, !!o.drive, {
+      apply: (p) => {
+        if (fl) this.fly(fl, easeInOut(span(p, 0, 0.3)));
+        fx.apply(p);
+      },
+      paint: (p) => fx.paint(p),
+      finish: () => fx.finish(),
+    });
+  }
+
+  /** Arc flights a → b inside [T0, T1] (shared by moves and the Rev B diff): flyers, trails, ghost at a, glow at b. */
+  private flightsFx(pairs: [number, number][], T0: number, T1: number, calm: boolean) {
+    const L = this.L!, d = this.data!, n = pairs.length;
+    const stg = n > 1 ? Math.min(0.03, ((T1 - T0) * 0.35) / (n - 1)) : 0;
+    const len = T1 - T0 - stg * (n - 1);
+    const win = pairs.map((_, j) => [T0 + j * stg, T0 + j * stg + len] as const);
+    const kOf = (a: number, b: number) => (this.kind[b] >= 0 ? this.kind[b] : d.kind[a]);
+    const look = pairs.map(([a, b]) => {
+      const k = kOf(a, b);
+      return k >= 0 ? IOC[k].clone().multiplyScalar(1.5 * IOGAIN[k]) : DARK.clone();
+    });
+    let curves: ArcCurve[] | null = null;
+    const fa = this.flyers;
+    pairs.forEach(([a, b], j) => fa.setColorAt(j, look[j].clone().multiplyScalar(1.1 + (kOf(a, b) >= 0 ? 0 : 3))));
+    fa.instanceColor!.needsUpdate = true;
+    const P = new THREE.Vector3();
+    const us = new Array<number>(n).fill(0);
+    return {
+      apply: (p: number) => {
+        pairs.forEach((_, j) => (us[j] = span(p, win[j][0], win[j][1])));
+        if (calm) return;
+        // built once the camera has landed: the baseplate spread (and so the CHARM positions) is final by then
+        if (!curves && p >= T0) {
+          curves = pairs.map(([a, b]) => {
+            const p0 = this.charmPos(a), p1 = this.charmPos(b), dist = p0.distanceTo(p1);
+            return new ArcCurve(p0, p1, Math.min(1.2, 0.16 + dist * 0.25), isRear(L, decode(L, b).k) ? -1 : 1);
+          });
+          this.arcs?.dispose();
+          this.arcs = buildArcTrails(curves, look.map((c) => c.clone().lerp(LIVE, 0.35)));
+          this.dyn.add(this.arcs.group);
+        }
+        if (!curves) return;
+        const arr = fa.instanceMatrix.array as Float32Array;
+        let shown = 0;
+        curves.forEach((cv, j) => {
+          const u = us[j], live = p >= win[j][0] - 0.01 && u < 1;
+          cv.getPoint(easeInOut(u), P);
+          writeT(arr, j, P.x, P.y, P.z, live);
+          if (live) shown++;
+        });
+        fa.count = n;
+        fa.instanceMatrix.needsUpdate = true;
+        if (!shown && p >= T1) fa.count = 0;
+        this.arcs?.set(us.map(easeInOut), span(p, T0, T0 + 0.04) * (1 - span(p, T1, Math.min(1, T1 + 0.14))));
+      },
+      paint: (p: number) => {
+        pairs.forEach(([a, b], j) => {
+          const u = us[j];
+          // the old slot: the signal still sits there until it lifts off, then a ghost of it stays
+          if (calm) this.mixCol(a, look[j], 0.3 * (1 - span(p, 0.6, 1)), 1);
+          else if (u <= 0) this.setCol(a, look[j]);
+          else this.mixCol(a, look[j], 0.3, 0.8);
+          // the new slot: empty until the CHARM lands, then a cyan flare that settles into its own colour
+          const land = win[j][1];
+          if (!calm && u < 1) this.setCol(b, DARK);
+          else {
+            const g = calm ? 0.6 * Math.sin(Math.PI * span(p, 0, 1)) : Math.exp(-(p - land) / 0.07);
+            this.mixCol(b, LIVE, 0.75 * g, 2.6);
+          }
+        });
+      },
+      finish: () => {
+        fa.count = 0;
+        if (this.arcs) {
+          this.dyn.remove(this.arcs.group);
+          this.arcs.dispose();
+          this.arcs = null;
+        }
+      },
+    };
+  }
+
+  /**
+   * Refused move: the camera flies to the target baseplate; the target slot shakes left-right inside a red frame and a red
+   * ring, then settles. Nothing changed, so nothing stays behind.
+   */
+  playRefuse(slotId: string, o: MomentOptions = {}): Promise<void> {
+    const L = this.L, i = this.data?.index.get(slotId);
+    if (!L || i == null) return Promise.resolve();
+    this.prep();
+    const calm = !!this.opts.calm?.();
+    const a = decode(L, i), s = this.sel;
+    const inView = s.c === a.c && s.k === a.k && s.b === a.b && s.level >= 3;
+    const fl = o.follow !== false && !inView ? this.flightOrCut({ level: 3, c: a.c, k: a.k, b: a.b, m: -1 }, 0.1, calm) : null;
+    const S0 = fl && !calm ? 0.4 : 0.04;
+    let env = 0;
+    return this.begin("refuse", calm ? 0.6 : fl ? 2.4 : 1.4, !!o.drive, {
+      apply: (p) => {
+        if (fl) this.fly(fl, easeInOut(span(p, 0, 0.4)));
+        const u = span(p, S0, S0 + 0.42);
+        env = span(p, S0, S0 + 0.05) * (1 - span(p, 0.86, 1));
+        this.nudge(i, calm || u >= 1 ? 0 : Math.sin(u * Math.PI * 10) * 0.024 * Math.pow(1 - u, 1.2));
+        const r = span(p, S0, S0 + 0.3);
+        this.mark(0, i, ERR, 1.6 * env, 0.08 + 0.28 * easeOut3(r), calm ? 0 : (1 - r) * 1.4 * env);
+        this.marks.count = 1;
+        this.rings.count = 2;
+      },
+      paint: () => this.mixCol(i, ERR, 0.65 * env, 2.2),
+      finish: () => {
+        this.nudge(i, 0);
+        this.clearMarks();
+      },
+    });
+  }
+
+  /**
+   * Rev B diff (§10.7 motion 5): unchanged CHARMs dim; removed ones flare red and dissolve into their new look; changed
+   * ones pulse amber twice and flip to the new hardware; new ones fade in cyan; moved ones fly an arc from the old slot.
+   * The changed slots keep a frame in their kind's colour at the end. Revision Center / Room drive it with seek(p).
+   */
+  playRevDiff(diff: RevDiff3D, o: MomentOptions = {}): Promise<void> {
+    const L = this.L, d = this.data;
+    if (!L || !d) return Promise.resolve();
+    this.prep();
+    const calm = !!this.opts.calm?.();
+    const at = (id: string) => d.index.get(id);
+    const items: { i: number; kind: "added" | "removed" | "changed"; old: THREE.Color; w: [number, number] }[] = [];
+    const mask = new Uint8Array(L.N);
+    const W = { removed: [0.1, 0.4], changed: [0.3, 0.6], added: [0.45, 0.75] } as const;
+    const push = (id: string, kind: "added" | "removed" | "changed", io: IoKey) => {
+      const i = at(id);
+      if (i == null || mask[i]) return;
+      mask[i] = 1;
+      items.push({ i, kind, old: this.lookOf(io), w: [...W[kind]] });
+    };
+    diff.removed.forEach((r) => push(r.id, "removed", r.io));
+    diff.changed.forEach((r) => push(r.id, "changed", r.io));
+    diff.added.forEach((id) => push(id, "added", "spare"));
+    const pairs: [number, number][] = [];
+    for (const mv of diff.moved) {
+      const a = at(mv.from), b = at(mv.to);
+      if (a == null || b == null || a === b) continue;
+      mask[a] = mask[b] = 1;
+      pairs.push([a, b]);
+    }
+    const flights = pairs.length ? this.flightsFx(pairs, 0.52, 0.92, calm) : null;
+    // camera: the one cabinet that changed (its busier face), else the whole room
+    let fl: Flight | null = null;
+    if (o.follow !== false) {
+      const all = [...items.map((x) => x.i), ...pairs.flat()];
+      const cabs = new Set(all.map((i) => decode(L, i).c));
+      const tgt: Sel = cabs.size === 1 ? { level: 1, c: [...cabs][0], k: -1, b: -1, m: -1 } : { level: 0, c: -1, k: -1, b: -1, m: -1 };
+      if (cabs.size === 1) {
+        const rear = all.filter((i) => isRear(L, decode(L, i).k)).length;
+        this.face = rear * 2 > all.length ? 1 : 0;
+      }
+      const s = this.sel;
+      if (all.length && (s.level !== tgt.level || s.c !== tgt.c)) fl = this.flightOrCut(tgt, 0.1, calm);
+      else if (all.length && tgt.level <= 1) this.focus(!calm);
+    }
+    const marks = [
+      ...items.map((x) => ({ i: x.i, c: x.kind === "added" ? LIVE : x.kind === "removed" ? ERR : WARN, w: x.w })),
+      ...pairs.map(([, b]) => ({ i: b, c: BRAND, w: [0.52, 0.92] as [number, number] })),
+    ].slice(0, MARKS_MAX);
+    let dim = 1, P = 0;
+    const { kind } = this;
+    return this.begin("revdiff", calm ? 0.8 : 3.4, !!o.drive, {
+      apply: (p) => {
+        P = p;
+        if (fl) this.fly(fl, easeInOut(span(p, 0, 0.1)));
+        dim = 1 - 0.7 * span(p, 0.02, 0.1) * (1 - span(p, 0.92, 1));
+        flights?.apply(p);
+        marks.forEach((x, j) => {
+          const a = span(p, x.w[0], x.w[0] + 0.06), r = span(p, x.w[1] - 0.04, x.w[1] + 0.12);
+          this.mark(j, x.i, x.c, 1.1 * a, 0.08 + 0.26 * easeOut3(r), calm || r <= 0 || r >= 1 ? 0 : (1 - r) * 1.3);
+        });
+        this.marks.count = marks.length;
+        this.rings.count = marks.length * 2;
+      },
+      paint: () => {
+        if (dim < 0.999) for (let i = 0; i < L.N; i++) if (kind[i] !== NONE && !mask[i]) this.scaleCol(i, dim);
+        for (const x of items) {
+          const u = span(P, x.w[0], x.w[1]);
+          if (x.kind === "removed") {
+            const q1 = span(u, 0, 0.45), q2 = span(u, 0.45, 1);
+            const shimmer = q2 > 0 && q2 < 1 ? 0.65 + 0.35 * Math.sin(u * 46 + x.i) : 1;
+            this.blendCol(x.i, x.old, 1 - q2, ERR, q1 * (1 - q2) * 0.9, 2.4, shimmer);
+          } else if (x.kind === "changed") {
+            const pulse = 0.5 - 0.5 * Math.cos(u * Math.PI * 4);
+            this.blendCol(x.i, x.old, u < 0.5 ? 1 : 0, WARN, pulse * 0.85, 2.3);
+          } else {
+            const q1 = span(u, 0, 0.5), q2 = span(u, 0.5, 1);
+            this.blendCol(x.i, DARK, 1 - q1, LIVE, q1 * (1 - q2), 2.6);
+          }
+        }
+        flights?.paint(P);
+      },
+      finish: () => {
+        flights?.finish();
+        this.keepMarks(marks.map((x) => ({ i: x.i, c: x.c, a: 0.9 })));
+      },
+    });
+  }
+
+  playTour(): Promise<void> {
+    return Promise.resolve(); // §10.7 motion 6 — not built yet
+  }
+
+  /**
+   * Upload Dive: a DiveScript (keyframes + effect curves, see dive.ts) played as a seekable moment. Fly in (the wide FOV
+   * settles), cabinets light up left → right, trails stream from the junction box to the baseplates that received cables
+   * (allocation order), the camera sweeps the row, pushes through and lands at L1 of the first cabinet. Any key or click skips.
+   */
+  async playDive(script: DiveScript = DIVE): Promise<void> {
     const L = this.L;
     if (!L || this.diving) return;
-    const token = ++this.navToken;
+    this.prep();
     this.diving = true;
-    this.sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
-    this.retarget();
-    this.emitLevel();
-    let skipped = false;
-    const skip = () => {
-      skipped = true;
-      this.navToken++;
-    };
-    const onKey = (e: Event) => (e.preventDefault(), e.stopPropagation(), skip());
-    window.addEventListener("keydown", onKey, true);
-    this.renderer.domElement.addEventListener("pointerdown", skip);
-    this.diveSkip = skip;
-    const ok = () => !skipped && token === this.navToken && !this.disposed;
-    try {
-      if (!this.opts.calm?.()) {
-        const trails = this.ensureTrails();
-        trails.group.visible = true;
-        this.trailA = 0;
-        this.trailT = 0;
-        this.diveT = this.el;
-        const sw = Math.max(1, L.room.w / 12.3);
-        const [hx, , hz] = L.home.target;
-        this.cam.fov = 80;
+    const calm = !!this.opts.calm?.();
+    const room: Sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
+    const land: Sel = { level: 1, c: 0, k: -1, b: -1, m: -1 };
+    this.face = 0;
+    this.setSel(room, false, false);
+    const trails = calm ? null : this.ensureTrails();
+    // the spline: the script's poses + the landing pose (probed, not flown to)
+    const keys = script.keys(L);
+    const end = this.probe(land);
+    const at = [...keys.map((k) => k.at), 1];
+    const pos = new THREE.CatmullRomCurve3([...keys.map((k) => new THREE.Vector3(...k.pos)), end.p], false, "centripetal");
+    const tgt = new THREE.CatmullRomCurve3([...keys.map((k) => new THREE.Vector3(...k.target)), end.t], false, "centripetal");
+    const P = new THREE.Vector3(), T = new THREE.Vector3();
+    let landed = false;
+    if (trails) trails.group.visible = true;
+    await this.begin("dive", calm ? 0.35 : script.dur, false, {
+      apply: (p) => {
+        if (calm) {
+          if (!landed) (landed = true), this.setSel(land, false);
+          return;
+        }
+        // time → spline parameter: piecewise linear through the keys, eased out on the last segment
+        let j = 0;
+        while (j < at.length - 2 && p >= at[j + 1]) j++;
+        let lo = span(p, at[j], at[j + 1]);
+        if (j === at.length - 2) lo = Math.sin((lo * Math.PI) / 2);
+        const u = (j + lo) / (at.length - 1);
+        pos.getPoint(u, P);
+        tgt.getPoint(u, T);
+        this.ctrl.setLookAt(P.x, P.y, P.z, T.x, T.y, T.z, false);
+        this.cam.fov = this.fovT = script.fov(p);
         this.cam.updateProjectionMatrix();
-        this.fovT = 40;
-        this.ctrl.setLookAt(hx, 5, 56 * sw, hx, 2, hz * 0.5, false);
-        await this.sleep(80);
-        if (ok()) {
-          this.ctrl.smoothTime = 1.4;
-          this.ctrl.setLookAt(hx, 4.5 * Math.sqrt(sw), 19 * sw, hx, 1.8, hz * 0.4, true);
-          this.trailT = 1;
-          this.cabs.forEach((cb, c) => window.setTimeout(() => (cb.gt = this.diving ? 1 : 0), 1100 + (2400 * c) / Math.max(1, L.n)));
-          await this.sleep(1800);
+        if (p >= script.land && !landed) {
+          landed = true;
+          this.assignRigs([0]);
+          this.setSel(land, false, false);
+          this.captureFades();
+        } else if (p < script.land && landed) {
+          landed = false; // seeking back before the landing
+          this.fade = null;
+          this.setSel(room, false, false);
         }
-        if (ok()) {
-          this.ctrl.setLookAt(-5.5 * sw, 3, 12.5, -2 * sw, 1.8, 0, true);
-          await this.sleep(1700);
-        }
-        if (ok()) {
-          this.ctrl.setLookAt(5.5 * sw, 3.5, 12.5, 2 * sw, 1.8, 0, true);
-          await this.sleep(1700);
-        }
-        if (ok()) {
-          const c0 = L.cab[0];
-          this.ctrl.setLookAt(c0.x * 0.5, 1.6, 9.5, c0.x * 0.5, 1.7, 0, true); // low push-through
-          await this.sleep(1200);
-        }
-      }
-    } finally {
-      window.removeEventListener("keydown", onKey, true);
-      this.renderer.domElement.removeEventListener("pointerdown", skip);
-      this.diveSkip = null;
-    }
-    if (this.disposed) return;
-    // End state (also the skip target): trails fade, glow settles, land at L1 of the first cabinet.
-    this.trailT = 0;
-    this.cabs.forEach((c) => (c.gt = 0));
-    this.ctrl.smoothTime = 0.6;
-    this.fovT = 40;
-    if (skipped) {
-      this.cam.fov = 40;
-      this.cam.updateProjectionMatrix();
-      this.trailA = 0;
-      this.cabs.forEach((c) => (c.glow = 0));
-    }
-    this.diving = false;
-    this.assignRigs([0]);
-    this.setSel({ level: 1, c: 0, k: -1, b: -1, m: -1 }, !skipped);
-    window.setTimeout(() => {
-      if (this.trailT === 0 && this.trails) this.trails.group.visible = false;
-      this.diveT = -1;
-    }, 1600);
+        if (landed) this.driveFades(easeInOut(span(p, script.land, 1)));
+        this.trailA = this.trailT = script.trail(p);
+        this.trailClock = script.clock(p);
+        this.cabs.forEach((cb, c) => (cb.glow = cb.gt = script.glow(p, c, L.n)));
+      },
+      finish: () => {
+        this.diving = false;
+        this.cam.fov = this.fovT = 40;
+        this.cam.updateProjectionMatrix();
+        this.trailA = this.trailT = 0;
+        if (this.trails) this.trails.group.visible = false;
+        this.cabs.forEach((cb) => (cb.glow = cb.gt = 0));
+        if (!landed || this.sel.level !== 1) this.setSel(land, false);
+        else this.retarget(); // labels hidden while diving come back
+      },
+      skipKeys: true,
+    });
   }
 
   get isDiving() {
@@ -707,7 +1078,7 @@ export class World3DEngine {
   }
 
   skipDive() {
-    this.diveSkip?.();
+    if (this.moment?.name === "dive") this.endMoment();
   }
 
   resize() {
@@ -725,8 +1096,7 @@ export class World3DEngine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
-    this.flightDone?.();
-    this.diveSkip?.();
+    this.endMoment();
     const cv = this.renderer.domElement;
     cv.removeEventListener("pointerdown", this.onDown);
     cv.removeEventListener("pointerup", this.onUp);
@@ -810,6 +1180,10 @@ export class World3DEngine {
     this.dyn.clear();
     this.trails?.dispose();
     this.trails = null;
+    this.beam?.dispose();
+    this.beam = null;
+    this.arcs?.dispose();
+    this.arcs = null;
     this.reg = [];
     this.rigs = [];
     this.cabLabels = [];
@@ -863,7 +1237,16 @@ export class World3DEngine {
     this.ghosts.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(OVERLAY_MAX * 3), 3);
     this.flyers = new THREE.InstancedMesh(this.charms.geometry, new THREE.MeshBasicMaterial({ toneMapped: false }), OVERLAY_MAX);
     this.flyers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(OVERLAY_MAX * 3), 3);
-    for (const im of [this.outline, this.ghosts, this.flyers]) {
+    this.marks = new THREE.InstancedMesh(frameGeometry(w + 0.03, h + 0.03, d + 0.03, 0.009), new THREE.MeshBasicMaterial({ toneMapped: false }), MARKS_MAX);
+    this.marks.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MARKS_MAX * 3), 3);
+    this.rings = new THREE.InstancedMesh(
+      ringGeometry(),
+      new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }),
+      MARKS_MAX * 2,
+    );
+    this.rings.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MARKS_MAX * 2 * 3), 3);
+    this.markIdx = [];
+    for (const im of [this.outline, this.ghosts, this.flyers, this.marks, this.rings]) {
       im.count = 0;
       im.frustumCulled = false;
       im.raycast = nop;
@@ -1235,6 +1618,215 @@ export class World3DEngine {
     return this.trails;
   }
 
+  // ───────────── moment plumbing ─────────────
+
+  private begin(
+    name: MomentName, dur: number, held: boolean,
+    parts: { apply(p: number): void; paint?(p: number): void; finish?(): void; skipKeys?: boolean },
+  ): Promise<void> {
+    this.endMoment();
+    return new Promise<void>((resolve) => {
+      const cv = this.renderer.domElement;
+      const skip = (e: Event) => {
+        if (this.moment !== m || m.held) return;
+        if (parts.skipKeys) (e.preventDefault(), e.stopPropagation());
+        else if (e instanceof KeyboardEvent && (e.metaKey || e.ctrlKey || e.altKey)) return;
+        this.endMoment();
+      };
+      window.addEventListener("keydown", skip, true);
+      cv.addEventListener("pointerdown", skip);
+      const m: Moment = {
+        name, dur: Math.max(0.05, dur), p: 0, held, shown: false, apply: parts.apply, paint: parts.paint, finish: parts.finish ?? nop, resolve,
+        off: () => (window.removeEventListener("keydown", skip, true), cv.removeEventListener("pointerdown", skip)),
+      };
+      this.moment = m;
+      this.lastInput = this.el;
+      m.apply(0);
+      this.colourDirty = true;
+      this.emit("moment", { name, phase: "start" });
+    });
+  }
+
+  /** End the running moment: its end state (p = 1) stays, what it owns is released, its promise resolves. */
+  private endMoment() {
+    const m = this.moment;
+    if (!m) return;
+    this.moment = null;
+    m.off();
+    m.p = 1;
+    m.apply(1);
+    this.fade = null;
+    m.finish();
+    this.colourDirty = true;
+    this.emit("moment", { name: m.name, phase: "end" });
+    m.resolve();
+  }
+
+  /** Ready a new moment: the previous one ends first (its selection and fades must not land on top of the new flight). */
+  private prep() {
+    this.endMoment();
+    this.clearMarks();
+  }
+
+  /** Calm: cut to s now (no flight). Otherwise a seekable flight from the current camera to s; the targets switch to s now. */
+  private flightOrCut(s: Sel, hump: number, calm: boolean): Flight | null {
+    if (calm) return void this.setSel(s, false), null;
+    const a = this.pose(false);
+    const b = this.probe(s);
+    this.setSel(s, false, false);
+    this.captureFades();
+    return { a, b, hump };
+  }
+
+  private pose(end: boolean): Pose {
+    return { p: this.ctrl.getPosition(new THREE.Vector3(), end), t: this.ctrl.getTarget(new THREE.Vector3(), end) };
+  }
+
+  /** Where focus() would put the camera for s — computed, not flown: the camera is put straight back. */
+  private probe(s: Sel): Pose {
+    const keep = this.sel, face = this.face, a = this.pose(false);
+    this.sel = { ...s };
+    if (s.level >= 2) this.face = isRear(this.L!, s.k) ? 1 : 0;
+    this.focus(false);
+    const b = this.pose(true);
+    this.sel = keep;
+    this.face = face;
+    this.ctrl.setLookAt(a.p.x, a.p.y, a.p.z, a.t.x, a.t.y, a.t.z, false);
+    return b;
+  }
+
+  /** Camera + fades at flight progress e: spherical around a target that leads (so the subject stays in frame), radius log-lerped with a hump. */
+  private fly(f: Flight, e: number) {
+    const sa = this.s1.setFromVector3(this.v1.subVectors(f.a.p, f.a.t));
+    const sb = this.s2.setFromVector3(this.v2.subVectors(f.b.p, f.b.t));
+    const dth = ((((sb.theta - sa.theta + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+    // turn while still far out (an orbit to a rear CIOC must not cut through the cabinet), then dive in
+    const ea = 1 - Math.pow(1 - e, 2.5), er = Math.pow(e, 1.4);
+    const r = Math.pow(sa.radius, 1 - er) * Math.pow(sb.radius, er) * (1 + f.hump * Math.sin(Math.PI * e));
+    const t = this.v3.lerpVectors(f.a.t, f.b.t, 1 - (1 - e) * (1 - e));
+    const p = this.v4.setFromSpherical(this.s3.set(r, sa.phi + (sb.phi - sa.phi) * ea, sa.theta + dth * ea)).add(t);
+    this.ctrl.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
+    this.driveFades(e);
+    if (e >= 1) this.fade = null; // landed: the tick's smoothing owns the fades again
+  }
+
+  /** Snapshot every smoothed value (fades, doors, spreads, CHARM alphas) — a flight interpolates them from here to their targets. */
+  private captureFades() {
+    this.fade = {
+      reg: Float32Array.from(this.reg, (r) => r.cur),
+      far: this.far.cur,
+      door: this.rigs.map((r) => r.door.o),
+      spread: this.rigs.map((r) => r.iocs.map((o) => o.s)),
+      charm: this.cur.slice(),
+      b: this.bCur,
+      jb: this.jbA,
+    };
+  }
+
+  private driveFades(e: number) {
+    const f = this.fade;
+    if (!f) return;
+    const lerp = (a: number, b: number) => a + (b - a) * e;
+    this.reg.forEach((r, j) => (r.cur = lerp(f.reg[j], r.t)));
+    this.far.cur = lerp(f.far, this.far.t);
+    this.rigs.forEach((rig, j) => {
+      rig.door.o = lerp(f.door[j], rig.door.t);
+      rig.iocs.forEach((o, k) => {
+        const s = lerp(f.spread[j][k], o.t);
+        if (Math.abs(s - o.s) > 1e-5) (o.s = s), this.updIoc(rig, k);
+      });
+    });
+    const { cur, tgt } = this;
+    for (let i = 0; i < cur.length; i++) cur[i] = f.charm[i] + (tgt[i] - f.charm[i]) * e;
+    this.bCur = f.b + (this.bT - f.b) * Math.pow(e, 4); // the cable bundle hangs right in front of the lens until the very end
+    this.jbA = lerp(f.jb, this.jbT);
+    if (this.hov) this.placeHover();
+  }
+
+  /** The colour slot of CHARM i (the hatched mesh for wired spares). */
+  private colRef(i: number): [Float32Array, number] {
+    const wp = this.wsPos[i];
+    return wp >= 0 ? [this.hatch.instanceColor!.array as Float32Array, wp * 3] : [this.charms.instanceColor!.array as Float32Array, i * 3];
+  }
+
+  /** Paint override: mix CHARM i towards c × gain by amt. Respects the CHARM's fade. */
+  private mixCol(i: number, c: THREE.Color, amt: number, gain = 1) {
+    const [a, j] = this.colRef(i), f = this.cur[i] * gain;
+    a[j] += (c.r * f - a[j]) * amt;
+    a[j + 1] += (c.g * f - a[j + 1]) * amt;
+    a[j + 2] += (c.b * f - a[j + 2]) * amt;
+  }
+  private setCol(i: number, c: THREE.Color) {
+    this.mixCol(i, c, 1);
+  }
+  private scaleCol(i: number, k: number) {
+    const [a, j] = this.colRef(i);
+    a[j] *= k;
+    a[j + 1] *= k;
+    a[j + 2] *= k;
+  }
+  /** Base → old look (weight wOld) → towards hot × gain (weight wHot), then × alpha (a dissolve shimmer). */
+  private blendCol(i: number, old: THREE.Color, wOld: number, hot: THREE.Color, wHot: number, gain: number, alpha = 1) {
+    this.mixCol(i, old, wOld);
+    this.mixCol(i, hot, wHot, gain);
+    if (alpha !== 1) this.scaleCol(i, alpha);
+  }
+
+  /** The look of a CHARM of this IO kind (a Field CHARM's painted colour; spare = the dark cover). */
+  private lookOf(io: IoKey): THREE.Color {
+    const k = KIND_KEYS.indexOf(io);
+    return k >= 0 ? IOC[k].clone().multiplyScalar(1.5 * IOGAIN[k]) : DARK.clone();
+  }
+
+  /** Mark j: a frame around CHARM i (brightness a) + two ripple rings (radius, brightness). Additive: 0 = invisible. */
+  private mark(j: number, i: number, c: THREE.Color, a: number, r1 = 0, a1 = 0, r2 = 0, a2 = 0) {
+    if (j >= MARKS_MAX) return;
+    const L = this.L!, p = this.charmPos(i, this.v5);
+    writeT(this.marks.instanceMatrix.array as Float32Array, j, p.x, p.y, p.z, a > 0.002);
+    this.marks.setColorAt(j, this.c1.copy(c).multiplyScalar(a));
+    const z = p.z + (isRear(L, decode(L, i).k) ? -1 : 1) * (L.charm.d / 2 + 0.014);
+    const ra = this.rings.instanceMatrix.array as Float32Array;
+    writeS(ra, j * 2, p.x, p.y, z, r1, a1 > 0.002);
+    writeS(ra, j * 2 + 1, p.x, p.y, z, r2, a2 > 0.002);
+    this.rings.setColorAt(j * 2, this.c1.copy(c).multiplyScalar(a1));
+    this.rings.setColorAt(j * 2 + 1, this.c1.copy(c).multiplyScalar(a2));
+    this.markIdx[j] = i;
+    this.marks.instanceMatrix.needsUpdate = this.rings.instanceMatrix.needsUpdate = true;
+    this.marks.instanceColor!.needsUpdate = this.rings.instanceColor!.needsUpdate = true;
+  }
+
+  /** Frames that outlive their moment (failing slots, Rev B changes); they follow the baseplate spread until cleared. */
+  private keepMarks(list: { i: number; c: THREE.Color; a: number }[]) {
+    this.kept = list.slice(0, MARKS_MAX);
+    this.layKept();
+  }
+  private layKept() {
+    const k = this.kept;
+    if (!k) return;
+    k.forEach((x, j) => this.mark(j, x.i, x.c, x.a));
+    this.marks.count = k.length;
+    this.rings.count = 0;
+  }
+  private clearMarks() {
+    this.kept = null;
+    if (this.marks) this.marks.count = this.rings.count = 0;
+  }
+
+  /** Shake offset for one CHARM (refused move). dx = 0 puts it back. */
+  private nudge(i: number, dx: number) {
+    const p = this.charmPos(i, this.v5), wp = this.wsPos[i], im = wp >= 0 ? this.hatch : this.charms;
+    writeT(im.instanceMatrix.array as Float32Array, wp >= 0 ? wp : i, p.x + dx, p.y, p.z, this.kind[i] !== NONE);
+    im.instanceMatrix.needsUpdate = true;
+  }
+
+  private ensureBeam(L: Layout): Beam {
+    if (this.beam) return this.beam;
+    const rows = [...new Set(L.cab.map((c) => c.z))];
+    this.beam = buildBeam(rows.map((z) => ({ z, depth: L.D })), L.H + 0.6, HOVER);
+    this.dyn.add(this.beam.group);
+    return this.beam;
+  }
+
   // ───────────── selection & fade ─────────────
 
   /** Target opacity (0..1) of an object at depth L (1 cabinet, 2 CIOC, 3 baseplate, 4 CHARM) — the prototype's T(). */
@@ -1262,7 +1854,7 @@ export class World3DEngine {
     this.far.t = level == 0 ? 1 : 0.07;
     for (let i = 0; i < Lo.N; i++) {
       const { c, k, b, m } = decode(Lo, i);
-      this.tgt[i] = this.hidden[i] ? 0 : this.T(c, k, b, m, 4) * (this.dim[i] ? 0.12 : 1);
+      this.tgt[i] = this.T(c, k, b, m, 4) * (this.dim[i] ? 0.12 : 1);
     }
     for (const rig of this.rigs) {
       rig.door.t = level >= 1 && rig.c === sc ? 1 : 0;
@@ -1309,7 +1901,8 @@ export class World3DEngine {
     this.colourDirty = true;
   }
 
-  private setSel(s: Sel, transition: boolean) {
+  /** `camera: false` = only the targets (fades, doors, spread, rigs) — a moment's flight moves the camera itself. */
+  private setSel(s: Sel, transition: boolean, camera = true) {
     const prevC = this.sel.c;
     this.lastInput = this.el;
     this.sel = { ...s };
@@ -1317,7 +1910,7 @@ export class World3DEngine {
     this.setHover(null);
     if (s.c >= 0) this.assignRigs(prevC >= 0 && prevC !== s.c ? [s.c, prevC] : [s.c]);
     this.retarget();
-    this.focus(transition && !this.opts.calm?.());
+    if (camera) this.focus(transition && !this.opts.calm?.());
     this.emitLevel();
     this.emit("select", { ...this.pub(s), ...this.extra(s), screen: this.screenOf(s) });
   }
@@ -1559,8 +2152,17 @@ export class World3DEngine {
     this.el += dt;
     const el = this.el;
     const k = 1 - Math.exp(-dt * 5);
+    const kf = this.fade ? 0 : k; // a moment's flight drives the fades itself
     const L = this.L;
     const cam = this.cam;
+    const mo = this.moment;
+    if (mo) {
+      this.lastInput = el; // no idle drift under a moment
+      if (!mo.held) {
+        mo.p = Math.min(1, mo.p + dt / mo.dur);
+        mo.apply(mo.p);
+      }
+    }
     if (this.sel.level == 0 && !this.diving && el - this.lastInput > 4) this.ctrl.rotate(dt * 0.07, 0, true); // idle drift
     if (Math.abs(this.fovT - cam.fov) > 0.01) {
       cam.fov += (this.fovT - cam.fov) * Math.min(1, dt * 1.3);
@@ -1568,26 +2170,28 @@ export class World3DEngine {
     }
     this.ctrl.update(dt);
     for (const r of this.reg) {
-      r.cur += (r.t - r.cur) * k;
+      r.cur += (r.t - r.cur) * kf;
       r.m.opacity = r.base * r.cur;
     }
     if (L && this.data) {
       const f = this.far;
-      f.cur += (f.t - f.cur) * k;
+      f.cur += (f.t - f.cur) * kf;
       for (const x of f.mats) x.m.opacity = x.base * f.cur;
+      let spreading = false;
       for (const rig of this.rigs) {
         if (rig.c < 0) continue;
         const d = rig.door;
-        d.o += (d.t - d.o) * k * 0.6;
+        d.o += (d.t - d.o) * kf * 0.6;
         const e = d.o * d.o * (3 - 2 * d.o);
         for (const p of rig.dp) p.piv.rotation.y = p.s * e * 1.9;
         rig.light.intensity = RIG_LIGHT + (this.cabs[rig.c]?.glow ?? 0) * 18;
         const front = cam.position.z > L.cab[rig.c].z; // CIOC labels only on the face the camera sees
         rig.iocs.forEach((o, kk) => {
           o.label.visible = o.labelOn && isRear(L, kk) !== front;
-          if (Math.abs(o.t - o.s) > 0.001) {
-            o.s += (o.t - o.s) * k * 0.8;
+          if (kf && Math.abs(o.t - o.s) > 0.001) {
+            o.s += (o.t - o.s) * kf * 0.8;
             this.updIoc(rig, kk);
+            spreading = true;
           }
         });
       }
@@ -1604,7 +2208,7 @@ export class World3DEngine {
       jbm.emissiveIntensity = 0.04 + g * 1.6;
       this.jbLight.intensity = g * 22;
       // the junction box belongs to the room view and the dive; inside a cabinet it would hang behind the CHARMs
-      this.jbA += (this.jbT - this.jbA) * k;
+      this.jbA += (this.jbT - this.jbA) * kf;
       this.jb.visible = this.jbA > 0.01;
       jbm.opacity = this.jbA;
       this.jb.traverse((o) => {
@@ -1614,15 +2218,17 @@ export class World3DEngine {
       this.trailA += (this.trailT - this.trailA) * Math.min(1, dt * 2.5);
       if (this.trails) {
         this.trails.setAlpha(this.trailA);
-        this.trails.uT.value = this.diveT < 0 ? 0 : el - this.diveT;
+        this.trails.uT.value = this.trailClock;
       }
-      if (this.hov && this.rigs.some((r) => r.iocs.some((o) => Math.abs(o.t - o.s) > 0.001))) this.placeHover();
-      if (this.flights.length) this.fly(el);
+      if (spreading) {
+        if (this.hov) this.placeHover();
+        if (this.kept && !mo) this.layKept();
+      }
       const pulsing = this.pulse0 >= 0 && el - this.pulse0 < this.pulseDur;
       if (this.pulse0 >= 0 && !pulsing) (this.pulse0 = -1), (this.colourDirty = true);
-      if (this.colourDirty || glowMoving || pulsing) this.paint(k, pulsing);
+      if (this.colourDirty || glowMoving || pulsing || mo) this.paint(kf, pulsing);
     }
-    this.bCur += (this.bT - this.bCur) * k;
+    this.bCur += (this.bT - this.bCur) * kf;
     for (const m of this.bMats) m.opacity = this.bCur;
     if (this.bCur < 0.01 && this.bT == 0) this.bundle.visible = false;
 
@@ -1632,25 +2238,11 @@ export class World3DEngine {
     this.lastTris = this.renderer.info.render.triangles;
     this.css.render(this.scene, cam);
     if (this.firstFrameMs == null && this.data) this.firstFrameMs = Math.round(performance.now() - this.t0);
+    if (mo && this.moment === mo) {
+      if (!mo.shown) (mo.shown = true), this.emit("moment", { name: mo.name, phase: "frame" });
+      if (!mo.held && mo.p >= 1) this.endMoment();
+    }
   };
-
-  /** animateMove flights: lift, arc, settle (ease in-out, a short overshoot-free landing). */
-  private fly(el: number) {
-    const fa = this.flyers.instanceMatrix.array as Float32Array;
-    const p = new THREE.Vector3();
-    let done = true;
-    this.flights.forEach((f, j) => {
-      const u = Math.min(1, Math.max(0, (el - f.t0) / f.dur));
-      if (u < 1) done = false;
-      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
-      p.lerpVectors(f.from, f.to, e);
-      p.y += Math.sin(Math.PI * e) * f.lift;
-      p.z += Math.sin(Math.PI * e) * 0.18 * f.out; // swing out of the cabinet face, not through the CHARMs
-      writeT(fa, j, p.x, p.y, p.z, true);
-    });
-    this.flyers.instanceMatrix.needsUpdate = true;
-    if (done) this.flightDone?.();
-  }
 
   /** Recompute instance colours (only called while something is changing). Converged → the dirty flag clears. */
   private paint(k: number, pulsing: boolean) {
@@ -1691,6 +2283,7 @@ export class World3DEngine {
       arr[j + 1] = g;
       arr[j + 2] = b;
     }
+    this.moment?.paint?.(this.moment.p);
     this.charms.instanceColor!.needsUpdate = true;
     this.hatch.instanceColor!.needsUpdate = true;
     this.colourDirty = moving;
@@ -1706,6 +2299,12 @@ function writeT(a: Float32Array, i: number, x: number, y: number, z: number, sho
   a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0;
   a[o + 8] = 0; a[o + 9] = 0; a[o + 10] = s; a[o + 11] = 0;
   a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1;
+}
+
+/** Translation + uniform XY scale (a ring of radius s) — or zero-scale when hidden. */
+function writeS(a: Float32Array, i: number, x: number, y: number, z: number, s: number, show: boolean) {
+  writeT(a, i, x, y, z, show);
+  if (show) (a[i * 16] = s), (a[i * 16 + 5] = s);
 }
 
 /** A box outline made of 12 thin bars (instanceable, unlike LineSegments) — the changed-CHARM frame. */

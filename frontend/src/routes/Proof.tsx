@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, useTransform } from "framer-motion";
-import { FileUp, Loader2, Maximize2, RefreshCw, ShieldCheck, Undo2, Upload, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bug, FileUp, Loader2, Maximize2, RefreshCw, ShieldCheck, Undo2, Upload, XCircle } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { dimsOf, worldModel } from "@/api/derive";
@@ -17,11 +17,16 @@ import { CertStamp, CheckRow, hashRow, RunHistory, type CertView } from "@/proof
 import { collectFails, firstFlyable, lastTick, listFor, SCAN_CALM_S, SCAN_S, TICKS_FROM, tagIndex, type Fail } from "@/proof/scan";
 import { CountUp } from "@/shell/CountUp";
 import { ScanOverlay } from "@/proof/ScanOverlay";
+import { makeTampered } from "@/proof/tamper";
 import { sha256File, sleep } from "@/proof/util";
 import { useUi } from "@/store/ui";
 import { CabinetWorld } from "@/world/CabinetWorld";
 import { cabinetBounds, fit, sideOf, SLOT_H, SLOT_W, slotXY, type Insets } from "@/world/geometry";
 import { useStage } from "@/world/useStage";
+import type { World3DEngine } from "@/world3d/engine";
+import { hasWebGL } from "@/world3d/support";
+
+const World3D = lazy(() => import("@/world3d/World3D"));
 
 const INSETS: Insets = { top: 56, right: 18, bottom: 96, left: 18 };
 const SCAN_KEY = "optislot-scan-seen";
@@ -55,6 +60,12 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   const model = useMemo(() => worldModel(a, dims), [a, dims]);
   const tags = useMemo(() => tagIndex(a), [a]);
   const stage = useStage(model.cabinets.length, dims, INSETS);
+  // 3D stage (§10.7 motion 2 + 3): the whole room is scanned, the camera flies into the failing slot; 2D World as the fallback
+  const use3d = useUi((s) => s.view3d) && hasWebGL();
+  const eng = useRef<World3DEngine | null>(null);
+  const onEngine = useCallback((e: World3DEngine | null) => (eng.current = e), []);
+  const scanOn = useRef(false); // the sequence is a scan right now (the progress → beam bridge listens only then)
+  const scanFails = useRef<string[]>([]);
 
   const [src, setSrc] = useState<Source>({ kind: "run" });
   const [phase, setPhase] = useState<Phase>("done");
@@ -93,10 +104,15 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     await sleep(L.calm ? 160 : 800);
   }, []);
 
-  /** Fly in until the slot is large enough to read its tag. */
-  const flyTo = useCallback(async (f: Fail) => {
+  /** Fly in until the slot is large enough to read its tag (3D: the camera dives to the CHARM, which flashes red in its frame). */
+  const flyTo = useCallback(async (f: Fail, all?: Fail[]) => {
     const s = f.slot;
     if (!s) return;
+    const e = eng.current;
+    if (e) {
+      const ids = [s.id, ...(all ?? []).map((x) => x.slot?.id).filter((x): x is string => !!x && x !== s.id)];
+      return e.playTamper(ids);
+    }
     await showCabinet(f);
     const L = live.current;
     const ci = L.model.cabIndexByName.get(s.cabinet);
@@ -108,16 +124,30 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   }, [showCabinet]);
 
   const resetView = useCallback(() => {
+    if (eng.current) return void eng.current.goTo(0);
     const L = live.current;
     L.stage.cam.springTo(fit(cabinetBounds(L.stage.idx, L.dims), L.stage.vp.w, L.stage.vp.h, INSETS));
   }, []);
 
   // ───── the scan ─────
   const play = useCallback(async () => {
+    scanOn.current = true;
     seq.seek(0);
     setPhase("scanning");
     await seq.play(live.current.calm ? SCAN_CALM_S : SCAN_S);
+    scanOn.current = false;
   }, [seq]);
+
+  // the one progress value also drives the 3D beam: CHARMs flash green as the checks tick (red where they failed)
+  useEffect(() => {
+    if (!use3d) return;
+    return seq.progress.on("change", (v) => {
+      const e = eng.current;
+      if (!e || !scanOn.current) return;
+      if (e.momentName !== "scan") void e.playVerifyScan({ drive: true, follow: false, fails: scanFails.current });
+      e.seek(v);
+    });
+  }, [use3d, seq]);
 
   /** Scan a report; if it fails, mark the slots, pulse them and fly the camera to the first one. */
   const settle = useCallback(async (rep: RuleCheckReport) => {
@@ -130,7 +160,14 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     scrollRef.current?.scrollTo({ top: 0 }); // a new report starts at its first check; a flyable failure scrolls itself into view later
     const { fails } = collectFails(rep, L.a, L.model, L.tags);
     const first = firstFlyable(fails);
-    if (first) await showCabinet(first); // glide there first, so the beam crosses the cabinet that holds the failure
+    scanFails.current = fails.map((f) => f.slot?.id).filter((x): x is string => !!x);
+    const e = eng.current;
+    if (e) {
+      // the scan reads the whole room: fly out to it first
+      const away = e.selection.level !== 0;
+      void e.goTo(0);
+      if (away) await sleep(L.calm ? 120 : 950);
+    } else if (first) await showCabinet(first); // glide there first, so the beam crosses the cabinet that holds the failure
     if (run !== token.current) return;
     await play();
     if (run !== token.current) return;
@@ -139,7 +176,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       setFocusKey(first.key);
       setPulseKey((k) => k + 1);
       setPhase("flying");
-      await flyTo(first);
+      await flyTo(first, fails);
       if (run !== token.current) return;
     }
     setPhase("done");
@@ -215,6 +252,22 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     }
   }, [pid, qc, settle]);
 
+  /** Tamper test: a copy of our own export with ONE CHARM Type changed, verified like any dropped file — it must fail. */
+  const [tampering, setTampering] = useState(false);
+  const tamperTest = useCallback(async () => {
+    setTampering(true);
+    try {
+      const t = await makeTampered(pid);
+      toast.message(`Tampered copy: row ${t.row}, ${t.column}`, { description: `${t.tag.replace(/\s+/g, " ")}: ${t.from} → ${t.to}. Sending it to the independent verifier…` });
+      await verifyFile(t.file);
+    } catch (e) {
+      const net = e instanceof TypeError;
+      toast.error(net ? "Export unreachable" : "Could not make the tampered copy", { description: net ? "The API is offline — the test needs the exported workbook." : (e as Error).message });
+    } finally {
+      setTampering(false);
+    }
+  }, [pid, verifyFile]);
+
   const reverify = useCallback(() => {
     if (verify.isPending) return;
     setSrc({ kind: "run" });
@@ -228,7 +281,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const drag = useRef(0);
-  const busy = phase === "uploading" || phase === "scanning" || verify.isPending;
+  const busy = phase === "uploading" || phase === "scanning" || verify.isPending || tampering;
   verifyBusy.current = verify.isPending;
 
   // ?demo=1 hooks for scripts/shots.mjs
@@ -238,13 +291,16 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       seek: (v: number) => {
         token.current++;
         setPhase("scanning");
+        scanOn.current = true; // the progress listener starts (or reuses) a driven 3D scan and seeks it
         seq.seek(v);
+        scanOn.current = v < 1;
         if (v >= 1) setPhase("done");
       },
+      tamper: () => tamperTest(),
       play: () => settle(live.current.a.report),
       state: () => phaseRef.current,
     });
-  }, [seq, settle]);
+  }, [seq, settle, tamperTest]);
 
   const certified = a.certificate.output_sha256;
   const cert: CertView = useMemo(() => {
@@ -298,6 +354,9 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={backToRun} disabled={busy} data-testid="back-to-run"><Undo2 className="size-3.5" /> Back to the current run</Button>
           )}
           <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => fileRef.current?.click()} disabled={busy} data-testid="verify-any"><Upload className="size-3.5" /> Verify any Excel</Button>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => void tamperTest()} disabled={busy} data-testid="tamper-test" title="Change one CHARM Type in a copy of our export and verify it — it must fail">
+            {tampering ? <Loader2 className="size-3.5 animate-spin" /> : <Bug className="size-3.5" />} Tamper test
+          </Button>
           <Button size="sm" className="h-8 gap-1.5 text-[12px]" onClick={reverify} disabled={busy} data-testid="reverify">
             {verify.isPending || phase === "scanning" ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />} Re-verify now
             <kbd className="rounded-[4px] bg-white/15 px-1 font-mono text-[10px]">V</kbd>
@@ -314,33 +373,44 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
           onDragLeave={() => (drag.current = Math.max(0, drag.current - 1), drag.current === 0 && setOver(false))}
           onDrop={(e) => (e.preventDefault(), (drag.current = 0), setOver(false), void verifyFile(e.dataTransfer.files[0]))}
         >
-          <div className="bg-world absolute inset-0">
-            <motion.div className="absolute inset-0" style={{ opacity: stage.opacity, rotateY: stage.rotateY, transformPerspective: 1800 }}>
-              <CabinetWorld
-                model={model} dims={dims} cam={stage.cam} side={stage.side} activeIdx={stage.idx} cabinetS={stage.cabinetS}
-                selectedId={marked.length ? marked.find((f) => f.key === focusKey)?.slot?.id ?? null : null}
-                overlay={overlay} onSize={stage.onSize} onSlot={(id) => ui.inspect(id)} onCabinet={(i) => ui.goCabinet(i)}
-              />
-            </motion.div>
-          </div>
-
-          <div className="pointer-events-none absolute left-4 top-3 z-10 flex items-center gap-2">
-            <div className="pointer-events-auto flex gap-1">
-              {model.cabinets.slice(0, 12).map((c) => (
-                <button
-                  key={c.info.name} onClick={() => stage.goto(c.index)}
-                  className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-1 font-mono text-[11px] backdrop-blur transition-colors", c.index === stage.idx ? "border-brand/60 bg-brand/15 text-text" : "border-border bg-surface/70 text-muted-foreground hover:text-text")}
-                >
-                  {hasMarks(c.index) && <span className="size-1.5 rounded-full bg-err" title="a failing slot is in this cabinet" />}
-                  {c.info.name}
-                </button>
-              ))}
-              {model.cabinets.length > 12 && <span className="glass flex items-center rounded-chip border border-border px-2 text-[11px] text-muted-foreground">+{model.cabinets.length - 12} (← → keys)</span>}
+          {use3d ? (
+            <div className="absolute inset-0 bg-[#0A0D13]" data-testid="proof-3d">
+              <Suspense fallback={<Skeleton className="h-full w-full" />}>
+                <World3D model={model} dims={dims} match={null} minimal onEngine={onEngine} onFail={() => useUi.getState().setView3d(false)} />
+              </Suspense>
             </div>
-          </div>
-          <button onClick={resetView} aria-label="Fit the cabinet" title="Fit the cabinet" className="glass absolute right-4 top-3 z-10 rounded-chip border border-border p-1.5 text-muted-foreground transition-colors hover:text-text">
-            <Maximize2 className="size-3.5" />
-          </button>
+          ) : (
+            <>
+            <div className="bg-world absolute inset-0">
+              <motion.div className="absolute inset-0" style={{ opacity: stage.opacity, rotateY: stage.rotateY, transformPerspective: 1800 }}>
+                <CabinetWorld
+                  model={model} dims={dims} cam={stage.cam} side={stage.side} activeIdx={stage.idx} cabinetS={stage.cabinetS}
+                  selectedId={marked.length ? marked.find((f) => f.key === focusKey)?.slot?.id ?? null : null}
+                  overlay={overlay} onSize={stage.onSize} onSlot={(id) => ui.inspect(id)} onCabinet={(i) => ui.goCabinet(i)}
+                />
+              </motion.div>
+            </div>
+
+            <div className="pointer-events-none absolute left-4 top-3 z-10 flex items-center gap-2">
+              <div className="pointer-events-auto flex gap-1">
+                {model.cabinets.slice(0, 12).map((c) => (
+                  <button
+                    key={c.info.name} onClick={() => stage.goto(c.index)}
+                    className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-1 font-mono text-[11px] backdrop-blur transition-colors", c.index === stage.idx ? "border-brand/60 bg-brand/15 text-text" : "border-border bg-surface/70 text-muted-foreground hover:text-text")}
+                  >
+                    {hasMarks(c.index) && <span className="size-1.5 rounded-full bg-err" title="a failing slot is in this cabinet" />}
+                    {c.info.name}
+                  </button>
+                ))}
+                {model.cabinets.length > 12 && <span className="glass flex items-center rounded-chip border border-border px-2 text-[11px] text-muted-foreground">+{model.cabinets.length - 12} (← → keys)</span>}
+              </div>
+            </div>
+            <button onClick={resetView} aria-label="Fit the cabinet" title="Fit the cabinet" className="glass absolute right-4 top-3 z-10 rounded-chip border border-border p-1.5 text-muted-foreground transition-colors hover:text-text">
+              <Maximize2 className="size-3.5" />
+            </button>
+
+            </>
+          )}
 
           {/* verify any Excel — the whole stage is the drop target; this bar says so */}
           <div className="glass pointer-events-none absolute inset-x-4 bottom-3 z-10 flex items-center gap-3 rounded-card border border-border px-3.5 py-2.5">
