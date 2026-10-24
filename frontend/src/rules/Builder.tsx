@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { cn } from "@/lib/utils";
 
+import type { RuleCandidate } from "./assist";
 import { useRuleCatalogue, useRulePreview, useSaveRule, type Params, type RuleInput, type RuleTypeInfo, type Severity } from "./api";
 import { ParamField, Seg } from "./fields";
 import { Impact } from "./Impact";
@@ -22,7 +23,7 @@ const defaults = (info: RuleTypeInfo): Params => {
 };
 
 /** "Add custom rule": pick a template, fill the form the backend's parameter schema describes, read it in English, preview, add. */
-export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
+export function Builder({ onAdded, load }: { onAdded: (id: string) => void; load?: { nonce: number; cand: RuleCandidate } | null }) {
   const cat = useRuleCatalogue();
   const types = useMemo(() => cat.data?.types.filter((t) => t.custom) ?? [], [cat.data]);
   const [type, setType] = useState<string>("");
@@ -32,6 +33,23 @@ export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
   const [severity, setSeverity] = useState<Severity>("hard");
   const save = useSaveRule();
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  // a draft from the "English → rule" box whose type has no form here (e.g. segregate): previewed and added as given
+  const [raw, setRaw] = useState<{ rule: RuleInput; readback: string } | null>(null);
+  const [fromText, setFromText] = useState(false);
+
+  // choosing a draft loads it into the form; the preview below then runs by itself. Adding stays the user's click.
+  useEffect(() => {
+    if (!load || !types.length) return;
+    const c = load.cand;
+    const t = types.find((x) => x.type === c.rule_type);
+    setSaveErr(null);
+    setFromText(true);
+    setSeverity(c.severity);
+    setLabel(c.label ?? "");
+    if (t) (setRaw(null), setType(t.type), setParams({ ...defaults(t), ...(c.params as Params) }));
+    else setRaw({ rule: c.rule, readback: c.readback });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load?.nonce, types.length]);
 
   useEffect(() => {
     if (!type && types.length) pick(types[0]);
@@ -43,11 +61,15 @@ export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
     setParams(defaults(t));
     setLabel("");
     setSaveErr(null);
+    setRaw(null);
+    setFromText(false);
   }
 
-  const english = info ? sentence(info.type, params, info) : "";
-  const missing = info ? missingParams(info, params) : [];
-  const input: RuleInput | null = info
+  const english = raw ? raw.readback : info ? sentence(info.type, params, info) : "";
+  const missing = !raw && info ? missingParams(info, params) : [];
+  const input: RuleInput | null = raw
+    ? { ...raw.rule, label: label.trim() || raw.rule.label || raw.readback.slice(0, 110), severity, enabled: true, reason: "", who: "engineer" }
+    : info
     ? { type: info.type as RuleInput["type"], label: label.trim() || english.replace(/\s+/g, " ").slice(0, 110), params, severity, enabled: true, reason: "", who: "engineer" }
     : null;
   const req = useMemo(() => (input && !missing.length ? { action: "add" as const, rule: input, force: false } : null), [JSON.stringify(input), missing.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,7 +89,7 @@ export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
       if (!res.stored) return setSaveErr(res.messages?.join(" ") || "The rule was not stored.");
       toast.success(`Rule ${res.rule_id} added`, { description: `Rule set v${res.ruleset_version} · ${res.messages?.[0] ?? "re-verified"}` });
       onAdded(res.rule_id);
-      pick(info!);
+      pick(info ?? types[0]);
     } catch (e) {
       setSaveErr((e as Error).message);
     }
@@ -87,20 +109,25 @@ export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
             <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Template">
               {types.map((t) => (
                 <button
-                  key={t.type} type="button" role="radio" aria-checked={type === t.type} onClick={() => pick(t)} title={t.description}
-                  className={cn("rounded-chip border px-2.5 py-2 text-left text-[12.5px] font-medium leading-snug transition-colors", type === t.type ? "border-brand/60 bg-brand/10" : "border-border bg-raised/40 text-muted-foreground hover:border-brand/30 hover:text-text")}
+                  key={t.type} type="button" role="radio" aria-checked={type === t.type && !raw} onClick={() => pick(t)} title={t.description}
+                  className={cn("rounded-chip border px-2.5 py-2 text-left text-[12.5px] font-medium leading-snug transition-colors", type === t.type && !raw ? "border-brand/60 bg-brand/10" : "border-border bg-raised/40 text-muted-foreground hover:border-brand/30 hover:text-text")}
                 >
                   {t.label}
                 </button>
               ))}
             </div>
-            {info && <p className="mt-2 text-[12px] leading-snug text-muted-foreground">{info.description}</p>}
+            {info && !raw && <p className="mt-2 text-[12px] leading-snug text-muted-foreground">{info.description}</p>}
+            {fromText && (
+              <p className="mt-2 flex items-center gap-1.5 rounded-chip border border-brand/40 bg-brand/[0.07] px-2.5 py-1.5 text-[12px]" data-testid="builder-from-text">
+                <Sparkles className="size-3.5 shrink-0 text-brand" />Loaded from your sentence — review the impact, then press Add.
+              </p>
+            )}
           </div>
 
-          {info && (
+          {(info || raw) && (
             <>
               <div className="space-y-3.5 border-t border-border pt-3.5">
-                {info.params?.map((s) => (
+                {!raw && info?.params?.map((s) => (
                   <ParamField key={`${info.type}.${s.name}`} spec={s} value={params[s.name]} fields={cat.data!.filter_fields} onChange={(v) => setParams((p) => ({ ...p, [s.name]: v }))} />
                 ))}
                 <div className="space-y-1">
@@ -132,7 +159,7 @@ export function Builder({ onAdded }: { onAdded: (id: string) => void }) {
 
               {saveErr && <div role="alert" className="rounded-chip border border-err/50 bg-err/10 px-3 py-2 text-[12.5px] text-err" data-testid="rule-save-error">{saveErr}</div>}
               <div className="flex items-center justify-between gap-2">
-                <button type="button" onClick={() => info && pick(info)} className="flex items-center gap-1.5 rounded-chip px-2 py-1.5 text-[12px] text-muted-foreground hover:text-text"><RotateCcw className="size-3.5" />Reset</button>
+                <button type="button" onClick={() => pick(info ?? types[0])} className="flex items-center gap-1.5 rounded-chip px-2 py-1.5 text-[12px] text-muted-foreground hover:text-text"><RotateCcw className="size-3.5" />Reset</button>
                 <button
                   type="button" disabled={!canAdd} onClick={() => void add()} data-testid="rule-add"
                   className="inline-flex h-9 items-center gap-2 rounded-chip bg-gradient-to-br from-brand to-[#5b3fe0] px-4 text-[13px] font-semibold text-white shadow-[0_0_18px_-4px_rgb(var(--brand)/.7)] transition-[opacity,filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"

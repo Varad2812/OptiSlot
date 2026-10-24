@@ -238,7 +238,7 @@ export function DemoBanner({ t, onBack }: { t: { row?: number; column?: string; 
 export function RealStatus({ report, signals }: { report: RuleCheckReport; signals?: number | null }) {
   const pass = report.verdict === "PASS";
   return (
-    <div className={cn("flex items-center gap-2 rounded-chip border px-2.5 py-1.5 text-[12px]", pass ? "border-ok/40 bg-ok/10 text-ok" : "border-err/40 bg-err/10 text-err")} data-testid="real-status">
+    <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-chip border px-2.5 py-1.5 text-[12px]", pass ? "border-ok/40 bg-ok/10 text-ok" : "border-err/40 bg-err/10 text-err")} data-testid="real-status">
       {pass ? <ShieldCheck className="size-3.5 shrink-0" /> : <XCircle className="size-3.5 shrink-0" />}
       <span className="text-muted-foreground">Your allocation</span>
       <span className="tnum font-semibold">{report.violations} violations · {ruleChecks(report)}{signals != null ? ` · ${signals.toLocaleString("en-US")} signals` : ""}</span>

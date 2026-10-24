@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
 import { EASE, phase as phaseOf, useCalm } from "@/motion/shared";
-import { verifierLine } from "@/lib/checks";
+import { ruleChecks, verifierLine } from "@/lib/checks";
 import { CertStamp, CheckRow, DemoBanner, hashRow, RealStatus, RunHistory, type CertView } from "@/proof/parts";
 import { collectFails, firstFlyable, lastTick, listFor, SCAN_CALM_S, SCAN_S, TICKS_FROM, tagIndex, type Fail } from "@/proof/scan";
 import { CountUp } from "@/shell/CountUp";
@@ -349,8 +349,8 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
 
       {/* header */}
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface/50 px-5">
-        <h1 className="text-[14px] font-semibold">Proof Center</h1>
-        <span className="max-w-[420px] truncate rounded-chip border border-border bg-raised px-2 py-0.5 font-mono text-[11px] text-muted-foreground" title={src.kind === "file" ? src.name : undefined}>
+        <h1 className="whitespace-nowrap text-[14px] font-semibold">Proof Center</h1>
+        <span className="min-w-0 max-w-[420px] shrink truncate rounded-chip border border-border bg-raised px-2 py-0.5 font-mono text-[11px] text-muted-foreground" title={src.kind === "file" ? src.name : undefined}>
           {src.kind === "file" ? (src.demo ? `Demo · tampered copy · ${src.name}` : `Uploaded · ${src.name}`) : `Rev ${a.revision} · re-read from the exported workbook`}
         </span>
         <motion.span
@@ -358,9 +358,8 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
           className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-0.5 text-[11.5px]", phase === "scanning" || phase === "uploading" ? "border-live/40 text-muted-foreground" : report.verdict === "PASS" ? "border-ok/40 bg-ok/10 text-ok" : "border-err/40 bg-err/10 text-err")}
           data-testid="verdict-chip"
         >
-          {phase === "scanning" || phase === "uploading" ? <><RefreshCw className="size-3.5 animate-spin text-live" /> Verifying…</> : <>{report.verdict === "PASS" ? <ShieldCheck className="size-3.5" /> : <XCircle className="size-3.5" />}<span className="tnum font-semibold">{src.kind === "file" && src.demo ? "Demo copy · " : ""}{report.verdict} · {verifierLine(report, a.kpis.signals)}</span></>}
+          {phase === "scanning" || phase === "uploading" ? <><RefreshCw className="size-3.5 animate-spin text-live" /> Verifying…</> : <>{report.verdict === "PASS" ? <ShieldCheck className="size-3.5" /> : <XCircle className="size-3.5" />}<span className="tnum whitespace-nowrap font-semibold" title={verifierLine(report, a.kpis.signals)}>{src.kind === "file" && src.demo ? "Demo copy · " : ""}{report.verdict} · {report.violations} violation{report.violations === 1 ? "" : "s"}{src.kind === "run" ? ` · ${ruleChecks(report)} · ${a.kpis.signals} signals` : ""}</span></>}
         </motion.span>
-        {src.kind === "file" && <RealStatus report={a.report} signals={a.kpis.signals} />}
         <div className="ml-auto flex items-center gap-1.5">
           {src.kind === "file" && (
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={backToRun} disabled={busy} data-testid="back-to-run"><Undo2 className="size-3.5" /> Back to the current run</Button>
@@ -450,7 +449,12 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
 
         {/* proof column */}
         <aside className="flex w-[480px] shrink-0 flex-col border-l border-border bg-surface/60" data-testid="proof-aside">
-          <div className="shrink-0 p-4 pb-3">{src.kind === "file" && src.demo && <div className="mb-3"><DemoBanner t={src.demo} onBack={backToRun} /></div>}
+          <div className="shrink-0 p-4 pb-3">{src.kind === "file" && (
+              <div className="mb-3 space-y-2">
+                <RealStatus report={a.report} signals={a.kpis.signals} />
+                {src.demo && <DemoBanner t={src.demo} onBack={backToRun} />}
+              </div>
+            )}
             <CertStamp report={report} cert={cert} p={seq.progress} signals={a.kpis.signals} /></div>
           <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4" data-testid="proof-scroll">
 

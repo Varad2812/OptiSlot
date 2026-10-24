@@ -10,7 +10,9 @@ import {
   previewRequestOf, useRuleCatalogue, useRuleListing, useRulePreview, useRuleVersions, useSaveRule, useUndoRule,
   type Pending, type RuleEdit, type RuleView,
 } from "@/rules/api";
+import type { RuleCandidate } from "@/rules/assist";
 import { Builder } from "@/rules/Builder";
+import { NlBox } from "@/rules/NlBox";
 import { Impact } from "@/rules/Impact";
 import { RuleCard, type Draft } from "@/rules/RuleCard";
 import { diffParams } from "@/rules/fields";
@@ -49,6 +51,7 @@ export default function Rules() {
   const [reason, setReason] = useState("");
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
+  const [load, setLoad] = useState<{ nonce: number; cand: RuleCandidate } | null>(null);
 
   const rules = listing.data?.rules ?? [];
   const enforced = rules.filter((r) => r.mode === "enforced").length;
@@ -162,7 +165,8 @@ export default function Rules() {
         </div>
 
         <aside className="min-h-0 space-y-4 overflow-y-auto border-t border-border bg-surface/30 p-4 xl:border-l xl:border-t-0" aria-label="Add a rule and history">
-          <Builder onAdded={(id) => (setFresh(id), setTimeout(() => setFresh(null), 1500))} />
+          <NlBox picked={load?.cand ?? null} onPick={(cand) => (setLoad((l) => ({ nonce: (l?.nonce ?? 0) + 1, cand })), requestAnimationFrame(() => document.querySelector('[data-testid="rule-builder"]')?.scrollIntoView({ behavior: "smooth", block: "nearest" })))} />
+          <Builder load={load} onAdded={(id) => (setFresh(id), setLoad(null), setTimeout(() => setFresh(null), 1500))} />
           <Versions />
         </aside>
       </div>

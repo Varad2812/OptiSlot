@@ -1,4 +1,4 @@
-import { Boxes, ChevronRight, History, Info, Layers, MapPin } from "lucide-react";
+import { Bot, Boxes, ChevronRight, History, Info, Layers, MapPin } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -29,7 +29,7 @@ export function clauses(reason: string): string[] {
     .filter(Boolean);
 }
 
-export function DetailCard({ r, stale }: { r: SignalRow; stale: boolean }) {
+export function DetailCard({ r, stale, onAsk }: { r: SignalRow; stale: boolean; onAsk?: () => void }) {
   const nav = useNavigate();
   const loc = r.location, hw = r.hardware;
   const placed = !!loc;
@@ -129,6 +129,11 @@ export function DetailCard({ r, stale }: { r: SignalRow; stale: boolean }) {
         <Button size="sm" variant="outline" className="h-8 gap-1.5 text-[12px]" disabled={!placed} onClick={() => loc && useUi.getState().inspect(loc.slot_id)}>
           <History className="size-3.5" /> Why-here timeline
         </Button>
+        {onAsk && (
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-[12px]" onClick={onAsk} data-testid="ask-open">
+            <Bot className="size-3.5" /> Ask OptiSlot
+          </Button>
+        )}
         {r.can_move && (
           <Button size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => document.getElementById("wb-move")?.scrollIntoView({ behavior: "smooth", block: "start" })} data-testid="jump-move">
             <MapPin className="size-3.5" /> Move…

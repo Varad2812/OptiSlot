@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChangesStrip, ImpactBar } from "@/workbench/ChangesStrip";
 import { loadCols, saveCols } from "@/workbench/columns";
+import { AskDrawer } from "@/workbench/AskDrawer";
 import { DetailCard } from "@/workbench/Detail";
 import { FilterBar } from "@/workbench/FilterBar";
 import { FixPanel } from "@/workbench/Fixes";
@@ -59,6 +60,7 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
   const [hint, setHint] = useState<Partial<Target> | null>(initial.hint);
   const [colIds, setColIds] = useState<string[]>(loadCols);
   const [sel, setSel] = useState<{ tag: string; row: number } | null>(null);
+  const [ask, setAsk] = useState(false);
   const [reveal, setReveal] = useState(0);
 
   const list = useSignals(filters);
@@ -201,7 +203,8 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
           />
         </div>
 
-        <aside className="min-h-0 overflow-y-auto bg-surface/30 p-4" data-testid="workbench-side" aria-label="Selected signal">
+        <div className="relative min-h-0">
+        <aside className="h-full min-h-0 overflow-y-auto bg-surface/30 p-4" data-testid="workbench-side" aria-label="Selected signal">
           {!sel && (
             <Empty
               unplaced={(by.unallocated ?? 0) + (by.quarantined ?? 0)}
@@ -212,7 +215,7 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
           {sel && !sig && (detail.isLoading ? <SideSkeleton /> : null)}
           {sel && sig && (
             <div className="space-y-4">
-              <DetailCard r={sig} stale={detail.isFetching && !detail.isPlaceholderData} />
+              <DetailCard r={sig} stale={detail.isFetching && !detail.isPlaceholderData} onAsk={() => setAsk(true)} />
               {(sig.state === "unallocated" || sig.state === "quarantined") && <FixPanel key={`${sig.row}-${sig.state}`} sig={sig} />}
               {sig.state === "deleted" ? (
                 <p className="rounded-md border border-dashed border-border px-3 py-2 text-[12px] text-muted-foreground">This tag is DELETED in the MDB, so it has no slot to move.</p>
@@ -225,6 +228,8 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
             </div>
           )}
         </aside>
+        {sel && sig && <AskDrawer sig={sig} open={ask} onClose={() => setAsk(false)} />}
+        </div>
       </div>
     </div>
   );
