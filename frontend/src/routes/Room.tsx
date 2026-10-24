@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, ChevronRight, FlaskConical, GitCompareArrows, PanelRightClose, PanelRightOpen, Wrench } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { dimsOf, worldModel, type WorldModel } from "@/api/derive";
@@ -51,7 +51,8 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   const model = useMemo(() => worldModel(a, dims), [a, dims]);
   const filters = useUi((s) => s.filters);
   const match = useMemo(() => matcher(filters), [filters]);
-  const [mode, setMode] = useState<Mode>("now");
+  const [qs] = useSearchParams();
+  const [mode, setMode] = useState<Mode>(qs.get("mode") === "before" ? "before" : "now"); // "Show in 3D · Before" from the Workbench
   const [panel, setPanel] = useState(true);
   const eng = useRef<World3DEngine | null>(null);
   const onEngine = useCallback((e: World3DEngine | null) => (eng.current = e), []);

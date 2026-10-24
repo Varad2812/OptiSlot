@@ -15,7 +15,7 @@ import { FixPanel } from "@/workbench/Fixes";
 import { MovePicker, targetFromSlot, type Target } from "@/workbench/MovePicker";
 import { SignalTable } from "@/workbench/SignalTable";
 import {
-  findSignal, NO_SIGNAL_FILTERS, overlaySignal, sameSignal, tagKey, usePlacementState, useSignal, useSignals,
+  findSignal, NO_SIGNAL_FILTERS, overlaySignal, PAGE, sameSignal, tagKey, usePlacementState, useSignal, useSignals,
   type SignalFilters, type SortKey,
 } from "@/workbench/api";
 
@@ -70,8 +70,8 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
     return m.size ? m : null;
   }, [state.data?.changes?.slots_now]);
   const movesByTag = useMemo(() => new Map((state.data?.changes?.moves ?? []).map((m) => [tagKey(m.tag), m])), [state.data?.changes?.moves]);
-  const rows = useMemo(() => (nowByRow ? list.rows.map((r) => overlaySignal(r, nowByRow, movesByTag)) : list.rows), [list.rows, nowByRow, movesByTag]);
-  const listed = useMemo(() => (sel ? rows.find((r) => sameSignal(r, sel)) ?? null : null), [rows, sel]);
+  const rows = useMemo(() => (nowByRow ? list.rows.map((r) => (r ? overlaySignal(r, nowByRow, movesByTag) : r)) : list.rows), [list.rows, nowByRow, movesByTag]);
+  const listed = useMemo(() => (sel ? rows.find((r) => !!r && sameSignal(r, sel)) ?? null : null), [rows, sel]);
   const detail = useSignal(sel, listed);
   const sig = useMemo(() => (detail.data ? overlaySignal(detail.data, nowByRow, movesByTag) : listed), [detail.data, listed, nowByRow, movesByTag]);
 
@@ -84,7 +84,16 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
     },
     [setParams],
   );
-  const pickRow = useCallback((r: { tag: string; row: number }) => (setHint(null), choose(r)), [choose]);
+  // a hint from the 3D room (?slot= / ?cabinet=) aims the picker for the first signal chosen, then steps aside
+  const hintUsed = useRef(false);
+  const pickRow = useCallback(
+    (r: { tag: string; row: number }) => {
+      if (hintUsed.current) setHint(null);
+      hintUsed.current = true;
+      choose(r);
+    },
+    [choose],
+  );
 
   // ?tag= preselects (and scrolls to) the signal; a tag outside the first pages narrows the list to it
   const resolved = useRef("");
@@ -118,11 +127,11 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
   // the preselected row is beyond what has paged in → narrow the list to it so it is reachable
   const narrowed = useRef(false);
   useEffect(() => {
-    if (!sel || narrowed.current || list.isLoading || list.isFetching || list.hasNextPage === undefined) return;
-    if (list.rows.some((r) => sameSignal(r, sel)) || !list.hasNextPage) return;
+    if (!sel || narrowed.current || list.isLoading || list.isFetching) return;
+    if (list.total <= PAGE || list.loaded.some((r) => sameSignal(r, sel))) return;
     narrowed.current = true;
     setFilters((f) => ({ ...f, q: sel.tag.replace(/\s+/g, " ") }));
-  }, [sel, list.rows, list.hasNextPage, list.isLoading, list.isFetching]);
+  }, [sel, list.loaded, list.total, list.isLoading, list.isFetching]);
 
   // a signal that stops existing (data patch renamed it, Rev change) is dropped instead of showing a dead card
   useEffect(() => {
@@ -150,7 +159,7 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
 
   const pickTag = useCallback(
     async (tag: string) => {
-      const inList = list.rows.find((r) => tagKey(r.tag) === tagKey(tag));
+      const inList = list.loaded.find((r) => tagKey(r.tag) === tagKey(tag));
       if (inList) return pickRow(inList);
       try {
         const r = await findSignal(pid, tag);
@@ -162,10 +171,10 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
         toast.message("Could not look that signal up");
       }
     },
-    [list.rows, pid, pickRow, choose],
+    [list.loaded, pid, pickRow, choose],
   );
 
-  const err = list.isError && !list.rows.length ? (list.error as Error).message : null;
+  const err = list.isError ? (list.error?.message ?? "The signals API did not answer.") : null;
   const nMoves = state.data?.changes?.moves?.length ?? 0;
   const by = list.counts?.by_state ?? {};
 
@@ -187,8 +196,7 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
             colIds={colIds} onCols={setCols} active={active} fetching={list.isFetching}
           />
           <SignalTable
-            rows={rows} total={list.counts?.matching ?? 0} loading={list.isLoading} error={err} hasMore={!!list.hasNextPage} fetchingMore={list.isFetchingNextPage}
-            onMore={() => void list.fetchNextPage()} onRetry={() => void list.refetch()} onClear={active ? clear : null} filters={filters} onSort={sort}
+            rows={rows} loading={list.isLoading} error={err} onNeed={list.need} onRetry={list.refetch} onClear={active ? clear : null} filters={filters} onSort={sort}
             colIds={colIds} selected={sel} onSelect={pickRow} revealNonce={reveal}
           />
         </div>

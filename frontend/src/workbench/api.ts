@@ -1,4 +1,5 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getJson, postJson } from "@/api/client";
@@ -94,25 +95,56 @@ function fromAllocation(a: AllocationResult, f: SignalFilters, offset: number, l
   };
 }
 
-/** Every signal, paged by 300 (each row carries the raw MDB row, so one page is ~1 MB): more load as the table scrolls. */
+/**
+ * Every signal, as a sparse list: `rows` is as long as the server's match count, pages of 300 (~1 MB each — every row
+ * carries its raw MDB row) are fetched only for the part of the list that is on screen (`need`), so a 10k project paints its
+ * first rows at once and a jump to the middle of the scrollbar loads just that page.
+ */
 export function useSignals(f: SignalFilters) {
   const pid = useProjectId();
   const { data: a } = useAllocation();
-  const q = useInfiniteQuery({
-    queryKey: ["signals", pid, f],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) =>
-      getJson<SignalList>(`/projects/${pid}/signals?${query(f, pageParam, PAGE)}`, a ? () => fromAllocation(a, f, pageParam, PAGE) : undefined),
-    getNextPageParam: (last, all) => {
-      const loaded = all.reduce((n, p) => n + p.rows.length, 0);
-      return last.rows.length > 0 && loaded < last.counts.matching ? loaded : undefined;
-    },
-    placeholderData: keepPreviousData,
-    retry: false,
+  const fk = JSON.stringify(f);
+  const [want, setWant] = useState<{ fk: string; pages: number[] }>({ fk, pages: [0] });
+  const pages = want.fk === fk ? want.pages : [0];
+  const need = useCallback(
+    (ps: number[]) =>
+      setWant((w) => {
+        const have = w.fk === fk ? w.pages : [0];
+        const next = [...new Set([...have, ...ps])].sort((x, y) => x - y);
+        return w.fk === fk && next.length === have.length ? w : { fk, pages: next };
+      }),
+    [fk],
+  );
+  const results = useQueries({
+    queries: pages.map((pg) => ({
+      queryKey: ["signals", pid, f, pg],
+      queryFn: () => getJson<SignalList>(`/projects/${pid}/signals?${query(f, pg * PAGE, PAGE)}`, a ? () => fromAllocation(a, f, pg * PAGE, PAGE) : undefined),
+      retry: false,
+      staleTime: 5_000,
+    })),
   });
-  const pages = q.data?.pages ?? [];
-  const rows = pages.flatMap((p) => p.rows);
-  return { ...q, rows, counts: pages[0]?.counts ?? null, runId: pages[0]?.run_id };
+  const first = results[0];
+  const counts = first?.data?.counts ?? null;
+  // keep the last known size while a new filter's first page loads, so the scrollbar does not collapse
+  const lastTotal = useRef(0);
+  if (counts) lastTotal.current = counts.matching;
+  const total = counts ? counts.matching : lastTotal.current;
+  const stamp = results.map((r) => r.dataUpdatedAt).join(",");
+  const rows = useMemo(() => {
+    const out: (SignalRow | undefined)[] = new Array(total);
+    results.forEach((r, i) => r.data?.rows.forEach((row, j) => (out[pages[i] * PAGE + j] = row)));
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total, stamp, fk]);
+  const loaded = useMemo(() => rows.filter((r): r is SignalRow => !!r), [rows]);
+  return {
+    rows, loaded, total, counts, need, runId: first?.data?.run_id,
+    isLoading: !first || (first.isLoading && !counts),
+    isFetching: results.some((r) => r.isFetching),
+    isError: !!first?.isError && !counts,
+    error: first?.error as Error | null,
+    refetch: () => results.forEach((r) => void r.refetch()),
+  };
 }
 
 /** One signal, fresh (the table row may be a page behind after a move). */

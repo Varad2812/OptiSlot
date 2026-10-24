@@ -10,6 +10,7 @@
 //   npm run shots                      builds the frontend, serves it with the real API (temp DB, seeds stress10k), captures
 //   SHOTS_URL=http://127.0.0.1:8000 …  reuse an already-running `make demo` / `make dev` instead
 //   SHOTS_ROUTES=/explorer,/tqs …      capture a subset of routes
+//   SHOTS_WB_ONLY=1                    only the Signal Workbench pass (/lab) → /shots/wb/*.png
 //   SHOTS_MOTION_ONLY=1                skip the route pass · SHOTS_NO_STRESS=1 skip the 10k pass · SHOTS_3D_ONLY=1 only the 3D pass
 import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -31,6 +32,7 @@ const routes = process.env.SHOTS_ROUTES ? process.env.SHOTS_ROUTES.split(",") : 
 const motionOnly = !!process.env.SHOTS_MOTION_ONLY;
 const noStress = !!process.env.SHOTS_NO_STRESS;
 const only3d = !!process.env.SHOTS_3D_ONLY;
+const onlyWb = !!process.env.SHOTS_WB_ONLY;
 const gpu = !!process.env.SHOTS_GPU;
 const swift = process.env.SHOTS_SWIFT !== "0"; // SHOTS_SWIFT=0 with SHOTS_GPU=1: only the real-GPU 3D run
 const route3d = process.env.SHOTS_3D_ROUTE || "/room";
@@ -120,6 +122,7 @@ const raf2 = (page) => page.evaluate(() => new Promise((r) => requestAnimationFr
 
 try {
   if (!only3d) {
+   if (!onlyWb) {
     // ───── 1. routes ─────
     if (!motionOnly) {
       for (const theme of THEMES) {
@@ -354,14 +357,100 @@ try {
       await page.close();
       await ctx.close();
     }
+   }
+    // ───── 3b. Signal Workbench (/lab): list, selection, ?tag= preselect, check → refused → alternative → apply → commit dialog → undo; Rev B quarantined fix ─────
+    mkdirSync(path.join(outDir, "wb"), { recursive: true });
+    const api = (p, body, project = "demo") => fetch(`${base}/api/projects/${project}${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
+    for (const theme of THEMES) {
+      for (const vp of VIEWPORTS) {
+        const tag = `${theme}__${vp.width}x${vp.height}`;
+        const ctx = await context(theme, vp, "calm");
+        const page = await ctx.newPage();
+        watch(page, `workbench ${tag}`);
+        const snap = async (n) => { await sleep(450); await page.screenshot({ path: path.join(outDir, "wb", `${n}__${tag}.png`) }); count++; };
+        await api("/placement/reset");
+        await page.goto(`${base}/lab?project=demo`, { waitUntil: "networkidle" });
+        await settle(page, 700);
+        await snap("01-list");
+        await page.locator('[data-testid="signal-row"]').first().click();
+        await snap("02-selected");
+        // ?tag= preselect (what the 3D "Try changes" button sends)
+        await page.goto(`${base}/lab?project=demo&tag=${encodeURIComponent("320-XYV  -42170")}`, { waitUntil: "networkidle" });
+        await settle(page, 700);
+        await snap("03-preselect");
+        await page.locator('[data-testid="pick-cabinet"]').selectOption({ index: 1 });
+        await page.locator('[data-testid="pick-ch"]').nth(2).click();
+        await page.locator('[data-testid="check-panel"]').waitFor({ timeout: 20_000 }).catch(() => problems.push(`workbench ${tag}: no check result`));
+        await snap("04-refused");
+        if (vp.width === 1440) {
+          await page.locator('[data-testid="alt-chip"]').first().click();
+          await page.locator('[data-testid="check-panel"][data-verdict="allowed"]').waitFor({ timeout: 20_000 }).catch(() => problems.push(`workbench ${tag}: alternative not allowed`));
+          await snap("05-allowed");
+          await page.locator('[data-testid="apply-move"]').click();
+          await sleep(1200);
+          await snap("06-applied");
+          await page.locator('[data-testid="commit"]').click();
+          await snap("07-commit-dialog");
+          await page.keyboard.press("Escape");
+          await page.locator('[data-testid="undo"]').click();
+          await sleep(900);
+          await api("/placement/reset");
+        }
+        await page.close();
+        await ctx.close();
+      }
+    }
+    {
+      // Rev B gauntlet → a quarantined signal: its fixes, "Fix data" preview; then back to Rev A for the passes that follow
+      const ctx = await context("dark", VIEWPORTS[0], "calm");
+      const page = await ctx.newPage();
+      watch(page, "workbench fix");
+      const g = await api("/revisions/gauntlet");
+      if (!g.ok) problems.push(`workbench: gauntlet failed ${g.status}`);
+      await page.goto(`${base}/lab?project=demo`, { waitUntil: "networkidle" });
+      await settle(page, 700);
+      await page.getByRole("button", { name: /^quarantined/ }).click();
+      await sleep(900);
+      await page.locator('[data-testid="signal-row"]').first().click();
+      await sleep(900);
+      await page.locator('[data-testid="fix-panel"]').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(outDir, "wb", "08-quarantined__dark.png") });
+      await page.locator('[data-testid="fix-preview"]').click();
+      await page.locator('[data-testid="fix-preview-result"]').waitFor({ timeout: 30_000 }).catch(() => problems.push("workbench: fix preview did not answer"));
+      await page.locator('[data-testid="fix-preview-result"]').scrollIntoViewIfNeeded();
+      await sleep(400);
+      await page.screenshot({ path: path.join(outDir, "wb", "09-fix-preview__dark.png") });
+      count += 2;
+      await page.close();
+      await ctx.close();
+      const back = await fetch(`${base}/api/projects/demo/revisions/switch?rev=A`, { method: "POST" });
+      if (!back.ok) problems.push(`workbench: switch back to Rev A failed ${back.status}`);
+    }
+    if (!noStress) {
+      // 10k signals: the first page paints fast, scrolling pages the rest in
+      const ctx = await context("dark", VIEWPORTS[0], "calm");
+      const page = await ctx.newPage();
+      watch(page, "workbench 10k");
+      const t0 = Date.now();
+      await page.goto(`${base}/lab?project=stress10k`, { waitUntil: "networkidle" });
+      await page.locator('[data-testid="signal-row"]').first().waitFor({ timeout: 60_000 });
+      const first = Date.now() - t0;
+      await page.locator('[role="grid"]').evaluate((el) => (el.scrollTop = 32 * 4000));
+      await sleep(2500);
+      await page.screenshot({ path: path.join(outDir, "wb", "10-stress10k-scrolled__dark.png") });
+      count++;
+      console.log(`workbench 10k: first rows after ${first} ms`);
+      await page.close();
+      await ctx.close();
+    }
   }
 
   // ───── 4. 3D Marshalling Room: frames + time to first frame + FPS (CLAUDE.md §10.7 targets: ≥55 fps sample, ≥30 at 10k) ─────
   const projects3d = noStress ? ["demo"] : ["demo", "stress10k"];
-  const runs3d = swift ? [{ mode: "swiftshader", launch: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }, frames: true }] : [];
+  const runs3d = swift && !onlyWb ? [{ mode: "swiftshader", launch: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }, frames: true }] : [];
   // headed: keep rendering while the window is covered (otherwise rAF stops and fps.measure never resolves)
   const awake = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"];
-  if (gpu) runs3d.push({ mode: "gpu", launch: { headless: false, args: awake }, frames: true });
+  if (gpu && !onlyWb) runs3d.push({ mode: "gpu", launch: { headless: false, args: awake }, frames: true });
   for (const run of runs3d) {
     const b3 = await chromium.launch(run.launch);
     try {

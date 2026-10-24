@@ -51,9 +51,9 @@ export function FilterBar({ f, onChange, onClear, counts, cabinets, tqs, colIds,
       <div className="flex flex-wrap items-center gap-2">
         <label className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tag, cable, instrument, slot…" className={cn(field, "w-[200px] pl-8")} aria-label="Search signals" data-testid="wb-search" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tag, cable, slot…" className={cn(field, "w-[168px] pl-8")} aria-label="Search signals" data-testid="wb-search" />
         </label>
-        <input value={cable} onChange={(e) => setCable(e.target.value)} placeholder="Cable" className={cn(field, "w-[96px] font-mono")} aria-label="Cable" />
+        <input value={cable} onChange={(e) => setCable(e.target.value)} placeholder="Cable" className={cn(field, "w-[84px] font-mono")} aria-label="Cable" />
         <select value={f.cabinet} onChange={(e) => onChange({ cabinet: e.target.value })} className={cn(field, "w-[150px] bg-surface")} aria-label="Cabinet">
           <option value="">All cabinets</option>
           {cabinets.map((c) => (

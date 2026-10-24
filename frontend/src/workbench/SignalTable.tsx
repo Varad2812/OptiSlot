@@ -7,19 +7,16 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { sameSignal, type SignalFilters, type SignalRow, type SortKey } from "./api";
+import { PAGE, sameSignal, type SignalFilters, type SignalRow, type SortKey } from "./api";
 import { COLUMNS, type Col } from "./columns";
 
 const ROW_H = 32;
 
 interface Props {
-  rows: SignalRow[];
-  total: number;                  // matching rows on the server (rows.length is what has been paged in so far)
+  rows: (SignalRow | undefined)[];  // sparse: one slot per matching signal, filled as its page arrives
   loading: boolean;
   error: string | null;
-  hasMore: boolean;
-  fetchingMore: boolean;
-  onMore: () => void;
+  onNeed: (pages: number[]) => void;
   onRetry: () => void;
   onClear: (() => void) | null;   // set when filters are active
   filters: SignalFilters;
@@ -31,22 +28,24 @@ interface Props {
   revealNonce: number;
 }
 
-export function SignalTable({ rows, total, loading, error, hasMore, fetchingMore, onMore, onRetry, onClear, filters, onSort, colIds, selected, onSelect, revealNonce }: Props) {
+export function SignalTable({ rows, loading, error, onNeed, onRetry, onClear, filters, onSort, colIds, selected, onSelect, revealNonce }: Props) {
   const cols = useMemo(() => COLUMNS.filter((c) => colIds.includes(c.id)), [colIds]);
   const width = useMemo(() => cols.reduce((n, c) => n + c.width, 0) + 24, [cols]);
   const grid = useMemo(() => cols.map((c) => `${c.width}px`).join(" "), [cols]);
   const scroller = useRef<HTMLDivElement>(null);
-  const selIdx = useMemo(() => (selected ? rows.findIndex((r) => sameSignal(r, selected)) : -1), [rows, selected]);
+  const selIdx = useMemo(() => (selected ? rows.findIndex((r) => !!r && sameSignal(r, selected)) : -1), [rows, selected]);
 
-  const count = rows.length + (hasMore ? 1 : 0);
-  const virt = useVirtualizer({ count, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 14 });
+  const virt = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 14 });
   const items = virt.getVirtualItems();
 
-  // page in the next 300 when the viewport gets near the end of what has loaded
-  const last = items.length ? items[items.length - 1].index : -1;
+  // fetch the pages under the viewport (plus the next one in the scroll direction)
+  const lo = items.length ? items[0].index : 0, hi = items.length ? items[items.length - 1].index : 0;
   useEffect(() => {
-    if (hasMore && !fetchingMore && last >= rows.length - 40) onMore();
-  }, [hasMore, fetchingMore, last, rows.length, onMore]);
+    if (!rows.length) return;
+    const ps: number[] = [];
+    for (let p = Math.floor(lo / PAGE); p <= Math.floor(Math.min(hi + 40, rows.length - 1) / PAGE); p++) ps.push(p);
+    onNeed(ps);
+  }, [lo, hi, rows.length, onNeed]);
 
   // ↑/↓ select; the table keeps the selection in view (ignored while typing or in a menu)
   const selRef = useRef({ rows, selIdx, onSelect });
@@ -61,8 +60,9 @@ export function SignalTable({ rows, total, loading, error, hasMore, fetchingMore
       if (!rs.length) return;
       e.preventDefault();
       const next = Math.min(rs.length - 1, Math.max(0, (i < 0 ? (e.key === "ArrowDown" ? -1 : rs.length) : i) + (e.key === "ArrowDown" ? 1 : -1)));
-      pick(rs[next]);
       virt.scrollToIndex(next, { align: "auto" });
+      const row = rs[next];
+      if (row) pick(row); // an unloaded row is fetched by the scroll; the next key press selects it
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -77,6 +77,7 @@ export function SignalTable({ rows, total, loading, error, hasMore, fetchingMore
   }, [revealNonce, selIdx, virt]);
 
   const empty = !loading && !error && rows.length === 0;
+  const total = rows.length;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="signal-table">
@@ -94,8 +95,8 @@ export function SignalTable({ rows, total, loading, error, hasMore, fetchingMore
                 const top = { transform: `translateY(${it.start}px)`, height: ROW_H };
                 if (!r) {
                   return (
-                    <div key="more" className="absolute left-0 top-0 flex items-center gap-2 px-3 text-[12px] text-muted-foreground" style={{ ...top, width: "100%" }}>
-                      <RotateCw className="size-3.5 animate-spin" /> Loading more signals…
+                    <div key={`s${it.index}`} className="absolute left-0 top-0 flex items-center border-b border-border/50 px-3" style={{ ...top, width: "100%" }} aria-busy>
+                      <Skeleton className="h-3 w-[40%] opacity-60" />
                     </div>
                   );
                 }
