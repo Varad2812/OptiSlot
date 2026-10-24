@@ -71,7 +71,7 @@ Two kinds of rule:
 1. **How do you know the allocation is correct?** A separate verifier re-reads the exported Excel and checks every enabled rule: each live tag once, no duplicate slots or cable pairs, the CHARM_No formula, A/B and IS separation, hardware, names, spares, full 384-row grids. On all drill files it reported 0 violations or violations excepted by a named TQ (`docs/drill_report.md`).
 2. **Doesn't the verifier just trust your allocator?** No. `backend/verify` imports nothing from the engine. It works from the output rows, the normalised MDB and the ruleset, and it can check any xlsx, including a hand-edited one.
 3. **Show me it can fail.** The Tamper test changes one CHARM in a copy of our own export and the verifier names the row and check. The copy is separate, so your real allocation is never touched.
-4. **Is the result optimal?** We don't claim global optimality. The verifier proves validity; CP-SAT minimises CIOCs and keeps groups together and in sequence. **[CHECK]** whether the UI shows a cabinet lower bound.
+4. **Is the result optimal?** We don't claim global optimality. The verifier proves validity; CP-SAT minimises CIOCs and keeps groups together and in sequence. No lower bound is reported anywhere (backend, API or UI); only the solver status (OPTIMAL on the sample) is shown (`docs/qa_facts.md` §3c).
 5. **"Excepted by TQ": isn't that hiding failures?** It is the opposite of silent: when a clash cannot be satisfied (A and B on one cable, a mixed IS/NON-IS cable), we place the cable, raise a TQ naming the clash, and the verifier labels it "excepted by TQ", not a pass. Each one is counted and visible.
 6. **Why 23 checks?** It is the number of rule checks the verifier ran, not the signal count. The default rule set runs 22 (C01–C20, plus C07.2 for IS/NON-IS and C17.2 for descriptive columns); re-reading the exported workbook adds C00 (all template columns present). Each enabled custom rule adds one (C23 and up). Verified by counting the Checks sheet of Rule_Check_Report.xlsx for the sample and the adversarial MDB (23 rows each).
 
@@ -90,7 +90,7 @@ Two kinds of rule:
 14. **Bad rows?** Quarantined with a TQ and visible in the list; the verifier checks every live tag is accounted for.
 15. **A cable with A and B signals?** One TQ naming both rules ("re-tag or split"); the cable is placed on one family and marked excepted.
 16. **What if capacity runs out?** New cabinets are created within the configured limits; beyond them a capacity TQ names the rule. The 10,000-signal test produced 46 cabinets.
-17. **Speed at 10,000 signals?** The target is under 3 s. Measured earlier: about 2.1 s with no custom rules and 3.7 s with five hard custom rules. **[CHECK]** re-measure on the demo machine and quote only that.
+17. **Speed at 10,000 signals?** The target is under 3 s. Measured (`docs/qa_facts.md` §5): allocate + verify on 10,000 synthetic signals in memory is ~3.0–3.2 s (allocate ~2.2–2.5 s); from an xlsx, read to export takes ~19 s end to end. **[CHECK]** re-measure on the demo machine and quote only that.
 
 **Revisions**
 
@@ -101,12 +101,12 @@ Two kinds of rule:
 **Fidelity**
 
 21. **Your addresses don't match the reference.** Correct: 16% on baseplate, 35.6% on CHARM_No. The reference is hand-placed and many layouts satisfy the same rules. We report non-address columns: 97.86% match, 60 of 66 columns at 100%. The unmatched ones are hand-typed (Revision No, Remarks, Section / Sub Unit).
-22. **`440-PI-20077-L` vs `440-PI-20076-L`?** **[CHECK]** answer after the fact-check (`docs/qa_facts.md`): we allocate what the MDB says; the reference differs on these tags.
+22. **`440-PI-20077-L` vs `440-PI-20076-L`?** The MDB contains only `440-PI-20077-L` (row 157); the reference places `440-PI-20076-L` on the same cable and pair. We allocate what the MDB says; which side is right cannot be proven from the data (`docs/qa_facts.md` §1).
 
 **Engineering**
 
 23. **Is it reproducible?** Every run records sha256 of the input, ruleset and output plus the engine version; tests confirm the same inputs give the same hashes, also after a restart. **[CHECK]** show it live once.
-24. **How is it tested?** 291 backend tests, including Hypothesis property tests (allocator vs verifier agreement, junk rows never crash, workbench "allowed" implies the verifier agrees) and a drill test that fails if any drill regresses.
+24. **How is it tested?** 664 backend tests, including Hypothesis property tests (allocator vs verifier agreement, junk rows never crash, workbench "allowed" implies the verifier agrees) and a drill test that fails if any drill regresses.
 25. **Does it work offline?** Yes: no CDN, fonts or textures are fetched; the only optional network call is the AI assistant, which falls back automatically.
 26. **Where is the data stored?** SQLite (`projects/optislot.db`): uploaded files, ruleset versions, runs, decisions, activity. Outputs are recomputed, never trusted from storage.
 27. **Why a separate verifier?** So the checker can't share a bug with the allocator, and so it can audit files we didn't make.

@@ -11,8 +11,18 @@ Facts come from the repo and `docs/qa_facts.md`. Items not covered by those are 
 6. **Address**: `CHARM_No = (baseplate − 1) × 12 + channel`. Hardware comes from the editable hardware map; names from the naming patterns.
 7. **Write** one row per physical slot (384 per cabinet) into a copy of the blank template (76 columns).
 
-**Worked example (formula):** a pair on baseplate 4, channel 1 gets CHARM_No (4 − 1) × 12 + 1 = **37**.
-**Worked example (real sample output):** cable `320-CE-0001`, Pair 1 (tag `320-FT   -20645-A`, AIR) lands on `P30DCIOC3201001`, baseplate `001-CBP-2`, channel 1, so CHARM_No = (2 − 1) × 12 + 1 = **13**, CHARM `SE4303T01`. The reference allocation has the same address for this tag. I could not reproduce "baseplate 4, channel 1 → 37" for this cable on the sample; if you quote it, [VERIFY] which cable and which run it came from.
+**Worked example (real rows of `data/Sample_IO_Allocation_VIT_v2_1.xlsx`, sheet "IO Assignment", filter Field Cable No = `320-CE-0001`):**
+
+| Pair | Tag / status | Baseplate | Ch | CHARM_No | CHARM |
+|---|---|---|---:|---:|---|
+| 1 | `320-FT   -20645-A` · Field | `001-CBP-2` | 1 | **13** | SE4303T01 |
+| 1–12 | all on `001-CBP-2` | `001-CBP-2` | 1–12 | 13–24 | |
+| 3 | `-` · **Spare Slot** (empty, protection cover) | `001-CBP-2` | 3 | 15 | SE6103 |
+| 13 | `320-PV   -80017-A` · Field | `001-CBP-3` | 1 | **25** | SE4304T01 |
+| 17 | `3201DSP0100135` · **Wired Spare** | `001-CBP-3` | 5 | 29 | SE4303T01 |
+| 21 | `3201DSP0100139` · **Wired Spare** | `001-CBP-3` | 9 | 33 | SE4303T01 |
+
+All rows are on CIOC `P30DCIOC3201001`. The formula `CHARM_No = (baseplate − 1) × 12 + channel` gives (2 − 1) × 12 + 1 = 13 for pair 1 and (3 − 1) × 12 + 1 = 25 for pair 13. This 24-pair cable takes two whole baseplates, with pairs contiguous and in order. Unused pairs are either wired spares (the cable's own pair, with the functional CHARM and a spare tag) or an empty slot with the SE6103 cover. Our engine's output matches this reference address for pair 1 (`001-CBP-2`, channel 1, CHARM_No 13).
 
 ## What if the headers are different?
 Columns are matched with rapidfuzz plus a synonyms table and shown with a confidence score; any mapping can be overridden. A value-based inference covers required columns whose header is unrecognised. If a column such as room or area is missing, a project default applies and **one** project-level TQ is raised. Drills A (renamed/reordered, no room), B (title rows, junk), D (multi-sheet) and E3 (CSV) all ended with 0 violations and no crash (`docs/drill_report.md`).

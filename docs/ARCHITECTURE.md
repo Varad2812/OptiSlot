@@ -21,7 +21,7 @@
 | Matching | rapidfuzz | Auto-map unseen column names with a confidence score |
 | Storage | SQLite (WAL) at `projects/optislot.db` | Projects, the uploaded input files, ruleset versions, runs, decisions, activity |
 | Optional AI | Gemini REST (or Anthropic) → deterministic fallback parser | English → rule *draft*; never places a signal |
-| Tests | pytest + Hypothesis; Playwright screenshots | 291 backend tests; every route captured dark/light |
+| Tests | pytest + Hypothesis; Playwright screenshots | 664 backend tests; every route captured dark/light |
 
 **The one contract:** `backend/app/schemas.py` (Pydantic) is the single source of truth. `make types` turns it into `frontend/src/api/types.ts`, so the two sides cannot drift apart.
 
