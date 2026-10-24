@@ -1,8 +1,10 @@
+import { MotionConfig } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
+import { useProjectFallback } from "@/api/hooks";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/shell/states";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,11 +28,16 @@ window.addEventListener("unhandledrejection", (e) => {
 
 function App() {
   const theme = useUi((s) => s.theme);
+  useProjectFallback();
+  // Calm mode app-wide: every framer-motion component drops transform/layout motion and keeps fades (§10.4 "Calm shortens to fades").
+  const calm = useUi((s) => s.motion === "calm");
   return (
-    <TooltipProvider delayDuration={150}>
-      <AppRoutes />
-      <Toaster theme={theme} position="bottom-right" />
-    </TooltipProvider>
+    <MotionConfig reducedMotion={calm ? "always" : "user"}>
+      <TooltipProvider delayDuration={150}>
+        <AppRoutes />
+        <Toaster theme={theme} position="bottom-right" />
+      </TooltipProvider>
+    </MotionConfig>
   );
 }
 

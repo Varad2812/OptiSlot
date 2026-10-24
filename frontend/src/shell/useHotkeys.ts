@@ -10,18 +10,31 @@ export function typing(e: KeyboardEvent) {
   return !!t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || !!t.closest("[cmdk-root]"));
 }
 
+/** ⌘K / Ctrl+K toggles the palette — also on the launch page, which sits outside the shell. */
+function paletteKey(e: KeyboardEvent) {
+  if (!((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) return false;
+  e.preventDefault();
+  const ui = useUi.getState();
+  ui.setPalette(!ui.paletteOpen);
+  return true;
+}
+
+export function usePaletteHotkey() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => void paletteKey(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
+
 /** Global keys (§10.2): ⌘K palette, A allocate, V verify, / find tag, Esc closes the Inspector. Screen keys live in their screen. */
 export function useGlobalHotkeys() {
   const allocate = useAllocate();
   const verify = useVerify();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (paletteKey(e)) return;
       const ui = useUi.getState();
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        ui.setPalette(!ui.paletteOpen);
-        return;
-      }
       if (e.defaultPrevented || typing(e) || ui.paletteOpen || e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
       if (k === "a" && !allocate.isPending) allocate.mutate();

@@ -121,3 +121,25 @@ Notes:
   the full screens arrive in U4 (dev-only "Arrives in" chip).
 - Flip is a whole-World `rotateY`; at Plant level all cabinets flip together (fine for now; U5 may flip only the active one).
 - 10k: switching to the stress project downloads ~13 MB of allocation JSON (gzipped on the wire); first paint ~1.4 s.
+
+## U5 — launch readiness: 10k, fresh DB, palette, Calm, final sweep (1440×900, dark + light)
+10k (stress10k, 10,009 signals, 46 cabinets):
+- Tables: the Workbench and the Grid are virtualised (scroll 61 / 56 fps headless, 320k / 459k px of rows); every other table is per
+  cabinet or capped (≤ 46 rows).
+- 3D on the real GPU (Apple M2, headed Chromium): /room idle + orbit, /mission, /, /proof and /explorer all **60 fps (vsync), p95 17 ms**
+  on the sample and on 10k. Headless SwiftShader numbers (1–5 fps) are software GL and only indicative.
+- Bundle: main 1.02 MB (314 kB gzip); three.js engine lazy 620 kB (163 kB gzip); the offline fixtures are lazy chunks that never load
+  while the API is up (asserted by `npm run shots`). Left as is: served from localhost, one-time load.
+
+| # | Where | Issue | Fix | Status |
+|---|---|---|---|---|
+| U5.1 | Fresh DB | A remembered project id the new database doesn't have (e.g. yesterday's stress10k) left the launch page empty on 404s | Once per session the first project list falls back to the demo project | fixed |
+| U5.2 | Launch page | ⌘K did nothing and the tab title kept the last page's name (the page sits outside the shell) | Palette + ⌘K and the route title on `/` too ("OptiSlot — Allocate. Prove. Revise.") | fixed |
+| U5.3 | Calm mode | Only the screens that read `useCalm` calmed down; other framer-motion parts still slid and scaled, CSS pulses kept looping | `MotionConfig reducedMotion="always"` app-wide in Calm; `data-motion="calm"` holds pulse/breathe/halo loops still | fixed |
+| U5.4 | Reduced motion | The 1 ms animation override made infinite loops flicker | Also forces a single iteration | fixed |
+| U5.5 | Launch page (light) | Light tokens over the always-dark room → a grey wash; the theme button did nothing visible there | The launch page is dark in both themes (as the approved reference); its theme button removed (top bar + ⌘K keep it) | fixed |
+| U5.6 | Explorer / 2D Room @1440 | Filter row overflowed: the tag search was clipped at the right edge | "Filter" label from 1600 px; narrower search | fixed |
+| U5.7 | Export certificate | 22 check ticks wrapped onto a second row | Ticks flex on one row | fixed |
+| U5.8 | Shots | The `/` route capture caught SwiftShader's flat-floor fallback | Route pass waits for the mini room's first frame (`?demo=1`) on `/` and `/mission` | fixed |
+| U5.9 | Workbench | Frozen Tag column surface differs slightly from the row background | — | accepted (reads as the frozen column) |
+| U5.10 | Room (route pass) | Captured in 2D: the route pass pins the 2.5D World; the 3D pass (`shots/3d`) covers the room | — | by design |

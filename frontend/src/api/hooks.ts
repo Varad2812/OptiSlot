@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import type { components } from "@/api/types";
@@ -48,6 +49,21 @@ export const useProjectId = () => useUi((s) => s.projectId);
 
 export function useProjects() {
   return useQuery({ queryKey: ["projects"], queryFn: () => getJson<Project[]>("/projects", async () => [await fx.project()]) });
+}
+
+let projectChecked = false;
+/**
+ * Once per session, on the first project list: a remembered project id that this database doesn't have (a fresh DB on `make demo`,
+ * a stress project from yesterday) falls back to the demo project instead of leaving every page on 404s.
+ */
+export function useProjectFallback() {
+  const { data, isSuccess } = useProjects();
+  useEffect(() => {
+    if (projectChecked || !isSuccess || !data?.length) return;
+    projectChecked = true;
+    const ui = useUi.getState();
+    if (!data.some((p) => p.id === ui.projectId)) ui.setProject(data.find((p) => p.id === "demo")?.id ?? data[0].id);
+  }, [data, isSuccess]);
 }
 
 export function useProject() {

@@ -89,8 +89,11 @@
 .breathe { animation: breathe 1.8s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }
+/* Calm toggle: decorative loops (pulses, breathing halos, skeleton shimmer) hold still; transitions stay short. */
+:root[data-motion="calm"] .animate-pulse, :root[data-motion="calm"] .breathe, :root[data-motion="calm"] .hero-pulse { animation: none !important; }
+:root[data-motion="calm"] *, :root[data-motion="calm"] *::before, :root[data-motion="calm"] *::after { transition-duration: 120ms !important; }
 
 /* 3D Room: per-CHARM tag labels at L3 hang below their CHARM, read top → bottom (CSS2DRenderer anchors the zero-size parent). */
 .w3d-tag { position: absolute; left: 0; top: 0; transform: translateX(-50%); writing-mode: vertical-rl; text-shadow: 0 0 4px #000, 0 0 2px #000; }

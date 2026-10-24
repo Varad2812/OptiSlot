@@ -473,7 +473,7 @@ function Toolbar({ model, idx, tier, side, dims, filters, mode, onDive }: {
       </div>
     </div>
       <div className="flex h-10 items-center gap-1.5 overflow-x-auto border-t border-hairline px-5">
-        <span className="label-caps mr-1">Filter</span>
+        <span className="label-caps mr-1 hidden min-[1600px]:inline">Filter</span>
         {IO_ORDER.map((k) => (
           <FilterChip key={k} on={filters.io.includes(k)} onClick={() => toggle("io", k)}>
             <span className="size-2 rounded-full" style={{ background: IO_COLOURS[k as IoKey] }} />
@@ -505,7 +505,7 @@ function Toolbar({ model, idx, tier, side, dims, filters, mode, onDive }: {
             value={filters.search}
             onChange={(e) => ui.setFilters({ search: e.target.value })}
             placeholder="Tag or cable"
-            className="w-28 bg-transparent font-mono text-[11.5px] outline-none placeholder:font-sans placeholder:text-muted-foreground"
+            className="w-24 bg-transparent font-mono text-[11.5px] outline-none placeholder:font-sans placeholder:text-muted-foreground"
             data-testid="explorer-search"
           />
         </label>

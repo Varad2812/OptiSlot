@@ -114,6 +114,9 @@ function watch(page, label) {
 const external = new Set();
 const fixtureLoads = new Set();
 
+const ready3d = (page, hook) =>
+  page.waitForFunction((h) => window.__optislot?.[h]?.stats?.()?.firstFrameMs != null || window.__optislot?.[h]?.ready?.() === true, hook, { timeout: 120_000 });
+
 async function settle(page, ms = 450) {
   await page.evaluate(() => document.fonts.ready);
   await sleep(ms);
@@ -141,8 +144,11 @@ try {
           for (const route of routes) {
             const page = await ctx.newPage();
             watch(page, `${route} ${theme}`);
-            await page.goto(`${base}${route}?project=demo`, { waitUntil: "networkidle" });
-            await settle(page, route === "/explorer" ? 900 : 450);
+            // the live mini room: ?demo=1 skips its FPS guard (SwiftShader would drop it to the flat floor) and exposes its ready hook
+            const mini = route === "/" || route === "/mission";
+            await page.goto(`${base}${route}?project=demo${mini ? "&demo=1" : ""}`, { waitUntil: "networkidle" });
+            if (mini) await ready3d(page, "miniroom").catch(() => problems.push(`${route} ${theme}: the mini room never drew a frame`));
+            await settle(page, route === "/explorer" ? 900 : mini ? 1500 : 450);
             await page.screenshot({ path: path.join(outDir, `${slug(route)}__${vp.width}x${vp.height}__${theme}.png`) });
             count++;
             await page.close();

@@ -46,6 +46,11 @@ function initialProject(): string {
   return read(PROJECT_KEY) || "demo";
 }
 
+/** `data-motion` on <html> lets CSS hold decorative loops still in Calm mode (index.css). */
+function applyMotion(m: Motion) {
+  document.documentElement.dataset.motion = m;
+}
+
 function applyTheme(t: Theme) {
   document.documentElement.dataset.theme = t;
   write(THEME_KEY, t);
@@ -124,6 +129,7 @@ export const useUi = create<UiState>((set, get) => ({
   toggleTheme: () => get().setTheme(get().theme === "dark" ? "light" : "dark"),
   setMotion: (motion) => {
     write(MOTION_KEY, motion);
+    applyMotion(motion);
     set({ motion });
   },
   setProject: (projectId) => {
@@ -152,3 +158,4 @@ export const useUi = create<UiState>((set, get) => ({
 }));
 
 applyTheme(useUi.getState().theme);
+applyMotion(useUi.getState().motion);

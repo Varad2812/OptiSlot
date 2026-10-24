@@ -11,6 +11,6 @@ export function useRouteTitle() {
   const { data: p } = useProject();
   useEffect(() => {
     const s = screenFor(pathname);
-    document.title = [s?.title, p?.name, "OptiSlot"].filter(Boolean).join(" · ");
+    document.title = s?.bare ? "OptiSlot — Allocate. Prove. Revise." : [s?.title ?? "Not found", p?.name, "OptiSlot"].filter(Boolean).join(" · ");
   }, [pathname, p?.name]);
 }

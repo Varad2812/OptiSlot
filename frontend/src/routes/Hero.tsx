@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { animate, motion } from "framer-motion";
-import { ArrowRight, Box, Download, LayoutDashboard, Moon, Sun, Upload, WifiOff } from "lucide-react";
+import { ArrowRight, Box, Download, LayoutDashboard, Upload, WifiOff } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,7 +11,10 @@ import { useRevisionImpact } from "@/api/sandbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EASE, useCalm } from "@/motion/shared";
+import { CommandPalette } from "@/shell/CommandPalette";
 import { Logo } from "@/shell/TopBar";
+import { usePaletteHotkey } from "@/shell/useHotkeys";
+import { useRouteTitle } from "@/shell/useRouteTitle";
 import { useUi } from "@/store/ui";
 import { openInRoom } from "@/world/actions";
 import { hasWebGL } from "@/world3d/support";
@@ -31,6 +34,8 @@ const HERO_CABINETS = 8;
 export default function Hero() {
   const nav = useNavigate();
   const calm = useCalm();
+  useRouteTitle();
+  usePaletteHotkey();
   const { data: a, isError } = useAllocation();
   const { data: p } = useProject();
   const offline = useUi((s) => s.offline);
@@ -97,7 +102,8 @@ export default function Hero() {
 
   const t = (d: number) => ({ duration: calm ? 0.15 : 0.6, delay: calm ? 0 : d, ease: EASE });
   return (
-    <div className="relative h-full overflow-hidden bg-[#0A0D13] text-text" data-testid="hero">
+    // The launch page is dark in both themes (legacy3d/reference_launch.html): the room behind it is always lit for the dark.
+    <div className="relative h-full overflow-hidden bg-[#0A0D13] text-text" data-theme="dark" data-testid="hero">
       {/* the room: real engine, low-cost mode, orbiting; a click on a cabinet dives into the 3D Room */}
       <div className="absolute inset-0" data-testid="hero-room">
         {model && !flat ? (
@@ -144,7 +150,6 @@ export default function Hero() {
           <Button asChild variant="outline" size="sm" className="glass h-8 gap-1.5 border-border text-[12px]">
             <Link to="/room"><Box className="size-3.5" /> 3D Room</Link>
           </Button>
-          <ThemeBtn />
         </nav>
       </header>
 
@@ -191,6 +196,7 @@ export default function Hero() {
       </section>
 
       <Hooks a={a} t={t} />
+      <CommandPalette />
 
       {over && (
         <div className="absolute inset-0 z-30 grid place-items-center bg-bg/75 backdrop-blur-sm" data-testid="hero-drop">
@@ -370,16 +376,6 @@ function Ticks({ checks }: { checks: AllocationResult["report"]["checks"] }) {
         );
       })}
     </div>
-  );
-}
-
-function ThemeBtn() {
-  const theme = useUi((s) => s.theme);
-  const toggle = useUi((s) => s.toggleTheme);
-  return (
-    <Button variant="outline" size="icon" className="glass size-8 border-border" onClick={toggle} aria-label="Toggle theme" title="Toggle theme">
-      {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
-    </Button>
   );
 }
 

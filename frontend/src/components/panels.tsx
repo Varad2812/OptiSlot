@@ -77,12 +77,12 @@ export function CertificatePanel({ delay, to }: { delay?: number; to?: string })
             <dt className="text-muted-foreground">Engine</dt>
             <dd className="font-mono text-[11.5px]">{c.engine_version} · {c.timestamp.replace("T", " ").replace("Z", "")}</dd>
           </dl>
-          <div className="mt-3 flex flex-wrap gap-1" aria-label="Verifier checks">
+          <div className="mt-3 flex gap-1" aria-label="Verifier checks">
             {a!.report.checks.map((ch) => (
               <span
                 key={ch.id}
                 title={`${ch.label} — ${ch.failed ? `${ch.failed} failed` : ch.excepted ? `${ch.excepted} excepted by TQ` : `${ch.passed} passed`}`}
-                className={cn("h-2 w-4 rounded-[2px]", ch.failed ? "bg-err" : ch.excepted ? "bg-warn" : "bg-ok/80")}
+                className={cn("h-2 min-w-0 max-w-4 flex-1 rounded-[2px]", ch.failed ? "bg-err" : ch.excepted ? "bg-warn" : "bg-ok/80")}
               />
             ))}
           </div>
