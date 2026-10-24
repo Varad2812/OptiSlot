@@ -250,10 +250,16 @@ export const useResetSandbox = () => useStackOp("reset");
 
 export function useCommitMoves() {
   const pid = useProjectId();
+  const qc = useQueryClient();
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (v: { reason: string; who: string }) => postJson<PlacementCommitResult>(`/projects/${pid}/placement/commit`, v),
-    onSuccess: () => refresh(undefined, true),
+    onSuccess: (res) => {
+      // the verifier's answer for the committed allocation is on screen at once (Proof, scoreboard); the refetch confirms it
+      if (res.report) qc.setQueryData<AllocationResult>(["allocation", pid], (a) => (a ? { ...a, report: res.report } : a));
+      void qc.invalidateQueries({ queryKey: ["runs", pid] });
+      refresh(undefined, true);
+    },
   });
 }
 

@@ -1,5 +1,6 @@
 import type { AllocationResult, CabinetInfo, Project, Slot } from "@/api/hooks";
 import { ioKey, type IoKey } from "@/lib/io";
+import { verifierLine } from "@/lib/checks";
 
 /** Grid dimensions — read from the data (cabinets/CIOCs/baseplates) with the project settings as the default. */
 export interface Dims {
@@ -152,7 +153,7 @@ export function flowSteps(p: Project | undefined, a: AllocationResult | undefine
     { key: "allocate", label: "Allocate", path: "/room", state: a?.run_id ? "done" : "todo", hint: a ? `${a.kpis.allocated}/${a.kpis.signals} signals` : "Not run" },
     {
       key: "verify", label: "Verify", path: "/proof", state: !a ? "todo" : verified ? "done" : "warn",
-      hint: a ? `${a.report.violations} violations · ${a.report.checks_passed}/${a.report.checks_total} checks` : "Not run",
+      hint: a ? verifierLine(a.report, a.kpis.signals) : "Not run",
     },
     { key: "revise", label: "Revise", path: "/revisions", state: revised ? "done" : "todo", hint: revised ? `Rev ${p?.revision}` : "Rev A only" },
     { key: "export", label: "Export", path: "/export", state: exported ? "done" : "todo", hint: exported ? "Files downloaded" : "Nothing exported yet" },

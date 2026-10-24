@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { EASE } from "@/motion/shared";
+import { ruleChecks } from "@/lib/checks";
 
 /**
  * The card every screen is built from: an uppercase label, optional aside, hairline surface, hover lift.
@@ -63,9 +64,9 @@ export function CertificatePanel({ delay, to }: { delay?: number; to?: string })
       {!c ? <Loading /> : (
         <>
           <div className={cn("text-[26px] font-semibold tnum", pass ? "text-ok" : "text-err")}>
-            {c.violations} violations <span className="text-muted-foreground">·</span> <span className="text-text">{c.checks_passed}/{c.checks_total}</span>
-            <span className="ml-1 text-[13px] font-normal text-muted-foreground">checks</span>
+            {c.violations} violations <span className="text-muted-foreground">·</span> <span className="text-text">{ruleChecks(c)}</span>
           </div>
+          {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.signals.toLocaleString("en-US")} signals checked</div>}
           <dl className="mt-3 grid grid-cols-[96px_1fr] gap-y-1.5 text-[12px]">
             {([["Input MDB", c.mdb_sha256], ["Rule set", c.ruleset_hash], ["Output", c.output_sha256]] as const).map(([k, v]) => (
               <div key={k} className="contents">
@@ -102,7 +103,7 @@ function Verdict({ pass }: { pass: boolean }) {
 export function ChecksPanel({ delay, limit = 20 }: { delay?: number; limit?: number }) {
   const { data: a } = useAllocation();
   return (
-    <Panel title="Independent checks" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{a.report.checks_passed}/{a.report.checks_total}</span>}>
+    <Panel title="Independent checks" delay={delay} aside={a && <span className="text-[11px] text-muted-foreground tnum">{ruleChecks(a.report)}</span>}>
       {!a ? <Loading rows={8} /> : (
         <ul className="grid grid-cols-1 gap-x-6 gap-y-1 xl:grid-cols-2">
           {a.report.checks.slice(0, limit).map((ch, i) => (

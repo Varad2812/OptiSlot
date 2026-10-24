@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 import type { RuleChange } from "./api";
+import { ruleChecks } from "@/lib/checks";
 
 const pct = (n: number) => `${Math.round(n * 10) / 10}%`;
 
@@ -49,7 +50,7 @@ export function Impact({ change, loading, error, className, compact }: { change?
   return (
     <div className={cn("space-y-2.5", loading && "opacity-60 transition-opacity", className)} data-testid="rule-impact" aria-busy={loading}>
       <div className={cn("grid grid-cols-2 gap-2", !compact && "md:grid-cols-4")}>
-        <Tile k="Violations" tone={report.violations ? "err" : "ok"} sub={`${report.checks_passed}/${report.checks_total} checks pass${report.excepted ? ` · ${report.excepted} excepted` : ""}`}>
+        <Tile k="Violations" tone={report.violations ? "err" : "ok"} sub={`${ruleChecks(report)} pass${report.excepted ? ` · ${report.excepted} excepted` : ""}`}>
           <span className={report.violations ? "text-err" : "text-ok"}><Delta a={b.violations} b={a.violations} /></span>
         </Tile>
         <Tile k="Signals moved" tone={change.moves ? "warn" : undefined} sub={change.moves ? `of ${signals} placed` : "every signal keeps its slot"}>{change.moves}</Tile>

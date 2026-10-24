@@ -132,8 +132,8 @@ export function MovePicker({ sig, a, model, overlay, hint, channels, onPickTag, 
             });
             // the 3D Room flies it in (arc, ghost at the old slot, glow at the new one) — camera follows there
             const mine = new Set([tagKey(sig.tag), ...(res.check.swap ? [tagKey(res.check.swap.with_tag)] : [])]);
-            const keys = (res.state.changes?.moves ?? []).filter((m) => mine.has(tagKey(m.tag))).map(moveKey);
-            if (keys.length) publish({ kind: "move", keys, tag: sig.tag });
+            const mv = (res.state.changes?.moves ?? []).filter((m) => mine.has(tagKey(m.tag)) && m.from_slot && m.to_slot);
+            if (mv.length) publish({ kind: "move", keys: mv.map(moveKey), tag: sig.tag, moves: mv.map((m) => ({ tag: m.tag, from: m.from_slot!, to: m.to_slot! })) });
             onApplied(res);
           } else {
             if (res.check.to_slot) publish({ kind: "refused", slot: res.check.to_slot, tag: sig.tag });

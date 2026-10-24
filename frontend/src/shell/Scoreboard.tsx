@@ -5,6 +5,7 @@ import { useAllocation } from "@/api/hooks";
 import { cn } from "@/lib/utils";
 
 import { CountUp } from "./CountUp";
+import { ruleChecks } from "@/lib/checks";
 
 interface Tile {
   label: string;
@@ -22,7 +23,7 @@ export function Scoreboard() {
   const k = a?.kpis;
   const tiles: Tile[] = [
     { label: "Allocated", to: "/grid", value: k?.allocated_pct ?? null, decimals: k && k.allocated_pct % 1 ? 1 : 0, suffix: "%", tone: k && k.allocated_pct >= 100 ? "ok" : "warn", sub: k ? `${k.allocated}/${k.signals} live` : undefined },
-    { label: "Violations", to: "/proof", value: a?.report.violations ?? null, tone: a && a.report.violations > 0 ? "err" : "ok", sub: a ? `${a.report.checks_passed}/${a.report.checks_total} checks` : undefined },
+    { label: "Violations", to: "/proof", value: a?.report.violations ?? null, tone: a && a.report.violations > 0 ? "err" : "ok", sub: a ? `${ruleChecks(a.report)} · ${k?.signals ?? 0} signals` : undefined },
     { label: "Open TQs", to: "/tqs", value: k?.tqs_open ?? null, tone: k && k.tqs_open > 0 ? "warn" : "ok", sub: a ? `${a.tqs.length} raised · ${k!.unallocated_with_tq} unplaced` : undefined },
     { label: "Untouched", to: "/revisions", value: k?.stability_pct ?? null, decimals: 1, suffix: "%", tone: "brand", sub: k?.stability_pct == null ? "after Rev B" : "in place vs Rev A" },
     { label: "Cabinets", to: "/explorer", value: k?.cabinets ?? null, sub: k ? `${new Set(a?.cabinets.map((c) => c.controller)).size} controllers` : undefined },

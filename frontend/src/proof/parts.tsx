@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import type { RuleCheckReport, RunRecord, Slot } from "@/api/hooks";
 import { Panel } from "@/components/panels";
+import { ruleChecks } from "@/lib/checks";
 import { cn } from "@/lib/utils";
 import { easeOut, phase } from "@/motion/shared";
 import { CountUp } from "@/shell/CountUp";
@@ -15,6 +16,8 @@ import { copyText, middle } from "./util";
 
 export interface CertView {
   kind: "run" | "file";
+  /** the tamper test: a modified copy of our export, not the user's allocation */
+  demo?: boolean;
   title: string;
   rows: [label: string, value: string | null | undefined, copy?: string][];
   note?: ReactNode;
@@ -23,16 +26,16 @@ export interface CertView {
 }
 
 /** Hashes, engine, time and the verdict. The seal lands (scale 1.15 → 1, short glow) when the scan has read every check. */
-export function CertStamp({ report, cert, p }: { report: RuleCheckReport; cert: CertView; p: MotionValue<number> }) {
+export function CertStamp({ report, cert, p, signals }: { report: RuleCheckReport; cert: CertView; p: MotionValue<number>; signals?: number | null }) {
   const pass = report.verdict === "PASS";
   const land = useTransform(p, (v) => easeOut(phase(v, STAMP[0], STAMP[1])));
   const scale = useTransform(land, (t) => 1.15 - 0.15 * t);
   const opacity = useTransform(p, (v) => phase(v, STAMP[0] - 0.02, STAMP[0] + 0.04));
   const glow = useTransform(p, (v) => Math.sin(Math.PI * phase(v, STAMP[0], STAMP[1] + 0.1)));
   const follow = useTransform(p, (v) => phase(v, TICKS_FROM, lastTick(report.checks.length) + 0.02));
-  const tone = pass ? { text: "text-ok", ring: "border-ok", glow: "shadow-[0_0_32px_6px_rgb(var(--ok)/0.55)]", grad: "from-ok/10" } : { text: "text-err", ring: "border-err", glow: "shadow-[0_0_32px_6px_rgb(var(--err)/0.55)]", grad: "from-err/10" };
+  const tone = cert.demo ? { text: "text-warn", ring: "border-warn", glow: "shadow-[0_0_32px_6px_rgb(var(--warn)/0.45)]", grad: "from-warn/10" } : pass ? { text: "text-ok", ring: "border-ok", glow: "shadow-[0_0_32px_6px_rgb(var(--ok)/0.55)]", grad: "from-ok/10" } : { text: "text-err", ring: "border-err", glow: "shadow-[0_0_32px_6px_rgb(var(--err)/0.55)]", grad: "from-err/10" };
   return (
-    <section className={cn("card-surface relative overflow-hidden bg-gradient-to-br to-transparent p-4", tone.grad)} data-testid="certificate" data-verdict={report.verdict}>
+    <section className={cn("card-surface relative overflow-hidden bg-gradient-to-br to-transparent p-4", tone.grad, cert.demo && "border-dashed border-warn/50")} data-testid={cert.demo ? "demo-certificate" : "certificate"} data-verdict={report.verdict}>
       <header className="mb-3 flex items-center justify-between gap-2 pr-[132px]">
         <h2 className="label-caps">{cert.title}</h2>
       </header>
@@ -41,15 +44,17 @@ export function CertStamp({ report, cert, p }: { report: RuleCheckReport; cert: 
         <motion.div className={cn("absolute inset-0 rounded-md", tone.glow)} style={{ opacity: glow }} />
         <div className={cn("relative flex items-center gap-1.5 rounded-md border-2 bg-surface/80 px-2.5 py-1 text-[11.5px] font-bold uppercase tracking-[0.16em] backdrop-blur", tone.ring, tone.text)}>
           {pass ? <ShieldCheck className="size-4" /> : <ShieldAlert className="size-4" />}
-          {pass ? "Verified" : "Rejected"}
+          {cert.demo ? "Caught" : pass ? "Verified" : "Rejected"}
         </div>
       </motion.div>
 
       <div className={cn("text-[23px] font-semibold leading-8 tnum", tone.text)} data-testid="verdict-line">
         <CountUp value={report.violations} follow={follow} /> violation{report.violations === 1 ? "" : "s"} <span className="text-muted-foreground">·</span>{" "}
-        <span className="text-text"><CountUp value={report.checks_passed} follow={follow} />/{report.checks_total}</span>
-        <span className="ml-1 text-[13px] font-normal text-muted-foreground">checks</span>
+        <span className="text-text">
+          {report.checks_passed === report.checks_total ? <><CountUp value={report.checks_total} follow={follow} /> rule checks</> : <><CountUp value={report.checks_passed} follow={follow} />/{report.checks_total} rule checks</>}
+        </span>
       </div>
+      {signals != null && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{signals.toLocaleString("en-US")} signals checked</div>}
       {(report.excepted > 0 || report.warnings > 0) && (
         <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">
           {report.excepted > 0 && <>{report.excepted} excepted by a TQ</>}{report.excepted > 0 && report.warnings > 0 && " · "}{report.warnings > 0 && <>{report.warnings} soft warning{report.warnings === 1 ? "" : "s"}</>}
@@ -217,3 +222,26 @@ export function RunHistory({ runs, certified }: { runs: RunRecord[] | undefined;
 }
 
 export type { Slot };
+
+/** The tamper test is a demo on a modified copy: this card says so, and says the real allocation is untouched. */
+export function DemoBanner({ t, onBack }: { t: { row?: number; column?: string; tag?: string; from?: string; to?: string }; onBack: () => void }) {
+  return (
+    <div className="rounded-card border border-dashed border-warn/60 bg-warn/[0.07] px-3.5 py-2.5 text-[12.5px]" data-testid="demo-banner">
+      <div className="flex items-center gap-2 font-semibold text-warn"><ShieldAlert className="size-4 shrink-0" /> Demo — tamper caught in a modified copy</div>
+      <p className="mt-0.5 text-muted-foreground">Your allocation is untouched. One cell was changed in a copy of the export{t.row ? <> (row {t.row}, {t.column}: <span className="font-mono">{t.from} → {t.to}</span>)</> : null} and the independent verifier was asked to read it.</p>
+      <button onClick={onBack} className="mt-1.5 text-[11.5px] text-brand hover:underline" data-testid="demo-back">Back to the real certificate</button>
+    </div>
+  );
+}
+
+/** The real verifier status, always visible while a demo or an uploaded file is on screen. */
+export function RealStatus({ report, signals }: { report: RuleCheckReport; signals?: number | null }) {
+  const pass = report.verdict === "PASS";
+  return (
+    <div className={cn("flex items-center gap-2 rounded-chip border px-2.5 py-1.5 text-[12px]", pass ? "border-ok/40 bg-ok/10 text-ok" : "border-err/40 bg-err/10 text-err")} data-testid="real-status">
+      {pass ? <ShieldCheck className="size-3.5 shrink-0" /> : <XCircle className="size-3.5 shrink-0" />}
+      <span className="text-muted-foreground">Your allocation</span>
+      <span className="tnum font-semibold">{report.violations} violations · {ruleChecks(report)}{signals != null ? ` · ${signals.toLocaleString("en-US")} signals` : ""}</span>
+    </div>
+  );
+}

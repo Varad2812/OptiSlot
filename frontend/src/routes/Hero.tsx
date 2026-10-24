@@ -237,7 +237,7 @@ function Hooks({ a, t }: { a: AllocationResult | undefined; t: (d: number) => ob
       body: (
         <>
           <Big className={fail ? "text-err" : "text-ok"}><Num to={cert.violations} /><Small>violation{cert.violations === 1 ? "" : "s"}</Small></Big>
-          <Foot>independently verified · <b className="font-mono text-text"><Num to={cert.checks_passed} /></b>/{cert.checks_total} checks</Foot>
+          <Foot>independently verified · <b className="font-mono text-text"><Num to={cert.checks_total} /></b> rule checks · {k.signals.toLocaleString("en-US")} signals</Foot>
           <Ticks checks={a.report.checks} />
         </>
       ),

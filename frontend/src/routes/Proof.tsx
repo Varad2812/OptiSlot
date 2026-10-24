@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
 import { EASE, phase as phaseOf, useCalm } from "@/motion/shared";
-import { CertStamp, CheckRow, hashRow, RunHistory, type CertView } from "@/proof/parts";
+import { verifierLine } from "@/lib/checks";
+import { CertStamp, CheckRow, DemoBanner, hashRow, RealStatus, RunHistory, type CertView } from "@/proof/parts";
 import { collectFails, firstFlyable, lastTick, listFor, SCAN_CALM_S, SCAN_S, TICKS_FROM, tagIndex, type Fail } from "@/proof/scan";
 import { CountUp } from "@/shell/CountUp";
 import { ScanOverlay } from "@/proof/ScanOverlay";
@@ -31,7 +32,8 @@ const World3D = lazy(() => import("@/world3d/World3D"));
 const INSETS: Insets = { top: 56, right: 18, bottom: 96, left: 18 };
 const SCAN_KEY = "optislot-scan-seen";
 
-type Source = { kind: "run" } | { kind: "file"; name: string; report: RuleCheckReport; sha: string | null; at: string };
+type DemoInfo = { row: number; column: string; tag: string; from: string; to: string };
+type Source = { kind: "run" } | { kind: "file"; name: string; report: RuleCheckReport; sha: string | null; at: string; demo?: DemoInfo };
 type Phase = "idle" | "uploading" | "scanning" | "flying" | "done";
 
 export default function Proof() {
@@ -82,6 +84,15 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   phaseRef.current = phase;
   const live = useRef({ stage, dims, model, a, tags, calm });
   live.current = { stage, dims, model, a, tags, calm };
+
+  // a new allocation (Commit in the Workbench, a rule change) retires a demo / uploaded view: the real verifier status is shown
+  const runId = a.run_id;
+  const lastRun = useRef(runId);
+  useEffect(() => {
+    if (lastRun.current === runId) return;
+    lastRun.current = runId;
+    setSrc((s) => (s.kind === "file" && s.demo ? { kind: "run" } : s));
+  }, [runId]);
 
   const report = src.kind === "file" ? src.report : a.report;
   const cur = useMemo(() => {
@@ -229,7 +240,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   }, [focusKey, pulseKey, calm]);
 
   // ───── verify any Excel ─────
-  const verifyFile = useCallback(async (file: File | undefined) => {
+  const verifyFile = useCallback(async (file: File | undefined, demo?: DemoInfo) => {
     if (!file) return;
     if (!/\.xlsx?$/i.test(file.name)) return void toast.error("Not an Excel file", { description: "Drop an IO Allocation .xlsx — ours, or a hand-edited copy." });
     // A Re-verify in flight would replace the report (and flip the view back to the run) when it lands — the buttons are disabled, a drop is not.
@@ -243,7 +254,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       form.append("file", file);
       const [sha, rep] = await Promise.all([sha256File(file), postForm<RuleCheckReport>(`/verify-file?project_id=${encodeURIComponent(pid)}`, form)]);
       void qc.invalidateQueries({ queryKey: ["runs", pid] });
-      setSrc({ kind: "file", name: file.name, report: rep, sha, at: new Date().toISOString() });
+      setSrc({ kind: "file", name: file.name, report: rep, sha, at: new Date().toISOString(), demo });
       await settle(rep);
     } catch (e) {
       setPhase("done");
@@ -259,7 +270,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     try {
       const t = await makeTampered(pid);
       toast.message(`Tampered copy: row ${t.row}, ${t.column}`, { description: `${t.tag.replace(/\s+/g, " ")}: ${t.from} → ${t.to}. Sending it to the independent verifier…` });
-      await verifyFile(t.file);
+      await verifyFile(t.file, { row: t.row, column: t.column, tag: t.tag, from: t.from, to: t.to });
     } catch (e) {
       const net = e instanceof TypeError;
       toast.error(net ? "Export unreachable" : "Could not make the tampered copy", { description: net ? "The API is offline — the test needs the exported workbook." : (e as Error).message });
@@ -308,7 +319,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     if (src.kind === "file") {
       const same = src.sha ? src.sha === certified : null;
       return {
-        kind: "file", title: "Uploaded file", engine: c.engine_version, at: src.at,
+        kind: "file", demo: !!src.demo, title: src.demo ? "Demo result — modified copy" : "Uploaded file", engine: c.engine_version, at: src.at,
         rows: [["File", src.name], hashRow("File sha256", src.sha), hashRow("Input MDB", c.mdb_sha256), hashRow("Rule set", c.ruleset_hash)],
         note: same == null ? null : (
           <span className={cn("inline-flex items-center gap-1.5 rounded-chip px-2 py-1 text-[11.5px]", same ? "bg-ok/15 text-ok" : "bg-warn/15 text-warn")}>
@@ -340,15 +351,16 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface/50 px-5">
         <h1 className="text-[14px] font-semibold">Proof Center</h1>
         <span className="max-w-[420px] truncate rounded-chip border border-border bg-raised px-2 py-0.5 font-mono text-[11px] text-muted-foreground" title={src.kind === "file" ? src.name : undefined}>
-          {src.kind === "file" ? `Uploaded · ${src.name}` : `Rev ${a.revision} · re-read from the exported workbook`}
+          {src.kind === "file" ? (src.demo ? `Demo · tampered copy · ${src.name}` : `Uploaded · ${src.name}`) : `Rev ${a.revision} · re-read from the exported workbook`}
         </span>
         <motion.span
           key={`${report.verdict}/${phase === "scanning"}`} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: EASE }}
           className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-0.5 text-[11.5px]", phase === "scanning" || phase === "uploading" ? "border-live/40 text-muted-foreground" : report.verdict === "PASS" ? "border-ok/40 bg-ok/10 text-ok" : "border-err/40 bg-err/10 text-err")}
           data-testid="verdict-chip"
         >
-          {phase === "scanning" || phase === "uploading" ? <><RefreshCw className="size-3.5 animate-spin text-live" /> Verifying…</> : <>{report.verdict === "PASS" ? <ShieldCheck className="size-3.5" /> : <XCircle className="size-3.5" />}<span className="tnum font-semibold">{report.verdict} · {report.violations} violations · {report.checks_passed}/{report.checks_total} checks</span></>}
+          {phase === "scanning" || phase === "uploading" ? <><RefreshCw className="size-3.5 animate-spin text-live" /> Verifying…</> : <>{report.verdict === "PASS" ? <ShieldCheck className="size-3.5" /> : <XCircle className="size-3.5" />}<span className="tnum font-semibold">{src.kind === "file" && src.demo ? "Demo copy · " : ""}{report.verdict} · {verifierLine(report, a.kpis.signals)}</span></>}
         </motion.span>
+        {src.kind === "file" && <RealStatus report={a.report} signals={a.kpis.signals} />}
         <div className="ml-auto flex items-center gap-1.5">
           {src.kind === "file" && (
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={backToRun} disabled={busy} data-testid="back-to-run"><Undo2 className="size-3.5" /> Back to the current run</Button>
@@ -438,7 +450,8 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
 
         {/* proof column */}
         <aside className="flex w-[480px] shrink-0 flex-col border-l border-border bg-surface/60" data-testid="proof-aside">
-          <div className="shrink-0 p-4 pb-3"><CertStamp report={report} cert={cert} p={seq.progress} /></div>
+          <div className="shrink-0 p-4 pb-3">{src.kind === "file" && src.demo && <div className="mb-3"><DemoBanner t={src.demo} onBack={backToRun} /></div>}
+            <CertStamp report={report} cert={cert} p={seq.progress} signals={a.kpis.signals} /></div>
           <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4" data-testid="proof-scroll">
 
           {report.verdict === "FAIL" && phase !== "scanning" && phase !== "uploading" && (
@@ -454,7 +467,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
           <section className="card-surface shrink-0 p-3.5">
             <header className="mb-2 flex items-center justify-between gap-2 px-0.5">
               <h2 className="label-caps">Independent checks</h2>
-              <span className="text-[11px] text-muted-foreground tnum"><CountUp value={report.checks_passed} follow={ticked} />/{report.checks_total} pass</span>
+              <span className="text-[11px] text-muted-foreground tnum"><CountUp value={report.checks_passed} follow={ticked} />/{report.checks_total} rule checks pass</span>
             </header>
             <p className="mb-1.5 px-0.5 text-[11.5px] text-muted-foreground">Re-read from the .xlsx by a verifier that shares no code with the engine.</p>
             <ul className="space-y-px" data-testid="checks">

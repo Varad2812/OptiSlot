@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { EASE, useCalm } from "@/motion/shared";
 import { ALLOCATE_LANDING_ROUTE, flyToSlot } from "@/world/actions";
+import { ruleChecks } from "@/lib/checks";
 
 // The generated types mark defaulted list fields optional; the API always sends them, but be safe about it.
 type NTQ = TQ & { rows: number[]; tags: string[]; slot_ids: string[]; rules_in_conflict: string[]; fix_options: NonNullable<TQ["fix_options"]> };
@@ -71,7 +72,7 @@ export default function TqCenter() {
             <div className="flex items-center gap-1.5 rounded-chip border border-border bg-raised px-2.5 py-1 text-[12px]" data-testid="tq-violations">
               <ShieldCheck className={cn("size-3.5", a.report.violations ? "text-err" : "text-ok")} />
               <span className="tnum">{a.report.violations} violations</span>
-              <span className="text-muted-foreground tnum">· {a.report.checks_passed}/{a.report.checks_total} checks</span>
+              <span className="text-muted-foreground tnum">· {ruleChecks(a.report)} · {a.kpis.signals} signals</span>
             </div>
           )}
         </header>
@@ -234,7 +235,7 @@ function ResultStrip({ a, slots, result, onShow, calm }: { a: AllocationResult; 
     <div className="rounded-chip border border-ok/30 bg-ok/[0.06] p-3" data-testid="tq-result">
       <div className="flex items-center gap-2 text-[12.5px]">
         <CheckCircle2 className="size-4 text-ok" />
-        <span>{result.verb} — re-verified: <b className={ok ? "text-ok" : "text-err"}>{a.report.violations} violations</b> · {a.report.checks_passed}/{a.report.checks_total} checks</span>
+        <span>{result.verb} — re-verified: <b className={ok ? "text-ok" : "text-err"}>{a.report.violations} violations</b> · {ruleChecks(a.report)} · {a.kpis.signals} signals</span>
       </div>
       {slots.length > 0 && (
         <ul className="mt-2 space-y-1">

@@ -5,6 +5,7 @@ import type { components } from "@/api/types";
 import { useUi } from "@/store/ui";
 
 import { getJson, postForm, postJson, putJson } from "./client";
+import { verifierLine } from "@/lib/checks";
 
 export type S = components["schemas"];
 export type AllocationResult = S["AllocationResult"];
@@ -118,7 +119,7 @@ export function useVerify() {
       qc.setQueryData<AllocationResult>(["allocation", pid], (a) => (a ? { ...a, report: rep } : a));
       qc.invalidateQueries({ queryKey: ["runs", pid] });
       const fn = rep.verdict === "PASS" ? toast.success : toast.error;
-      fn(`Verifier: ${rep.verdict}`, { description: `${rep.violations} violations · ${rep.checks_passed}/${rep.checks_total} checks` });
+      fn(`Verifier: ${rep.verdict}`, { description: verifierLine(rep) });
     },
     onError: (e) => toast.error("Verify failed", { description: String((e as Error).message) }),
   });

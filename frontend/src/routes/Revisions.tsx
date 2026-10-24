@@ -1,3 +1,4 @@
+import { verifierLine } from "@/lib/checks";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, FlaskConical, Loader2, RefreshCw, RotateCcw, ShieldCheck, Upload, XCircle } from "lucide-react";
@@ -194,7 +195,7 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
         <span className="rounded-chip border border-border bg-raised px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
           {impact ? `Rev ${impact.from_rev} → Rev ${impact.to_rev}` : `Rev ${a.revision} only`}
         </span>
-        <VerifyChip busy={flow.phase === "verifying"} violations={rep.violations} passed={rep.checks_passed} total={rep.checks_total} shown={!!impact || !!flow.verified} />
+        <VerifyChip busy={flow.phase === "verifying"} violations={rep.violations} passed={rep.checks_passed} total={rep.checks_total} signals={a.kpis.signals} shown={!!impact || !!flow.verified} />
         <div className="ml-auto flex items-center gap-1.5">
           {impact && (
             <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => (seq.seek(0), void playSeq(calm ? PLAY_CALM_S : PLAY_S))} data-testid="replay-diff">
@@ -280,7 +281,7 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
   );
 }
 
-function VerifyChip({ busy, violations, passed, total, shown }: { busy: boolean; violations: number; passed: number; total: number; shown: boolean }) {
+function VerifyChip({ busy, violations, passed, total, signals, shown }: { busy: boolean; violations: number; passed: number; total: number; signals: number; shown: boolean }) {
   if (!shown && !busy) return null;
   const ok = violations === 0;
   return (
@@ -290,7 +291,7 @@ function VerifyChip({ busy, violations, passed, total, shown }: { busy: boolean;
       data-testid="reverify-chip"
     >
       {busy ? <RefreshCw className="size-3.5 animate-spin text-live" /> : ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
-      {busy ? "Re-verifying…" : <>Re-verified · <span className="tnum font-semibold">{violations} violations · {passed}/{total} checks</span></>}
+      {busy ? "Re-verifying…" : <>Re-verified · <span className="tnum font-semibold">{verifierLine({ violations, checks_passed: passed, checks_total: total }, signals)}</span></>}
     </motion.span>
   );
 }

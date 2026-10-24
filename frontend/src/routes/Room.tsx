@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
-import { moveKey, subscribe, takePending, type MotionEvent } from "@/motion/bus";
+import { markPlayed, moveKey, subscribe, takePending, unseenMoves, type MotionEvent } from "@/motion/bus";
 import { useCurtain } from "@/motion/curtain";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
@@ -89,8 +89,8 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     return { slots: ch.slots_now ?? [], outline: [...new Set([...to, ...hw])], ghosts: from.filter((id) => !toSet.has(id)) };
   }, [ch, mode, nMoves, nHw]);
 
-  // What the Workbench just did (motion bus): applied in this window right before opening the Room → plays on arrival;
-  // from another window → plays live. A move comes in through the change set; a refused target shakes.
+  // What the Workbench just did (motion bus): a refused target shakes (only if it is under 30 s old); moves come in
+  // through the move log below, live from another window or on arrival.
   const [arrivalEv] = useState(takePending);
   const arrival = useRef(arrivalEv);
   const refuse = useCallback(async (slot: string) => void (await engine()).playRefuse(slot, { follow: true }), [engine]);
@@ -104,24 +104,26 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     if (a?.kind === "refused") void refuse(a.slot);
   }, [refuse]);
 
-  // A move applied in the Workbench (new in the change set) flies in, the camera following it.
-  const seen = useRef<Set<string> | null>(null);
+  // Every move applied in the Workbench is remembered (motion bus) until a Room has played it: they fly in, in the order
+  // they were applied, however long ago — batch by batch, the camera following. Moves undone since are not in the change set.
+  const playing = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
-    if (!ch) return;
-    const moves = ch.moves ?? [];
-    const keys = new Set(moves.map(moveKey));
-    let prev = seen.current;
-    if (!prev) {
-      // first look: everything is old news, except the moves the Workbench handed over on the way here
-      const a = arrival.current;
-      const handed = new Set(a?.kind === "move" ? a.keys : []);
-      prev = new Set([...keys].filter((k) => !handed.has(k)));
-    }
-    seen.current = keys;
-    if (mode !== "now") return;
-    const fresh = moves.filter((m) => !prev.has(moveKey(m)) && m.from_slot && m.to_slot);
-    if (fresh.length) void engine().then((e) => e.animateMove(fresh.map((m) => m.from_slot!), fresh.map((m) => m.to_slot!), { follow: true }));
-  }, [ch, mode, engine]);
+    if (mode !== "now" || changes.isLoading || (changes.data && !ch)) return;
+    const present = new Set((ch?.moves ?? []).map(moveKey));
+    const fresh = unseenMoves(present);
+    if (!fresh.length) return;
+    markPlayed(fresh.map((m) => m.key));
+    const batches = new Map<number, typeof fresh>();
+    for (const m of fresh) (batches.get(m.batch) ?? batches.set(m.batch, []).get(m.batch)!).push(m);
+    for (const group of batches.values())
+      playing.current = playing.current.then(async () => {
+        try {
+          await (await engine()).animateMove(group.map((m) => m.from), group.map((m) => m.to), { follow: true });
+        } catch {
+          /* a skipped animation never blocks the page */
+        }
+      });
+  }, [ch, changes.isLoading, changes.data, mode, engine]);
 
   // Rev switch (top bar) while the Room is open: play what changed — unchanged CHARMs dim, new ones fade in cyan, removed
   // ones dissolve red, changed ones pulse amber, moved ones fly; the HUD counts the stability up. B → A plays it in reverse.
