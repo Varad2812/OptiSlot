@@ -62,7 +62,7 @@ export default function TqCenter() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="mx-auto max-w-[1100px] p-6" data-testid="tq-center">
+      <div className="mx-auto max-w-[1280px] p-6" data-testid="tq-center">
         <header className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h1 className="text-page">TQ Center</h1>

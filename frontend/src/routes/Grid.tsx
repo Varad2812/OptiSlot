@@ -117,7 +117,7 @@ export default function Grid() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter any column…" className="h-8 w-64 pl-8 font-mono text-[12px]" data-testid="grid-filter" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter any column…" className="h-8 w-64 pl-8 text-[12.5px] md:text-[12.5px]" data-testid="grid-filter" />
           </div>
           <Toggle on={hideSpare} onClick={() => setHideSpare(!hideSpare)}>Hide spare slots</Toggle>
           <Toggle on={changedOnly} onClick={() => setChangedOnly(!changedOnly)} disabled={!changed}>Changed only{changed ? ` · ${changed}` : ""}</Toggle>

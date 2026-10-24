@@ -1,5 +1,5 @@
 import { Clapperboard, Command, FlaskConical, Moon, Sun, WifiOff, Wind } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { useProject, useProjects } from "@/api/hooks";
 import { Button } from "@/components/ui/button";
@@ -33,11 +33,6 @@ export function TopBar() {
   return (
     <header className="relative z-30 flex h-14 items-center gap-4 border-b border-border bg-surface/70 px-4 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
-        <Link to="/" className="flex items-center gap-2" title="Home — the launch page">
-          <Logo className="size-6" />
-          <span className="text-[15px] font-semibold tracking-tight">OptiSlot</span>
-        </Link>
-        <span className="h-5 w-px bg-border" />
         <Select value={projectId} onValueChange={setProject}>
           <SelectTrigger className="h-8 w-[165px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">
             <SelectValue placeholder="Project" />
@@ -82,11 +77,11 @@ export function TopBar() {
                 <WifiOff className="size-3.5" /> Offline
               </span>
             </TooltipTrigger>
-            <TooltipContent side="bottom">API unreachable — showing the generated fixtures</TooltipContent>
+            <TooltipContent side="bottom">The server is not answering — showing the saved demo data until it is back</TooltipContent>
           </Tooltip>
         )}
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 border-brand/40 text-[12px] text-text hover:border-brand" onClick={() => (useUi.getState().requestInject(), nav("/revisions"))} data-testid="topbar-inject">
-          <FlaskConical className="size-3.5 text-brand" /> Inject Rev B
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 border-brand/40 text-[12px] text-text hover:border-brand" onClick={() => (useUi.getState().requestInject(), nav("/revisions"))} data-testid="topbar-inject" title="Inject Rev B — the deterministic revision scenario" aria-label="Inject Rev B">
+          <FlaskConical className="size-3.5 text-brand" /> <span className="hidden min-[1640px]:inline">Inject Rev B</span>
         </Button>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-muted-foreground" onClick={() => setPalette(true)}>
           <Command className="size-3.5" />

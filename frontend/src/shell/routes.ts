@@ -1,5 +1,5 @@
 import {
-  Box, Boxes, Download, FileUp, FlaskConical, GitCompareArrows, House, LayoutDashboard, MessageSquareWarning, ShieldCheck,
+  Box, Boxes, Cpu, Download, FileUp, FlaskConical, GitCompareArrows, House, LayoutDashboard, MessageSquareWarning, ShieldCheck,
   SlidersHorizontal, Table2, type LucideIcon,
 } from "lucide-react";
 
@@ -7,27 +7,31 @@ export interface Screen {
   path: string;
   title: string;
   icon: LucideIcon;
-  group: "story" | "work";
+  /** "main" = the numbered story (reference_ui.html); "more" = the secondary group. */
+  group: "main" | "more";
   blurb: string;
-  phase?: "U2" | "U3" | "U4"; // later prompt that builds the full screen (dev-only chip)
   /** Full-bleed page outside the app shell (the launch page). */
   bare?: boolean;
+  /** Works without an allocation (Import, Rules); every other page waits for one. */
+  standalone?: boolean;
 }
 
-// CLAUDE.md §10.2 sidebar, in order. scripts/shots.mjs captures the same paths.
+// CLAUDE.md §10.9 nav order: Home, Import → Allocate → 3D Room → Workbench → Rules → Proof → Revisions → Export, then "More".
+// scripts/shots.mjs captures the same paths.
 export const SCREENS: Screen[] = [
-  { path: "/", title: "Home", icon: House, group: "story", bare: true, blurb: "Allocate. Prove. Revise. — the launch page over the live marshalling room." },
-  { path: "/mission", title: "Mission Control", icon: LayoutDashboard, group: "story", blurb: "The whole project at a glance — every tile is live data." },
-  { path: "/room", title: "3D Room", icon: Box, group: "story", blurb: "The marshalling room in 3D: dive Room → cabinet → CIOC → baseplate → CHARM, and see every change land." },
-  { path: "/explorer", title: "Cabinet Explorer", icon: Boxes, group: "story", blurb: "Walk the marshalling room: every slot of every cabinet, and why it is there." },
-  { path: "/lab", title: "Signal Workbench", icon: FlaskConical, group: "story", blurb: "Every signal, why it sits where it does — and a checked, undoable way to move it." },
-  { path: "/proof", title: "Proof Center", icon: ShieldCheck, group: "story", blurb: "An independent verifier re-reads the output. A tampered copy fails." },
-  { path: "/revisions", title: "Revision Center", icon: GitCompareArrows, group: "story", blurb: "Rev B moves only what changed — and every move has a reason.", phase: "U3" },
-  { path: "/import", title: "Import & Mapping", icon: FileUp, group: "work", blurb: "Any IO MDB, zero code: columns auto-mapped, bad rows quarantined." },
-  { path: "/rules", title: "Rules Studio", icon: SlidersHorizontal, group: "work", blurb: "Rules are data — edit them live; every change is previewed, re-verified and versioned." },
-  { path: "/tqs", title: "TQ Center", icon: MessageSquareWarning, group: "work", blurb: "Every open question names the clash and offers a fix." },
-  { path: "/grid", title: "Allocation Grid", icon: Table2, group: "work", blurb: "The 76-column IO Assignment, exactly as exported." },
-  { path: "/export", title: "Export", icon: Download, group: "work", blurb: "Five real files, written end-to-end into the template." },
+  { path: "/", title: "Home", icon: House, group: "main", bare: true, blurb: "Allocate. Prove. Revise. — the launch page over the live marshalling room." },
+  { path: "/import", title: "Import", icon: FileUp, group: "main", standalone: true, blurb: "Any IO MDB, zero code: columns auto-mapped, bad rows quarantined." },
+  { path: "/allocate", title: "Allocate", icon: Cpu, group: "main", standalone: true, blurb: "Run the solver and see every phase and every cabinet fill." },
+  { path: "/room", title: "3D Room", icon: Box, group: "main", blurb: "The marshalling room in 3D: dive Room → cabinet → CIOC → baseplate → CHARM, and see every change land." },
+  { path: "/lab", title: "Workbench", icon: FlaskConical, group: "main", blurb: "Every signal, why it sits where it does — and a checked, undoable way to move it." },
+  { path: "/rules", title: "Rules", icon: SlidersHorizontal, group: "main", standalone: true, blurb: "Rules are data — edit them live; every change is previewed, re-verified and versioned." },
+  { path: "/proof", title: "Proof", icon: ShieldCheck, group: "main", blurb: "An independent verifier re-reads the output. A tampered copy fails." },
+  { path: "/revisions", title: "Revisions", icon: GitCompareArrows, group: "main", blurb: "Rev B moves only what changed — and every move has a reason." },
+  { path: "/export", title: "Export", icon: Download, group: "main", blurb: "Five real files, written end-to-end into the template." },
+  { path: "/mission", title: "Mission Control", icon: LayoutDashboard, group: "more", blurb: "The whole project at a glance — every tile is live data." },
+  { path: "/tqs", title: "TQ Center", icon: MessageSquareWarning, group: "more", blurb: "Every open question names the clash and offers a fix." },
+  { path: "/grid", title: "Allocation Grid", icon: Table2, group: "more", blurb: "The 76-column IO Assignment, exactly as exported." },
+  { path: "/explorer", title: "Cabinet Explorer", icon: Boxes, group: "more", blurb: "Walk the marshalling room: every slot of every cabinet, and why it is there." },
 ];
 
 export const screenFor = (path: string) => SCREENS.find((s) => s.path === path);

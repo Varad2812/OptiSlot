@@ -191,7 +191,7 @@ function WorkbenchInner({ a, p }: { a: Alloc; p: ReturnType<typeof useProject>["
       </div>
       <ChangesStrip state={state.data} unavailable={state.isError} onPickTag={(t) => void pickTag(t)} />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_460px]">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_400px] min-[1700px]:grid-cols-[minmax(0,1fr)_460px]">
         <div className="flex min-h-0 min-w-0 flex-col border-r border-border">
           <FilterBar
             f={filters} onChange={patchFilters} onClear={clear} counts={list.counts} cabinets={a.cabinets.map((c) => c.name)} tqs={a.tqs}

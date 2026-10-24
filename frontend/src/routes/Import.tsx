@@ -263,7 +263,6 @@ function MappingTable({ fresh, calm }: { fresh: number; calm: boolean }) {
                     <td className="px-3 py-1.5">
                       <span>{m.label}</span>
                       {m.required && <span className="ml-1 text-err" title="Required">*</span>}
-                      <span className="ml-2 font-mono text-[10.5px] text-muted-foreground">{m.field}</span>
                     </td>
                     <td className="px-3 py-1">
                       {custom === m.field ? (

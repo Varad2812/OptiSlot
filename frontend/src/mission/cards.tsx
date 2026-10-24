@@ -131,7 +131,7 @@ export function CertCard({ delay }: { delay?: number }) {
     >
       {!c ? <Loading /> : (
         <>
-          <div className={cn("text-[26px] font-semibold tnum", pass ? "text-ok" : "text-err")}>
+          <div className={cn("text-[24px] font-semibold leading-tight tnum", pass ? "text-ok" : "text-err")}>
             <CountUp value={c.violations} /> violation{c.violations === 1 ? "" : "s"} <span className="text-muted-foreground">·</span>{" "}
             <span className="text-text">{c.checks_passed === c.checks_total ? <><CountUp value={c.checks_total} /> rule checks</> : <><CountUp value={c.checks_passed} />/{c.checks_total} rule checks</>}</span>
           </div>

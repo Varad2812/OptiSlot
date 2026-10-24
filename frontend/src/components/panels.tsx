@@ -63,7 +63,7 @@ export function CertificatePanel({ delay, to }: { delay?: number; to?: string })
     <Panel title="Run certificate" delay={delay} to={to} aside={c && <Verdict pass={pass} />}>
       {!c ? <Loading /> : (
         <>
-          <div className={cn("text-[26px] font-semibold tnum", pass ? "text-ok" : "text-err")}>
+          <div className={cn("text-[22px] font-semibold leading-tight tnum", pass ? "text-ok" : "text-err")}>
             {c.violations} violations <span className="text-muted-foreground">·</span> <span className="text-text">{ruleChecks(c)}</span>
           </div>
           {a?.kpis && <div className="mt-0.5 text-[11.5px] text-muted-foreground tnum">{a.kpis.signals.toLocaleString("en-US")} signals checked</div>}

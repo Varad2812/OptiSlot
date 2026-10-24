@@ -9,6 +9,7 @@ const THEME_KEY = "optislot-theme";
 const MOTION_KEY = "optislot-motion";
 const PROJECT_KEY = "optislot-project";
 const VIEW_KEY = "optislot-view";
+const RAIL_KEY = "optislot-rail";
 
 function read(key: string): string | null {
   try {
@@ -77,6 +78,7 @@ interface UiState {
   arriveFrom: "plant" | null; // one-shot: the Explorer opens with a Plant → cabinet camera dive (Mission Control click)
   injectPending: boolean;   // the top-bar "Inject Rev B" button asks the Revision Center to run the gauntlet
   view3d: boolean;          // Cabinet Explorer: the 3D Marshalling Room (default) or the 2.5D World
+  railCollapsed: boolean;   // the left rail folded to icons (216 px → 64 px)
   pendingMdb: File | null;  // a file dropped / picked on the launch page, read by Import & Mapping when it mounts
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
@@ -94,6 +96,7 @@ interface UiState {
   requestInject: (v?: boolean) => void;
   setView3d: (v: boolean) => void;
   setPendingMdb: (f: File | null) => void;
+  setRailCollapsed: (v: boolean) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -113,6 +116,7 @@ export const useUi = create<UiState>((set, get) => ({
   injectPending: false,
   view3d: read(VIEW_KEY) !== "2d",
   pendingMdb: null,
+  railCollapsed: read(RAIL_KEY) === "1",
   setTheme: (theme) => {
     applyTheme(theme);
     set({ theme });
@@ -141,6 +145,10 @@ export const useUi = create<UiState>((set, get) => ({
     set({ view3d });
   },
   setPendingMdb: (pendingMdb) => set({ pendingMdb }),
+  setRailCollapsed: (railCollapsed) => {
+    write(RAIL_KEY, railCollapsed ? "1" : "0");
+    set({ railCollapsed });
+  },
 }));
 
 applyTheme(useUi.getState().theme);

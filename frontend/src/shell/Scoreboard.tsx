@@ -22,13 +22,13 @@ export function Scoreboard() {
   const { data: a } = useAllocation();
   const k = a?.kpis;
   const tiles: Tile[] = [
-    { label: "Allocated", to: "/grid", value: k?.allocated_pct ?? null, decimals: k && k.allocated_pct % 1 ? 1 : 0, suffix: "%", tone: k && k.allocated_pct >= 100 ? "ok" : "warn", sub: k ? `${k.allocated}/${k.signals} live` : undefined },
-    { label: "Violations", to: "/proof", value: a?.report.violations ?? null, tone: a && a.report.violations > 0 ? "err" : "ok", sub: a ? `${ruleChecks(a.report)} · ${k?.signals ?? 0} signals` : undefined },
+    { label: "Allocated", to: "/grid", value: k?.allocated_pct ?? null, decimals: k && k.allocated_pct % 1 ? 1 : 0, suffix: "%", tone: k && k.allocated_pct >= 100 ? "ok" : "warn", sub: k ? `${k.allocated}/${k.signals} signals` : undefined },
+    { label: "Violations", to: "/proof", value: a?.report.violations ?? null, tone: a && a.report.violations > 0 ? "err" : "ok", sub: a ? ruleChecks(a.report) : undefined },
     { label: "Open TQs", to: "/tqs", value: k?.tqs_open ?? null, tone: k && k.tqs_open > 0 ? "warn" : "ok", sub: a ? `${a.tqs.length} raised · ${k!.unallocated_with_tq} unplaced` : undefined },
     { label: "Untouched", to: "/revisions", value: k?.stability_pct ?? null, decimals: 1, suffix: "%", tone: "brand", sub: k?.stability_pct == null ? "after Rev B" : "in place vs Rev A" },
-    { label: "Cabinets", to: "/explorer", value: k?.cabinets ?? null, sub: k ? `${new Set(a?.cabinets.map((c) => c.controller)).size} controllers` : undefined },
-    { label: "CIOCs", to: "/explorer", value: k?.ciocs ?? null, sub: k ? `${k.baseplates_used} BPs used` : undefined },
-    { label: "Fill", to: "/explorer", value: k?.fill_pct ?? null, decimals: 1, suffix: "%", sub: k ? `${k.wired_spares}/${k.wired_target} wired spares` : undefined },
+    { label: "Cabinets", to: "/allocate", value: k?.cabinets ?? null, sub: k ? `${new Set(a?.cabinets.map((c) => c.controller)).size} controllers` : undefined },
+    { label: "CIOCs", to: "/allocate", value: k?.ciocs ?? null, sub: k ? `${k.baseplates_used} baseplates used` : undefined },
+    { label: "Fill", to: "/allocate", value: k?.fill_pct ?? null, decimals: 1, suffix: "%", sub: k ? `${k.wired_spares}/${k.wired_target} wired spares` : undefined },
   ];
   return (
     <div className="grid grid-cols-7 gap-px border-b border-border bg-border/60" data-testid="scoreboard">

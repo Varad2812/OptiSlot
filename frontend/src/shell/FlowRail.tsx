@@ -21,14 +21,15 @@ export function FlowRail() {
         return (
           <div key={s.key} className="flex items-center gap-1">
             {i > 0 && (
-              <span className={cn("h-px w-5", steps[i - 1].state === "done" ? "bg-ok/50" : "bg-border")} />
+              <span className={cn("h-px w-2 min-[1640px]:w-5", steps[i - 1].state === "done" ? "bg-ok/50" : "bg-border")} />
             )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={() => nav(s.path)}
+                  aria-label={s.label}
                   className={cn(
-                    "relative flex h-8 items-center gap-2 rounded-full border px-2.5 pr-3 text-[12px] font-medium transition-colors",
+                    "relative flex h-8 items-center gap-1.5 rounded-full border px-2 pr-2.5 text-[12px] font-medium transition-colors min-[1640px]:gap-2 min-[1640px]:pr-3",
                     current ? "border-brand/60 bg-brand/15 text-text" : "border-transparent text-muted-foreground hover:bg-raised hover:text-text",
                   )}
                 >
@@ -52,7 +53,7 @@ export function FlowRail() {
                   <span className="relative">{s.label}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{s.hint}</TooltipContent>
+              <TooltipContent side="bottom">{s.label} · {s.hint}</TooltipContent>
             </Tooltip>
           </div>
         );
