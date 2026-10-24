@@ -61,3 +61,28 @@ export function useRevisionFlow() {
 
   return { phase, run, verified, busy: phase !== "idle" };
 }
+
+/** Top-bar Rev switch: make another revision the active one (POST /revisions/switch) and refresh everything. */
+export function useSwitchRevision() {
+  const pid = useProjectId();
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(
+    async (rev: string) => {
+      setBusy(true);
+      try {
+        const before = qc.getQueryData<AllocationResult>(["allocation", pid]);
+        if (before && before.revision === "A") qc.setQueryData(["revA", pid], before);
+        const alloc = await postJson<AllocationResult>(`/projects/${pid}/revisions/switch?rev=${encodeURIComponent(rev)}`);
+        qc.setQueryData(["allocation", pid], alloc);
+        await qc.invalidateQueries({ predicate: (q) => !["allocation", "revA"].includes(q.queryKey[0] as string) });
+      } catch (e) {
+        toast.error(`Could not switch to Rev ${rev}`, { description: (e as Error).message });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [pid, qc],
+  );
+  return { run, busy };
+}

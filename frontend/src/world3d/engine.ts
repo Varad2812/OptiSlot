@@ -467,6 +467,12 @@ export class World3DEngine {
   /** Feed a (new) allocation. Rebuilds the instanced world; keeps the selection when it still exists. */
   setData(data: World3DData) {
     if (this.data === data) return;
+    if (this.data && sameWorld(this.data, data)) {
+      // same slots in the same places (e.g. only the verifier report changed): keep the scene and any running moment
+      this.data = data;
+      for (let i = 0; i < data.slots.length; i++) this.slots[i] = data.slots[i];
+      return;
+    }
     const keep = this.data ? this.sel : null;
     this.data = data;
     this.endMoment(); // a moment points at instance indices of the old layout
@@ -2303,6 +2309,15 @@ function writeT(a: Float32Array, i: number, x: number, y: number, z: number, sho
   a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0;
   a[o + 8] = 0; a[o + 9] = 0; a[o + 10] = s; a[o + 11] = 0;
   a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1;
+}
+
+/** Same grid, same CHARM in every slot (kind, status, id) — a new allocation object that would rebuild nothing. */
+function sameWorld(a: World3DData, b: World3DData) {
+  const x = a.layout, y = b.layout;
+  if (x.n !== y.n || x.K !== y.K || x.B !== y.B || x.M !== y.M || a.cabinets.length !== b.cabinets.length) return false;
+  if (a.cabinets.some((c, i) => c.name !== b.cabinets[i].name)) return false;
+  for (let i = 0; i < x.N; i++) if (a.kind[i] !== b.kind[i] || a.status[i] !== b.status[i] || a.slots[i]?.id !== b.slots[i]?.id) return false;
+  return true;
 }
 
 /** Translation + uniform XY scale (a ring of radius s) — or zero-scale when hidden. */

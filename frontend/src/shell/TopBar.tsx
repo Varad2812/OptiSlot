@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useSwitchRevision } from "@/revisions/useRevisionFlow";
 import { useUi } from "@/store/ui";
 
 import { FlowRail } from "./FlowRail";
@@ -27,6 +28,7 @@ export function TopBar() {
   const nav = useNavigate();
   const { data: projects } = useProjects();
   const { data: project } = useProject();
+  const revSwitch = useSwitchRevision();
   const list = projects?.length ? projects : project ? [project] : [];
   return (
     <header className="relative z-30 flex h-14 items-center gap-4 border-b border-border bg-surface/70 px-4 backdrop-blur-md">
@@ -50,15 +52,20 @@ export function TopBar() {
         </Select>
         <div className="flex shrink-0 items-center whitespace-nowrap rounded-chip border border-border bg-raised p-0.5" aria-label="Revision">
           {(project?.revisions ?? ["A"]).map((r) => (
-            <span
+            <button
               key={r}
+              onClick={() => r !== project?.revision && void revSwitch.run(r)}
+              disabled={revSwitch.busy}
+              aria-pressed={r === project?.revision}
+              title={r === project?.revision ? `Rev ${r} is active` : `Switch to Rev ${r} — the 3D Room plays what changed`}
               className={cn(
-                "rounded-[4px] px-2 py-0.5 font-mono text-[11px]",
-                r === project?.revision ? "bg-brand/20 text-text" : "text-muted-foreground",
+                "rounded-[4px] px-2 py-0.5 font-mono text-[11px] transition-colors",
+                r === project?.revision ? "bg-brand/20 text-text" : "text-muted-foreground hover:text-text",
               )}
+              data-testid={`rev-${r}`}
             >
               Rev {r}
-            </span>
+            </button>
           ))}
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { CheckCircle2, FlaskConical, Loader2, RefreshCw, RotateCcw, ShieldCheck, Upload, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
 import { EASE, useCalm } from "@/motion/shared";
+import { diff3d } from "@/revisions/diff3d";
 import { ChangeList, KindCard, StabilityGauge } from "@/revisions/parts";
 import { useRevisionFlow } from "@/revisions/useRevisionFlow";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,10 @@ import { buildDiff, DiffOverlay, type DiffItem, type DiffKind } from "@/world/Di
 import { sideOf, type Insets } from "@/world/geometry";
 import { PlantStrip } from "@/world/PlantStrip";
 import { useStage } from "@/world/useStage";
+import type { World3DEngine } from "@/world3d/engine";
+import { hasWebGL } from "@/world3d/support";
+
+const World3D = lazy(() => import("@/world3d/World3D"));
 
 const INSETS: Insets = { top: 56, right: 18, bottom: 56, left: 18 };
 const PLAY_S = 3.4;
@@ -61,6 +66,31 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
   const { data: revA } = useQuery({ queryKey: ["revA", pid], queryFn: async () => null as AllocationResult | null, enabled: false, staleTime: Infinity });
 
   const items = useMemo(() => (impact ? buildDiff(impact, model, revA) : []), [impact, model, revA]);
+
+  // 3D stage (§10.7 motion 5): the same sequence drives the 3D diff — unchanged CHARMs dim, new fade in cyan, removed
+  // dissolve red, changed pulse amber, moved fly. 2D World as the fallback.
+  const use3d = useUi((s) => s.view3d) && hasWebGL();
+  const eng = useRef<World3DEngine | null>(null);
+  const onEngine = useCallback((e: World3DEngine | null) => (eng.current = e), []);
+  const revAModel = useMemo(() => (revA ? worldModel(revA, dimsOf(revA, p)) : null), [revA, p]);
+  const d3 = useMemo(() => (impact ? diff3d(impact, model, revAModel) : null), [impact, model, revAModel]);
+  const d3Ref = useRef(d3);
+  d3Ref.current = d3;
+  const diffOn = useRef(false);
+  useEffect(() => {
+    if (!use3d) return;
+    return seq.progress.on("change", (v) => {
+      const e = eng.current, d = d3Ref.current;
+      if (!e || !d || !diffOn.current) return;
+      if (e.momentName !== "revdiff") void e.playRevDiff(d, { drive: true, follow: true });
+      e.seek(v);
+    });
+  }, [use3d, seq]);
+  const playSeq = useCallback(async (s: number) => {
+    diffOn.current = true;
+    await seq.play(s);
+    diffOn.current = false;
+  }, [seq]);
   const [filter, setFilter] = useState<DiffKind | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
   const listed = useMemo(() => (filter ? items.filter((i) => i.kind === filter) : items), [items, filter]);
@@ -96,12 +126,12 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
       const moved = showFirst(its);
       if (!play) return;
       await sleep(moved && !calm ? 800 : 250);
-      void seq.play(calm ? PLAY_CALM_S : PLAY_S);
+      void playSeq(calm ? PLAY_CALM_S : PLAY_S);
       toast.success(`Rev ${r.impact.to_rev}: ${r.impact.stability_pct.toFixed(1)}% stable`, {
         description: `${r.impact.added.length} added · ${r.impact.deleted.length} deleted · ${r.impact.modified.length} modified · ${r.impact.moved.length} moved`,
       });
     },
-    [flow, seq, p, qc, pid, showFirst, calm],
+    [flow, seq, p, qc, pid, showFirst, calm, playSeq],
   );
 
   // top-bar "Inject Rev B"
@@ -120,10 +150,14 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
     if (!demoMode) return;
     return registerDemo("revb", {
       inject: () => startRef.current("gauntlet", false),
-      seek: (pp: number) => seq.seek(pp),
-      replay: () => seq.play(PLAY_S),
+      seek: (pp: number) => {
+        diffOn.current = true;
+        seq.seek(pp);
+        diffOn.current = pp < 1;
+      },
+      replay: () => playSeq(PLAY_S),
     });
-  }, [seq]);
+  }, [seq, playSeq]);
 
   const pick = useCallback(
     (it: DiffItem) => {
@@ -163,7 +197,7 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
         <VerifyChip busy={flow.phase === "verifying"} violations={rep.violations} passed={rep.checks_passed} total={rep.checks_total} shown={!!impact || !!flow.verified} />
         <div className="ml-auto flex items-center gap-1.5">
           {impact && (
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => (seq.seek(0), void seq.play(calm ? PLAY_CALM_S : PLAY_S))} data-testid="replay-diff">
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[12px]" onClick={() => (seq.seek(0), void playSeq(calm ? PLAY_CALM_S : PLAY_S))} data-testid="replay-diff">
               <RotateCcw className="size-3.5" /> Replay diff
             </Button>
           )}
@@ -190,28 +224,38 @@ function RevisionInner({ a, p, impact }: { a: AllocationResult; p: Project | und
 
           <div className="flex min-h-0 flex-1">
             <div className="relative min-w-0 flex-1">
-              <div className="bg-world absolute inset-0">
-                <motion.div className="absolute inset-0" style={{ opacity: stage.opacity, rotateY: stage.rotateY, transformPerspective: 1800 }}>
-                  <CabinetWorld
-                    model={model} dims={dims} cam={stage.cam} side={stage.side} activeIdx={stage.idx} cabinetS={stage.cabinetS}
-                    overlay={overlay} onSize={stage.onSize} onSlot={(id) => ui.inspect(id)} onCabinet={(i) => ui.goCabinet(i)}
-                  />
-                </motion.div>
-              </div>
-              <div className="pointer-events-none absolute left-4 top-3 z-10 flex items-center gap-2">
-                <div className="pointer-events-auto flex gap-1">
-                  {model.cabinets.map((c) => (
-                    <button
-                      key={c.info.name} onClick={() => stage.goto(c.index)}
-                      className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-1 font-mono text-[11px] backdrop-blur transition-colors", c.index === stage.idx ? "border-brand/60 bg-brand/15 text-text" : "border-border bg-surface/70 text-muted-foreground hover:text-text")}
-                    >
-                      {touched.has(c.index) && <span className="size-1.5 rounded-full bg-warn" title="changed in this revision" />}
-                      {c.info.name}
-                    </button>
-                  ))}
+              {use3d ? (
+                <div className="absolute inset-0 bg-[#0A0D13]" data-testid="revisions-3d">
+                  <Suspense fallback={<Skeleton className="h-full w-full" />}>
+                    <World3D model={model} dims={dims} match={null} minimal onEngine={onEngine} onFail={() => useUi.getState().setView3d(false)} />
+                  </Suspense>
                 </div>
-              </div>
-              <DiffLegend />
+              ) : (
+                <>
+                <div className="bg-world absolute inset-0">
+                  <motion.div className="absolute inset-0" style={{ opacity: stage.opacity, rotateY: stage.rotateY, transformPerspective: 1800 }}>
+                    <CabinetWorld
+                      model={model} dims={dims} cam={stage.cam} side={stage.side} activeIdx={stage.idx} cabinetS={stage.cabinetS}
+                      overlay={overlay} onSize={stage.onSize} onSlot={(id) => ui.inspect(id)} onCabinet={(i) => ui.goCabinet(i)}
+                    />
+                  </motion.div>
+                </div>
+                <div className="pointer-events-none absolute left-4 top-3 z-10 flex items-center gap-2">
+                  <div className="pointer-events-auto flex gap-1">
+                    {model.cabinets.map((c) => (
+                      <button
+                        key={c.info.name} onClick={() => stage.goto(c.index)}
+                        className={cn("flex items-center gap-1.5 rounded-chip border px-2 py-1 font-mono text-[11px] backdrop-blur transition-colors", c.index === stage.idx ? "border-brand/60 bg-brand/15 text-text" : "border-border bg-surface/70 text-muted-foreground hover:text-text")}
+                      >
+                        {touched.has(c.index) && <span className="size-1.5 rounded-full bg-warn" title="changed in this revision" />}
+                        {c.info.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                </>
+              )}
+              <DiffLegend in3d={use3d} />
             </div>
 
             <aside className="flex w-[400px] shrink-0 flex-col border-l border-border bg-surface/60">
@@ -251,14 +295,16 @@ function VerifyChip({ busy, violations, passed, total, shown }: { busy: boolean;
   );
 }
 
-function DiffLegend() {
-  const items: [string, string][] = [["bg-ok", "Added — drops in"], ["bg-err", "Deleted — fades"], ["bg-warn", "Modified — flips"], ["bg-brand", "Moved — flies"]];
+function DiffLegend({ in3d }: { in3d: boolean }) {
+  const items: [string, string][] = in3d
+    ? [["bg-live", "Added — fades in"], ["bg-err", "Deleted — dissolves"], ["bg-warn", "Modified — pulses"], ["bg-brand", "Moved — flies"]]
+    : [["bg-ok", "Added — drops in"], ["bg-err", "Deleted — fades"], ["bg-warn", "Modified — flips"], ["bg-brand", "Moved — flies"]];
   return (
     <div className="glass absolute bottom-3 left-4 z-10 flex items-center gap-3.5 rounded-card border border-border px-3 py-2 text-[11px] text-muted-foreground">
       {items.map(([c, t]) => (
         <span key={t} className="flex items-center gap-1.5"><span className={cn("size-2.5 rounded-[3px]", c)} />{t}</span>
       ))}
-      <span className="text-muted-foreground/80">· everything else stays put</span>
+      <span className="text-muted-foreground/80">· everything else stays put{in3d ? " (dimmed while it plays)" : ""}</span>
     </div>
   );
 }

@@ -6,17 +6,20 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { dimsOf, worldModel, type WorldModel } from "@/api/derive";
 import { useAllocation, useProject, useProjectId, type AllocationResult, type Project } from "@/api/hooks";
-import { usePlacementChanges, type PlacementChangeSet, type PlacementMove } from "@/api/sandbox";
+import { usePlacementChanges, useRevisionImpact, type PlacementChangeSet, type PlacementMove, type RevisionImpact } from "@/api/sandbox";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { moveKey, subscribe, takePending, type MotionEvent } from "@/motion/bus";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
-import { EASE } from "@/motion/shared";
+import { useSequence } from "@/motion/sequence";
+import { EASE, isCalm } from "@/motion/shared";
+import { diff3d, diffSize } from "@/revisions/diff3d";
+import { RevDiffHud } from "@/revisions/RevDiffHud";
 import { useUi } from "@/store/ui";
 import { matcher } from "@/world/filters";
-import type { World3DEngine } from "@/world3d/engine";
+import type { RevDiff3D, World3DEngine } from "@/world3d/engine";
 import { hasWebGL } from "@/world3d/support";
 import type { Overlay3D } from "@/world3d/World3D";
 
@@ -116,6 +119,49 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     if (fresh.length) void engine().then((e) => e.animateMove(fresh.map((m) => m.from_slot!), fresh.map((m) => m.to_slot!), { follow: true }));
   }, [ch, mode, engine]);
 
+  // Rev switch (top bar) while the Room is open: play what changed — unchanged CHARMs dim, new ones fade in cyan, removed
+  // ones dissolve red, changed ones pulse amber, moved ones fly; the HUD counts the stability up. B → A plays it in reverse.
+  const { data: impact } = useRevisionImpact();
+  const lastImpact = useRef<RevisionImpact | null>(null);
+  if (impact) lastImpact.current = impact;
+  const shown = useRef({ rev: a.revision, model });
+  const wantDiff = useRef<{ from: string; to: string; prev: WorldModel } | null>(null);
+  const seq = useSequence(1);
+  const diffOn = useRef(false);
+  const [diff, setDiff] = useState<{ d: RevDiff3D; imp: RevisionImpact; back: boolean } | null>(null);
+  const diffRef = useRef<RevDiff3D | null>(null);
+  useEffect(() => {
+    const was = shown.current;
+    if (was.rev !== a.revision) wantDiff.current = { from: was.rev, to: a.revision, prev: was.model };
+    shown.current = { rev: a.revision, model };
+    const w = wantDiff.current, imp = impact ?? lastImpact.current;
+    if (!w || !imp) return;
+    const fwd = imp.from_rev === w.from && imp.to_rev === w.to, back = imp.to_rev === w.from && imp.from_rev === w.to;
+    if (!fwd && !back) return; // the impact of this switch has not arrived yet
+    wantDiff.current = null;
+    const d = diff3d(imp, model, w.prev, back);
+    if (!diffSize(d)) return;
+    diffRef.current = d;
+    setDiff({ d, imp, back });
+    void (async () => {
+      await engine();
+      diffOn.current = true;
+      await seq.play(isCalm() ? 0.8 : 3.4);
+      diffOn.current = false;
+    })();
+  }, [a.revision, model, impact, engine, seq]);
+  // one progress value drives the 3D diff and the HUD count-up
+  useEffect(
+    () =>
+      seq.progress.on("change", (v) => {
+        const e = eng.current, d = diffRef.current;
+        if (!e || !d || !diffOn.current) return;
+        if (e.momentName !== "revdiff") void e.playRevDiff(d, { drive: true, follow: true });
+        e.seek(v);
+      }),
+    [seq],
+  );
+
   const flyTo = (m: PlacementMove) => {
     const id = mode === "now" ? (m.to_slot ?? m.from_slot) : (m.from_slot ?? m.to_slot);
     if (id) void eng.current?.flyToSlot(id);
@@ -129,8 +175,14 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       mode: (m: Mode) => setMode(m),
       moves: () => nMoves,
       bus: (ev: MotionEvent) => onBus(ev), // what a Workbench in another window would send
+      diffSeek: (p: number) => {
+        diffOn.current = true;
+        seq.seek(p);
+        diffOn.current = p < 1;
+      },
+      diff: () => (diffRef.current ? diffSize(diffRef.current) : 0),
     });
-  }, [qc, pid, nMoves, onBus]);
+  }, [qc, pid, nMoves, onBus, seq]);
 
   const loading = <Skeleton className="h-full w-full" />;
   const hud = (
@@ -147,6 +199,14 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
         <Suspense fallback={loading}>
           <World3D model={model} dims={dims} match={match} room overlay={overlay} hudRight={hud} onEngine={onEngine} onFail={() => useUi.getState().setView3d(false)} />
         </Suspense>
+        <AnimatePresence>
+          {diff && (
+            <RevDiffHud
+              key="revdiff" p={seq.progress} diff={diff.d} stability={diff.imp.stability_pct}
+              from={diff.imp.from_rev} to={diff.imp.to_rev} reversed={diff.back} onClose={() => setDiff(null)}
+            />
+          )}
+        </AnimatePresence>
         {!panel && (
           <button
             onClick={() => setPanel(true)}

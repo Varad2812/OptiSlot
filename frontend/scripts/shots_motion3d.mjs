@@ -29,7 +29,7 @@ const api = (p, body, method = "POST") =>
 let n = 0;
 const fps = [];
 
-async function open(route, { motion = "cinematic" } = {}) {
+async function open(route, { motion = "cinematic", wait3d = true } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript((m) => {
     try {
@@ -44,7 +44,7 @@ async function open(route, { motion = "cinematic" } = {}) {
   page.on("pageerror", (e) => problems.push(`${route}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && !/Failed to load resource/.test(m.text()) && problems.push(`${route}: ${m.text()}`));
   await page.goto(`${base}${route}${route.includes("?") ? "&" : "?"}demo=1&project=demo`, { waitUntil: "networkidle", timeout: 120_000 });
-  await page.waitForFunction(() => window.__optislot?.world3d?.ready?.() === true, null, { timeout: 120_000 });
+  if (wait3d) await page.waitForFunction(() => window.__optislot?.world3d?.ready?.() === true, null, { timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
   await sleep(1200);
   return { ctx, page };
@@ -129,6 +129,36 @@ try {
     }
     await api("/placement/reset");
     await ctx.close();
+  }
+
+  // ───── 3. Rev B diff: Revision Center → Inject Rev B, then the Room's Rev switch (A → B) ─────
+  if (want.has("revdiff")) {
+    {
+      const { ctx, page } = await open("/revisions", { wait3d: false }); // before Rev B exists the page has no stage yet
+      await page.getByTestId("inject-revb").click();
+      await page.waitForFunction(() => window.__optislot.world3d?.moment() === "revdiff", null, { timeout: 90_000 }).catch(() => problems.push("revdiff: Inject Rev B did not play the 3D diff"));
+      fps.push({ name: "revdiff", ...(await page.evaluate(() => window.__optislot.fps.measure(1500))) });
+      for (const p of FRAMES) {
+        await page.evaluate((v) => window.__optislot.revb.seek(v), p);
+        await shot(page, `revdiff__p${pct(p)}`);
+      }
+      await ctx.close();
+    }
+    {
+      const { ctx, page } = await open("/room");
+      // back to A (the diff plays reversed), then forward to B — frames of the forward one
+      await page.getByTestId("rev-A").click();
+      await page.waitForFunction(() => window.__optislot.world3d.moment() === "revdiff", null, { timeout: 30_000 }).catch(() => problems.push("revswitch: B → A did not play"));
+      await page.waitForFunction(() => window.__optislot.world3d.moment() === null, null, { timeout: 30_000 });
+      await shot(page, "revswitch__back-end");
+      await page.getByTestId("rev-B").click();
+      await page.waitForFunction(() => window.__optislot.world3d.moment() === "revdiff", null, { timeout: 30_000 }).catch(() => problems.push("revswitch: A → B did not play"));
+      for (const p of FRAMES) {
+        await page.evaluate((v) => window.__optislot.room.diffSeek(v), p);
+        await shot(page, `revswitch__p${pct(p)}`);
+      }
+      await ctx.close();
+    }
   }
 } finally {
   await browser.close();
