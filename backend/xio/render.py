@@ -8,6 +8,7 @@ from app.schemas import Signal, Slot
 from engine.rules import Rules, catalog, fmt
 
 DASH = "-"
+# defaults for the output_map rule's `spare_inherit` / `slot_inherit` (the rule set is the source; these are the fallback)
 # columns a wired spare inherits from the cable member it is modelled on
 SPARE_INHERIT = {"Technical Room", "Operating Area", "Risk Area", "Unit", "Location", "Signal Type", "Signal Level", "NON-IS / IS"}
 # columns a spare slot inherits from its cabinet's domain
@@ -33,6 +34,8 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules,
     colmap: dict[str, str] = out_map.get("columns", {})
     consts: dict[str, str] = out_map.get("constants", {})
     blank_for: dict[str, list[str]] = out_map.get("blank_for", {})   # Tag Status → columns NOT copied for that status
+    spare_inherit = set(out_map.get("spare_inherit", SPARE_INHERIT))
+    slot_inherit = set(out_map.get("slot_inherit", SLOT_INHERIT))
     pats = rules.params("naming_pattern").get("patterns", {})
     dst_pat = pats.get("dst", "{tag_nodash}_")
     vis_pat = pats.get("visualization", "{dcm}({side})")
@@ -54,13 +57,13 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules,
                         r[c] = _field_value(src, f)
             elif sl.status == "Wired Spare" and src:
                 for c, f in colmap.items():
-                    if c in SPARE_INHERIT and c in r:
+                    if c in spare_inherit and c in r:
                         r[c] = _field_value(src, f)
             else:
                 rep = domain_rep.get(sl.domain)
                 if rep:
                     for c, f in colmap.items():
-                        if c in SLOT_INHERIT and c in r:
+                        if c in slot_inherit and c in r:
                             r[c] = _field_value(rep, f)
             for c, v in consts.items():
                 if c in r:

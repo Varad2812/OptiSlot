@@ -172,7 +172,7 @@ def test_a_rule_that_would_break_a_hard_rule_is_refused_not_stored(c, monkeypatc
     """The what-if is the gate: if the verifier would report a new violation the change is refused with the reason."""
     import app.rulesapi as ra
     real = ra._sys_tqs
-    monkeypatch.setattr(ra, "_sys_tqs", lambda comp: real(comp) | ({"TQ-FAKE-001"} if comp.report.checks_total >= 23 else set()))
+    monkeypatch.setattr(ra, "_sys_tqs", lambda comp: real(comp) | ({"TQ-FAKE-001"} if comp.report.checks_total >= 24 else set()))
     ch = RuleChange.model_validate(c.post(P + "/rules", json=ZONE).json())
     assert not ch.stored and not ch.allowed and any("Refused" in m for m in ch.messages)
     assert not any(r["custom"] for r in c.get(P + "/rules/listing").json()["rules"])

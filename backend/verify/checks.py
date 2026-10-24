@@ -312,6 +312,7 @@ def c_segregation(ctx: Ctx) -> list[CheckResult]:
     rules = [r for r in ctx.rs.rules if r.type == "segregate" and r.enabled]
     colmap = {f: c for c, f in ctx.params("output_map").get("columns", {}).items()}
     by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
+    tq_ids = {t.id for t in ctx.tqs}
     for n, rule in enumerate(rules):
         c = Check("C07" if n == 0 else f"C07.{n + 1}", rule.label or "Segregation", None, ctx)
         c.rule = rule
@@ -348,7 +349,8 @@ def c_segregation(ctx: Ctx) -> list[CheckResult]:
             for r, f in rs_:
                 remark = r.d.get("Remarks", "") or ""
                 m = re.search(r"(TQ-[A-Z]+-\d+)", remark)
-                (excused if m and "except" in remark.lower() else rest).append((r, f, m.group(1) if m else None))
+                # a Remarks edit must not be able to hide a violation: the cited TQ has to exist in this project's TQ register
+                (excused if m and "except" in remark.lower() and m.group(1) in tq_ids else rest).append((r, f, m.group(1) if m else None))
             for r, f, tq in excused:
                 c.excuse(r.v(f"{f} signal on {noun} {where} with another family — excepted by {tq}"))
             fams = Counter(f for _, f, _ in rest)
@@ -497,9 +499,9 @@ def c_hardware(ctx: Ctx) -> CheckResult:
         diff = _diffs(r, exp, cols)
         dc = (r.d.get("Charm Description", "") or "").strip()
         dt = (r.d.get("CHARM TB Description", "") or "").strip()
-        if r.status != "Spare Slot" and exp.get("charm") in cat["charms"] and dc != cat["charms"][exp["charm"]]:
+        if exp.get("charm") in cat["charms"] and dc != cat["charms"][exp["charm"]]:
             diff.append(f"Charm Description '{dc}' ≠ catalogue '{cat['charms'][exp['charm']]}'")
-        if r.status != "Spare Slot" and exp.get("tb") in cat["terminal_blocks"] and dt != cat["terminal_blocks"][exp["tb"]]:
+        if exp.get("tb") in cat["terminal_blocks"] and dt != cat["terminal_blocks"][exp["tb"]]:
             diff.append(f"TB Description '{dt}' ≠ catalogue '{cat['terminal_blocks'][exp['tb']]}'")
         if diff:
             c.fail(r.v(f"{what}: " + "; ".join(diff)))
@@ -572,8 +574,8 @@ def c_names(ctx: Ctx) -> CheckResult:
                       bp=r.bp, ch=r.ch, loc=toks.get("loc", ""), area=toks.get("area", ""))
             if r.tag != exp:
                 errs.append(f"wired spare tag '{r.tag}' ≠ '{exp}'")
-        if r.status in ("Field", "Wired Spare", "Cabinet Alarm"):
-            dst = fmt(pats.get("dst", "{tag_nodash}_"), tag_nodash=r.key.replace("-", ""))
+        if r.status in ("Field", "Wired Spare", "Cabinet Alarm", "Spare Slot"):
+            dst = fmt(pats.get("dst", "{tag_nodash}_"), tag_nodash="" if r.status == "Spare Slot" else r.key.replace("-", ""))
             if (r.d.get("DSTName", "") or "").strip() != dst:
                 errs.append(f"DSTName '{r.d.get('DSTName')}' ≠ '{dst}'")
         if r.status in ("Field", "Cabinet Alarm") and r.key in by_key and "loc" in toks:
@@ -774,33 +776,105 @@ def c_io_map(ctx: Ctx) -> CheckResult:
     return c.res
 
 
-def c_output(ctx: Ctx) -> CheckResult:
-    c = Check("C17", "Engineering columns copied from the MDB", "output_map", ctx)
-    if c.skip:
-        return c.res
+def c_output(ctx: Ctx) -> list[CheckResult]:
+    """Column contract of the output_map rule, re-derived from the MDB (never from the engine).
+
+    C17   (hard): every column whose edit changes meaning equals the MDB — the engineering columns copied from it, plus the
+                  field cable number, size and pair. A wired spare's cable must be a real cable of the MDB with that cable's
+                  size and its inherited values; a spare slot carries no signal data.
+    C17.2 (soft): columns the rule lists in `soft_columns` (descriptive text), the rule's constants, the columns this project
+                  never fills (`dash_columns`) and the row numbering. A warning, never a silent pass."""
+    hard = Check("C17", "Identity and engineering columns equal the MDB", "output_map", ctx)
+    soft = Check("C17.2", "Descriptive, constant and unused columns are as written", "output_map", ctx)
+    if hard.skip:
+        return [hard.res, soft.res]
+    hard.res.severity, soft.res.severity = "hard", "soft"
     p = ctx.params("output_map")
     cols: dict[str, str] = p.get("columns", {})
+    soft_cols: dict[str, str] = p.get("soft_columns", {})
     blank_for: dict[str, list[str]] = p.get("blank_for", {})
-    by_key = mdb_index(ctx.signals, {x.upper() for x in ctx.settings.deleted_statuses})
+    consts: dict[str, str] = p.get("constants", {})
+    dash_cols: list[str] = p.get("dash_columns", [])
+    spare_inh, slot_inh = set(p.get("spare_inherit", [])), set(p.get("slot_inherit", []))
+    pats = ctx.params("naming_pattern").get("patterns", {}) if ctx.rule("naming_pattern") else {}
+    deleted = {x.upper() for x in ctx.settings.deleted_statuses}
+    by_key = mdb_index(ctx.signals, deleted)
+    live = [s for s in by_key.values() if (s.status or "").upper() not in deleted]
+
+    def mdb(s: Signal, f: str) -> str:
+        v = getattr(s, f, None) if f in Signal.model_fields and f != "extra" else s.extra.get(f)
+        return (str(v).strip() if v is not None else "") or DASH
+
+    def cell(r: Row, col: str) -> str:
+        return (r.d.get(col, "") or "").strip() or DASH
+
+    by_cable: dict[str, list[Signal]] = defaultdict(list)
+    for s in live:
+        if s.cable:
+            by_cable[s.cable].append(s)
+    by_cab: dict[str, list[Signal]] = defaultdict(list)
     for r in ctx.rows:
-        if r.status not in ("Field", "Cabinet Alarm") or r.key not in by_key:
-            continue
-        s = by_key[r.key]
-        diffs = []
-        for col, f in cols.items():
-            if col in blank_for.get(r.status, []):
-                exp = DASH
-            else:
-                exp = getattr(s, f, None) if f in Signal.model_fields and f != "extra" else s.extra.get(f)
-                exp = (str(exp).strip() if exp is not None else "") or DASH
-            got = (r.d.get(col, "") or "").strip() or DASH
+        if r.status in ("Field", "Cabinet Alarm") and r.key in by_key:
+            by_cab[r.cab].append(by_key[r.key])
+
+    for pos, r in enumerate(ctx.rows, start=1):
+        h: list[str] = []      # hard differences
+        w: list[str] = []      # soft differences
+
+        def diff(col: str, exp: str, soft_: bool = False) -> None:
+            got = cell(r, col)
             if col in r.d and got != exp:
-                diffs.append(f"{col} '{got}' ≠ MDB '{exp}'")
-        if diffs:
-            c.fail(r.v("; ".join(diffs[:4])))
-        else:
-            c.ok()
-    return c.res
+                (w if soft_ or col in soft_cols else h).append(f"{col} '{got}' ≠ {'MDB ' if r.status in ('Field', 'Cabinet Alarm') else 'expected '}'{exp}'")
+
+        def one_of(col: str, allowed: set[str], what: str) -> None:
+            if col in r.d and cell(r, col) not in allowed:
+                (w if col in soft_cols else h).append(f"{col} '{cell(r, col)}' is not a value of {what}")
+
+        s = by_key.get(r.key) if r.status in ("Field", "Cabinet Alarm") else None
+        if r.status in ("Field", "Cabinet Alarm") and s is not None:
+            for col, f in cols.items():
+                diff(col, DASH if col in blank_for.get(r.status, []) else mdb(s, f))
+            # an internal-wiring alarm has no cable to land: it keeps a cable only when number, size and pair are all known
+            cabled = bool(s.cable) and (r.status == "Field" or (s.cable_size and s.pair is not None))
+            diff("Field Cable No", s.cable if cabled else DASH)
+            diff("Field Cable Size", s.cable_spec if cabled else DASH)
+            diff("Field Cable Pair", s.pair_label if cabled else DASH)
+        elif r.status in ("Wired Spare", "Spare Slot"):
+            members = by_cable.get(r.cable, []) if r.cable != DASH else []
+            if r.cable == DASH:     # a slot with no cable carries no cable data (a Wired Spare without one is C14's finding)
+                for col in ("Field Cable Size", "Field Cable Pair"):
+                    diff(col, DASH)
+            elif not members:
+                h.append(f"Field Cable No '{r.cable}' is not a cable of the MDB")
+            else:                   # an unused pair of a placed cable keeps that cable's number and size
+                one_of("Field Cable Size", {m.cable_spec for m in members}, f"cable {r.cable}")
+                if r.pair is None:
+                    h.append(f"Field Cable Pair '{cell(r, 'Field Cable Pair')}' is not a pair number")
+            if r.status == "Wired Spare":
+                for col, f in cols.items():
+                    if col in spare_inh and members:
+                        one_of(col, {mdb(m, f) for m in members}, f"cable {r.cable}")
+                    elif col not in spare_inh and col != "Service Description":
+                        diff(col, DASH)
+                if "spare_service" in pats and r.io != DASH:
+                    diff("Service Description", fmt(pats["spare_service"], io2=r.io[:2]), soft_=True)
+            else:
+                here = by_cab.get(r.cab) or live
+                for col, f in cols.items():
+                    if col in slot_inh:
+                        one_of(col, {mdb(m, f) for m in here} | {DASH}, f"cabinet {r.cab}")
+                    else:
+                        diff(col, DASH)
+                diff("HW Loop Typical", DASH)
+        for col in dash_cols:
+            diff(col, DASH, soft_=True)
+        for col, val in consts.items():
+            diff(col, str(val), soft_=True)
+        if "Sr. No." in r.d and cell(r, "Sr. No.") != str(pos):
+            w.append(f"Sr. No. '{cell(r, 'Sr. No.')}' ≠ row position {pos}")
+        (hard.fail(r.v("; ".join(h[:4]))) if h else hard.ok())
+        (soft.fail(r.v("; ".join(w[:4]))) if w else soft.ok())
+    return [hard.res, soft.res]
 
 
 def c_capacity(ctx: Ctx) -> CheckResult:

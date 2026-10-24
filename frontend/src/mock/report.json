@@ -213,10 +213,21 @@
   },
   {
    "id": "C17",
-   "label": "Engineering columns copied from the MDB",
+   "label": "Identity and engineering columns equal the MDB",
+   "rule_id": "r-out",
+   "severity": "hard",
+   "passed": 1152,
+   "failed": 0,
+   "excepted": 0,
+   "violations": [],
+   "exceptions": []
+  },
+  {
+   "id": "C17.2",
+   "label": "Descriptive, constant and unused columns are as written",
    "rule_id": "r-out",
    "severity": "soft",
-   "passed": 189,
+   "passed": 1152,
    "failed": 0,
    "excepted": 0,
    "violations": [],
@@ -245,8 +256,8 @@
    "exceptions": []
   }
  ],
- "checks_total": 22,
- "checks_passed": 22,
+ "checks_total": 23,
+ "checks_passed": 23,
  "violations": 0,
  "warnings": 0,
  "excepted": 0,

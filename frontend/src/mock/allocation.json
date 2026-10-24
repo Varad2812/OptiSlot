@@ -1,7 +1,7 @@
 {
  "project_id": "demo",
  "revision": "A",
- "run_id": "run-b3414ec93ec7",
+ "run_id": "run-0654b8f6dc93",
  "cabinets": [
   {
    "name": "P30-DCM-32001-01",
@@ -69532,10 +69532,21 @@
    },
    {
     "id": "C17",
-    "label": "Engineering columns copied from the MDB",
+    "label": "Identity and engineering columns equal the MDB",
+    "rule_id": "r-out",
+    "severity": "hard",
+    "passed": 1152,
+    "failed": 0,
+    "excepted": 0,
+    "violations": [],
+    "exceptions": []
+   },
+   {
+    "id": "C17.2",
+    "label": "Descriptive, constant and unused columns are as written",
     "rule_id": "r-out",
     "severity": "soft",
-    "passed": 189,
+    "passed": 1152,
     "failed": 0,
     "excepted": 0,
     "violations": [],
@@ -69564,23 +69575,23 @@
     "exceptions": []
    }
   ],
-  "checks_total": 22,
-  "checks_passed": 22,
+  "checks_total": 23,
+  "checks_passed": 23,
   "violations": 0,
   "warnings": 0,
   "excepted": 0,
   "verdict": "PASS"
  },
  "certificate": {
-  "run_id": "run-b3414ec93ec7",
-  "timestamp": "2026-10-24T06:43:10Z",
+  "run_id": "run-0654b8f6dc93",
+  "timestamp": "2026-10-24T16:16:52Z",
   "engine_version": "optislot-0.1.0",
   "mdb_sha256": "a0f9035042fe3804d8dde17d20035ece6af684d02400643b40a9e8c3a8b6a6a1",
-  "ruleset_hash": "4ffcf4e1ac40c7fd1a142e5dc6154bc4a6504c008d946357e705f5b5932a372e",
+  "ruleset_hash": "5b090364d95e77a8391690c3622a2ac15c218b2e04a53f76709fcbb614afc57d",
   "output_sha256": "a5aeff40bd2d7e57d40ad28f1f114e2c3a77f514e78f82220b4d32d03a13f62f",
   "verdict": "PASS",
-  "checks_passed": 22,
-  "checks_total": 22,
+  "checks_passed": 23,
+  "checks_total": 23,
   "violations": 0
  },
  "optimiser": {
@@ -69589,23 +69600,23 @@
   "cpsat_ciocs": 12,
   "adopted": true,
   "status": "OPTIMAL",
-  "time_ms": 187.8,
+  "time_ms": 189.5,
   "note": "CP-SAT adopted (balanced) — IO groups tighter (spread 1 → 0)"
  },
- "runtime_ms": 1414.3,
+ "runtime_ms": 1582.7,
  "activity": [
   {
-   "ts": "2026-10-24T06:43:10Z",
+   "ts": "2026-10-24T16:16:52Z",
    "kind": "verify",
-   "text": "Verifier on the exported file: PASS · 22/22 checks"
+   "text": "Verifier on the exported file: PASS · 23/23 checks"
   },
   {
-   "ts": "2026-10-24T06:43:10Z",
+   "ts": "2026-10-24T16:16:52Z",
    "kind": "allocate",
-   "text": "Allocated 189/189 signals into 3 cabinets in 1414 ms · 0 violations"
+   "text": "Allocated 189/189 signals into 3 cabinets in 1583 ms · 0 violations"
   },
   {
-   "ts": "2026-10-24T06:43:07Z",
+   "ts": "2026-10-24T16:16:49Z",
    "kind": "import",
    "text": "Created project 'Demo — VIT Sample' from Sample_IO_MDB_VIT_v2_1.xlsx"
   }

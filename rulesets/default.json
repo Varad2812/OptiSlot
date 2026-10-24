@@ -527,8 +527,8 @@
       "id": "r-out",
       "type": "output_map",
       "enabled": true,
-      "severity": "soft",
-      "label": "Copy engineering columns from the MDB into the allocation",
+      "severity": "hard",
+      "label": "Copy engineering columns from the MDB into the allocation (identity columns are hard; listed descriptive columns warn)",
       "params": {
         "columns": {
           "Technical Room": "room",
@@ -557,7 +557,64 @@
             "Instrument type",
             "Loop Name"
           ]
-        }
+        },
+        "soft_columns": {
+          "Operating Area": "plant-area label; no allocation rule reads it",
+          "Service Description": "free-text service wording, copied for the datasheet",
+          "Location": "field-location text; no allocation rule reads it",
+          "Instrument type": "instrument description text (the type CODE that drives hardware is checked by C09)",
+          "System 2": "secondary system label",
+          "Loop Name": "loop label",
+          "Section / Sub Unit": "section label"
+        },
+        "dash_columns": [
+          "CHARM Baseplate Adapter",
+          "M_FTA",
+          "M_FTA Part No",
+          "M_FTA_TB",
+          "M_FTA_TB1",
+          "M_FTA_TB2",
+          "M_FTA_TB3",
+          "M_TB",
+          "M_TB1",
+          "M_TB2",
+          "M_TB3",
+          "IRC / AUX Cabinet",
+          "IRC_TB",
+          "IRC_TB1",
+          "IRC_TB2",
+          "Relay / Splitter",
+          "Relay Coil A1 / Splitter In+",
+          "Relay Coil A2 / Splitter In-",
+          "Relay Contact (+)",
+          "Relay Contact (-)",
+          "IRC_FTB",
+          "IRC_FTB1",
+          "IRC_FTB2",
+          "Elec Cable No",
+          "Elec Cable Size",
+          "Elec Cable Pair",
+          "FTA_Cable Name",
+          "FTA_Cable Ferrule Name",
+          "Splitter/Relay/\nExternal PWR\nTB(+)",
+          "Splitter/Relay/\nExternal PWR\nTB(-)"
+        ],
+        "spare_inherit": [
+          "Technical Room",
+          "Operating Area",
+          "Risk Area",
+          "Unit",
+          "Location",
+          "Signal Type",
+          "Signal Level",
+          "NON-IS / IS"
+        ],
+        "slot_inherit": [
+          "Technical Room",
+          "Operating Area",
+          "Risk Area",
+          "Unit"
+        ]
       }
     },
     {

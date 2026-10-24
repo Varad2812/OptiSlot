@@ -25,7 +25,7 @@ def test_adversarial_mdb_passes_every_check():
     out = run(FIXTURE)
     rep = verified(out)
     assert rep.verdict == "PASS" and rep.violations == 0
-    assert rep.checks_total == 21 and rep.checks_passed == 21
+    assert rep.checks_total == 22 and rep.checks_passed == 22
     assert next(c for c in rep.checks if c.id == "C10").failed == 0
     assert len(out.quarantine) == 7                      # exactly the seven deliberately broken rows
 
