@@ -1,7 +1,7 @@
 {
  "project_id": "demo",
  "revision": "B",
- "run_id": "run-30b06865cc2a",
+ "run_id": "run-d92a34fb99ba",
  "cabinets": [
   {
    "name": "P30-DCM-32001-01",
@@ -9282,7 +9282,7 @@
     },
     {
      "rule_id": "r-hw",
-     "text": "DOR → SE4302T01 + SE4501 (instrument UZV)"
+     "text": "DOR → SE4302T01 + SE4501"
     },
     {
      "rule_id": null,
@@ -69381,6 +69381,17 @@
    "message": "320-FT   -90040 (row 202) on cable 320-CE-0001 has no pair number — quarantined. Fix: add the pair in the MDB; everything else unchanged.",
    "fix_options": [
     {
+     "label": "Set the pair of 320-FT   -90040 (row 202) to 3 — free on cable 320-CE-0001",
+     "rule_patch": null,
+     "data_patch": {
+      "tag": "320-FT   -90040",
+      "row": 202,
+      "fields": {
+       "pair": "3"
+      }
+     }
+    },
+    {
      "label": "Add the pair number in the MDB",
      "rule_patch": null,
      "data_patch": null
@@ -69935,11 +69946,11 @@
   "verdict": "PASS"
  },
  "certificate": {
-  "run_id": "run-30b06865cc2a",
-  "timestamp": "2026-10-23T18:38:11Z",
+  "run_id": "run-d92a34fb99ba",
+  "timestamp": "2026-10-24T06:43:13Z",
   "engine_version": "optislot-0.1.0",
-  "mdb_sha256": "442b6aac2147feb3fb375fd4e17137e50205287a4d791ee74020bd1021914e24",
-  "ruleset_hash": "4ddba9724071a5fcf28ab83dadef73be67f1dc69d3afab3fe612c57cf8ffe16a",
+  "mdb_sha256": "0d2de1392ed92e5d5dd4ef59c7d9a52a447d4039dd2732c31aee33edf03cfc51",
+  "ruleset_hash": "4ffcf4e1ac40c7fd1a142e5dc6154bc4a6504c008d946357e705f5b5932a372e",
   "output_sha256": "afdba4195814d3707df66fd4b46c17cd3f66ec9bb1ef773f14a8a63f4ae557c9",
   "verdict": "PASS",
   "checks_passed": 22,
@@ -69952,38 +69963,38 @@
   "cpsat_ciocs": null,
   "adopted": false,
   "status": "greedy only",
-  "time_ms": 55.1,
+  "time_ms": 48.3,
   "note": "Optimiser off — greedy balanced spread"
  },
- "runtime_ms": 1538.6,
+ "runtime_ms": 1618.7,
  "activity": [
   {
-   "ts": "2026-10-23T18:38:11Z",
+   "ts": "2026-10-24T06:43:13Z",
    "kind": "revision",
-   "text": "Rev B from demo_RevB_gauntlet.xlsx: +10 −1 ~1 moved 0 · stability 98.9% · 0 violations · 2 new TQ(s)"
+   "text": "Rev B from demo_RevB_gauntlet.xlsx (pinned against Rev A): +10 −1 ~1 moved 0 · stability 98.9% · 0 violations · 2 new TQ(s)"
   },
   {
-   "ts": "2026-10-23T18:38:11Z",
+   "ts": "2026-10-24T06:43:13Z",
    "kind": "revision",
    "text": "Revision Gauntlet: 1. delete 320-FT   -80004 · 2. modify 500-MHL  -G0001-RL · 3. add 320-FT   -90001 · 4. add-cable 320-CE-9001 · 5. corrupt 320-XYV  -90030 · 6. corrupt 320-FT   -90040"
   },
   {
-   "ts": "2026-10-23T18:38:09Z",
+   "ts": "2026-10-24T06:43:11Z",
    "kind": "verify",
    "text": "Re-verified exported file: PASS · 22/22 checks"
   },
   {
-   "ts": "2026-10-23T18:38:08Z",
+   "ts": "2026-10-24T06:43:10Z",
    "kind": "verify",
    "text": "Verifier on the exported file: PASS · 22/22 checks"
   },
   {
-   "ts": "2026-10-23T18:38:08Z",
+   "ts": "2026-10-24T06:43:10Z",
    "kind": "allocate",
-   "text": "Allocated 189/189 signals into 3 cabinets in 1466 ms · 0 violations"
+   "text": "Allocated 189/189 signals into 3 cabinets in 1414 ms · 0 violations"
   },
   {
-   "ts": "2026-10-23T18:38:05Z",
+   "ts": "2026-10-24T06:43:07Z",
    "kind": "import",
    "text": "Created project 'Demo — VIT Sample' from Sample_IO_MDB_VIT_v2_1.xlsx"
   }

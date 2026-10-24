@@ -62,7 +62,13 @@
       "B",
       "B-ALARM"
      ]
-    }
+    },
+    "neutral": [
+     "-",
+     "C",
+     "D",
+     "E"
+    ]
    }
   },
   {
@@ -460,7 +466,10 @@
        "instrument_desc": "~(?i)horn|beacon|sounder|siren|klaxon"
       }
      ],
-     "message": "PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush."
+     "message": "PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush.",
+     "exempt_charms": [
+      "SE4302T02"
+     ]
     },
     "terminals_note": "Rows with 'learned' = (IO type, signal type, signal level[, TB]) → TB1/TB2/TB3 as seen in the reference allocation (row count); the rest are generic fallbacks. First match wins."
    }

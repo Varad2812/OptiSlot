@@ -1,32 +1,32 @@
 [
  {
-  "run_id": "run-30b06865cc2a",
+  "run_id": "run-d92a34fb99ba",
   "project_id": "demo",
-  "timestamp": "2026-10-23T18:38:11Z",
+  "timestamp": "2026-10-24T06:43:13Z",
   "revision": "B",
   "kind": "revision",
-  "mdb_sha256": "442b6aac2147feb3fb375fd4e17137e50205287a4d791ee74020bd1021914e24",
-  "ruleset_hash": "4ddba9724071a5fcf28ab83dadef73be67f1dc69d3afab3fe612c57cf8ffe16a",
+  "mdb_sha256": "0d2de1392ed92e5d5dd4ef59c7d9a52a447d4039dd2732c31aee33edf03cfc51",
+  "ruleset_hash": "4ffcf4e1ac40c7fd1a142e5dc6154bc4a6504c008d946357e705f5b5932a372e",
   "output_sha256": "afdba4195814d3707df66fd4b46c17cd3f66ec9bb1ef773f14a8a63f4ae557c9",
   "engine_version": "optislot-0.1.0",
   "verdict": "PASS",
   "violations": 0,
   "signals": 199,
-  "runtime_ms": 1538.6
+  "runtime_ms": 1618.7
  },
  {
-  "run_id": "run-5bb7af9ec592",
+  "run_id": "run-b3414ec93ec7",
   "project_id": "demo",
-  "timestamp": "2026-10-23T18:38:08Z",
+  "timestamp": "2026-10-24T06:43:10Z",
   "revision": "A",
   "kind": "allocate",
   "mdb_sha256": "a0f9035042fe3804d8dde17d20035ece6af684d02400643b40a9e8c3a8b6a6a1",
-  "ruleset_hash": "4ddba9724071a5fcf28ab83dadef73be67f1dc69d3afab3fe612c57cf8ffe16a",
+  "ruleset_hash": "4ffcf4e1ac40c7fd1a142e5dc6154bc4a6504c008d946357e705f5b5932a372e",
   "output_sha256": "a5aeff40bd2d7e57d40ad28f1f114e2c3a77f514e78f82220b4d32d03a13f62f",
   "engine_version": "optislot-0.1.0",
   "verdict": "PASS",
   "violations": 0,
   "signals": 189,
-  "runtime_ms": 1465.9
+  "runtime_ms": 1414.3
  }
 ]
