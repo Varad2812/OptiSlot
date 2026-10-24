@@ -1,0 +1,554 @@
+<!doctype html>
+<!--
+=====================================================================================
+ OptiSlot - Allocate. Prove. Revise.  |  cinematic launch page (single file)
+=====================================================================================
+ RUN   ES modules need http(s):   python3 -m http.server 8080  ->  http://localhost:8080
+       (CDN: three@0.160.0 + camera-controls@2.8.5, pinned in the importmap below.
+        For offline use download those 3 files and point the importmap at the local copies.)
+
+ FLOW  hero -> [Import MDB / drop anywhere] -> map (fake column mapping) -> [Allocate]
+       -> dive (LOCATION RAIN, ~7.5 s, skippable: Skip button / Space / Esc)
+       -> done ([Enter 3D Room]) -> room (click to zoom, Esc back, search a tag or location code)
+
+ CODE  class Engine      : all 3D (renderer, bloom, room, cabinets, 1152 instanced CHARMs, rain, camera)
+       function playRain(): UI-facing entry that plays the dive, resolves when it ends / is skipped
+       Rain = ONE instanced billboard mesh (text atlas, 189 location codes) + ONE Points layer
+       (3 droplets per code). Visible at once is far below ~600; resolution auto-scales to hold 55 fps+.
+=====================================================================================
+-->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OptiSlot — Allocate. Prove. Revise.</title>
+<script type="importmap">{"imports":{
+"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+"camera-controls":"https://cdn.jsdelivr.net/npm/camera-controls@2.8.5/dist/camera-controls.module.js"}}</script>
+<style>
+:root{color-scheme:dark;--bg:#0A0D13;--p1:#10141D;--p2:#151A25;--p3:#1B2130;--ln:#232A3A;--tx:#E6EAF2;--mu:#8791A7;--v:#7C5CFF;--c:#22D3EE;--ok:#34D399;--wa:#FBBF24;--er:#F87171;
+--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg);color:var(--tx);font:13px/1.45 var(--sans);overflow:hidden}
+.mono{font-family:var(--mono)}
+svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#stage canvas{position:fixed;inset:0;display:block;touch-action:none;z-index:0}
+#vig{position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.6))}
+#veil{position:fixed;inset:0;pointer-events:none;z-index:2;background:linear-gradient(90deg,rgba(10,13,19,.88),rgba(10,13,19,.5) 38%,transparent 66%),linear-gradient(0deg,rgba(10,13,19,.8),transparent 30%)}
+[data-show]{transition:opacity .55s,transform .55s,visibility 0s .55s;opacity:0;visibility:hidden}
+[data-show].on{opacity:1;visibility:visible;transition-delay:0s}
+/* brand */
+.brand{position:fixed;z-index:6;left:clamp(16px,3vw,40px);top:22px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.2px}
+.brand i{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--v),var(--c));display:grid;place-items:center;box-shadow:0 0 18px #7c5cff66}
+.brand i svg{color:#fff}.brand small{font:500 10px var(--mono);color:var(--mu);letter-spacing:.14em;margin-left:6px;text-transform:uppercase}
+/* hero */
+#hero{position:fixed;z-index:5;left:clamp(20px,5vw,72px);top:calc(50% - 64px);transform:translateY(-50%);width:min(640px,90vw)}
+.eyebrow{font:600 11px var(--mono);letter-spacing:.22em;color:var(--c);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.eyebrow:before{content:"";width:28px;height:1px;background:var(--c);box-shadow:0 0 10px var(--c)}
+.title{font-size:clamp(40px,6.2vw,80px);line-height:.98;letter-spacing:-.035em;font-weight:800}
+.title span{display:block}.title .g{background:linear-gradient(90deg,var(--v),var(--c));-webkit-background-clip:text;background-clip:text;color:transparent}
+.promise{font-size:clamp(14px,1.45vw,18px);color:#b8c0d4;max-width:520px;margin:18px 0 28px;line-height:1.5}
+.cta{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.btn{display:inline-flex;gap:9px;align-items:center;border:1px solid var(--ln);background:var(--p3);color:var(--tx);padding:9px 16px;border-radius:10px;cursor:pointer;font:600 12px var(--sans);transition:.2s}
+.btn:hover{border-color:var(--v);box-shadow:0 0 16px #7c5cff55;transform:translateY(-1px)}
+.btn.pri{background:linear-gradient(135deg,var(--v),#5b8cff);border:0;color:#fff;box-shadow:0 4px 20px #7c5cff55}
+.big{padding:17px 32px;font-size:17px;font-weight:700;border-radius:14px;box-shadow:0 8px 44px #7c5cff99;animation:pulse 2.6s ease-in-out infinite}
+.big svg{width:20px;height:20px}
+@keyframes pulse{50%{box-shadow:0 8px 64px #7c5cffcc,0 0 0 6px #7c5cff22}}
+.hint{color:var(--mu);font-size:12px}.hint u{cursor:pointer;color:#b3a1ff}
+/* hook cards */
+#cards{position:fixed;z-index:5;left:clamp(14px,3vw,40px);right:clamp(14px,3vw,40px);bottom:clamp(12px,3vh,32px);display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.hk{background:rgba(16,20,29,.74);border:1px solid var(--ln);border-radius:14px;padding:14px 16px;backdrop-filter:blur(14px);transition:.25s;min-width:0}
+.hk:hover{border-color:#7c5cff77;box-shadow:0 0 28px #7c5cff22;transform:translateY(-2px)}
+.hk .k{font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.12em;color:var(--mu);margin-bottom:6px}
+.hk .n{font:700 34px/1.05 var(--mono);display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.hk .n small{font:500 12px var(--sans);color:var(--mu);white-space:normal;line-height:1.2}
+.hk .f{color:#aab3c8;font-size:12px;margin-top:6px}.hk .f b{font-family:var(--mono);color:var(--tx)}
+.hk .mb{height:5px;border-radius:9px;background:var(--bg);overflow:hidden;margin-top:9px}.hk .mb i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--v),var(--c));transition:width 1.8s cubic-bezier(.2,.8,.2,1)}
+.sq{display:grid;grid-template-columns:repeat(22,1fr);gap:2px;margin-top:9px}.sq i{height:5px;border-radius:2px;background:#222a3b;transition:.2s}.sq i.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.ok{color:var(--ok)}.er{color:var(--er)}.wa{color:var(--wa)}
+#hs{font:11px var(--mono);color:var(--mu)}#hs u{color:var(--er);text-decoration:none;font-weight:700}
+/* panels */
+.card{background:rgba(16,20,29,.82);border:1px solid var(--ln);border-radius:16px;padding:18px;backdrop-filter:blur(16px);box-shadow:0 20px 60px #0008}
+.card h3{font:600 11px var(--sans);text-transform:uppercase;letter-spacing:.1em;color:var(--mu);margin-bottom:10px}
+#map{position:fixed;z-index:5;left:clamp(20px,5vw,72px);top:50%;transform:translateY(-50%);width:min(580px,92vw)}
+.file{display:flex;gap:14px;align-items:center;margin-bottom:14px}.file .ic{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;background:#7c5cff22;color:#b3a1ff}
+.file .ic svg{width:22px;height:22px}.file b{font-size:14px}.file div div{color:var(--mu);font-size:11px}
+.bar{height:6px;border-radius:9px;background:var(--bg);overflow:hidden;margin-bottom:14px}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--v),var(--c));transition:width .4s}
+table{width:100%;border-collapse:collapse}th{text-align:left;font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--mu);padding:6px 8px;border-bottom:1px solid var(--ln)}
+td{padding:6px 8px;border-bottom:1px solid #1a2030;font-size:12px;white-space:nowrap}
+#mrows tr{opacity:0;transform:translateX(-8px);transition:.4s}#mrows tr.on{opacity:1;transform:none}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font:600 11px var(--sans);border:1px solid}
+.chip.ok{color:var(--ok);background:#34d3991a;border-color:#34d39944}.chip.wa{color:var(--wa);background:#fbbf241a;border-color:#fbbf2444}
+.pre{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin:14px 0}.pre div{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--mu);opacity:.35;transition:.4s}.pre div.on{opacity:1;color:var(--tx)}.pre div .chip{padding:0 6px}
+#goalloc{width:100%;justify-content:center;padding:14px;font-size:15px;opacity:0;pointer-events:none;transition:.4s}#goalloc.on{opacity:1;pointer-events:auto}
+/* dive */
+#divehud{position:fixed;z-index:5;left:0;right:0;top:22px;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+#divehud .lab{font:600 11px var(--mono);letter-spacing:.3em;color:var(--c);text-transform:uppercase}
+#divehud .cnt{font:700 40px var(--mono);letter-spacing:-.02em}#divehud .cnt small{color:var(--mu);font-size:18px}
+#divehud .pb{width:min(360px,70vw);height:4px;border-radius:9px;background:#ffffff14;overflow:hidden}#divehud .pb i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--v),var(--c));box-shadow:0 0 12px var(--c)}
+#skip{position:fixed;z-index:6;right:22px;bottom:22px}
+/* done */
+#done{position:fixed;z-index:5;left:50%;bottom:6vh;transform:translateX(-50%);text-align:center;width:min(720px,94vw)}
+#done.on{transform:translateX(-50%)}
+.stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+.stats .chip{font-size:12px;padding:5px 12px;background:rgba(16,20,29,.78);backdrop-filter:blur(10px)}
+#done .row{display:flex;gap:12px;justify-content:center;align-items:center}
+/* drop overlay */
+#dropov{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(10,13,19,.78);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:.25s}
+#dropov.on{opacity:1}#dropov div{border:2px dashed var(--v);border-radius:24px;padding:60px 90px;text-align:center;font-size:22px;font-weight:700;box-shadow:0 0 60px #7c5cff55;background:radial-gradient(ellipse at top,#7c5cff22,transparent 70%)}
+#dropov small{display:block;color:var(--mu);font-weight:400;font-size:13px;margin-top:6px}
+#fb{position:fixed;z-index:30;left:50%;top:50%;transform:translate(-50%,-50%);display:none;text-align:center;color:var(--mu);font:12px var(--mono);max-width:80vw}
+/* room HUD (from prototype) */
+.hud{position:fixed;z-index:6;pointer-events:none}.hud>*{pointer-events:auto}
+#roomhud{position:fixed;inset:0;z-index:6;pointer-events:none}
+#tl{left:16px;top:16px}#tl h1{margin:0 0 6px;font-size:13px;letter-spacing:.18em;text-transform:uppercase;font-weight:600}#tl h1 b{color:var(--v)}
+#crumbs span{color:var(--mu);cursor:pointer}#crumbs span:hover{color:var(--tx)}#crumbs span.cur{color:var(--tx);cursor:default}#crumbs i{color:#3a4256;font-style:normal;margin:0 6px}
+#tr{right:16px;top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 32px);align-items:center}
+#tr button{font:inherit;color:var(--tx);background:rgba(20,24,34,.7);border:1px solid #2a3144;border-radius:8px;padding:8px 14px;cursor:pointer;backdrop-filter:blur(8px)}#tr button:hover{border-color:var(--v)}
+#dive2{background:var(--v)!important;border-color:var(--v)!important;font-weight:600;box-shadow:0 0 22px rgba(124,92,255,.45)}
+#q{font:inherit;color:var(--tx);background:rgba(20,24,34,.7);border:1px solid #2a3144;border-radius:8px;padding:8px 12px;width:260px;outline:none;backdrop-filter:blur(8px)}#q:focus{border-color:var(--v)}#q.bad{border-color:var(--er);animation:sh .3s}
+@keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#lg{left:16px;bottom:16px;display:flex;gap:12px;flex-wrap:wrap;color:var(--mu);font-size:12px;max-width:60vw;transition:.4s}
+#lg span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--c);box-shadow:0 0 8px var(--c)}
+#hint2{right:16px;bottom:16px;color:var(--mu);font-size:12px}
+#info{right:16px;top:64px;width:260px;padding:16px;border-radius:12px;background:rgba(14,18,27,.8);border:1px solid #2a3144;backdrop-filter:blur(12px);opacity:0;transform:translateX(16px);transition:.4s;pointer-events:none}
+#info.on{opacity:1;transform:none}#info h2{margin:0 0 2px;font-size:15px}#info .tag{color:var(--mu);font:11px var(--mono);margin-bottom:12px;word-break:break-all}
+#info dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px}#info dt{color:var(--mu)}#info dd{margin:0;text-align:right;font-family:var(--mono);font-size:12px}
+.tchip{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid var(--c);color:var(--c);font:600 11px var(--sans)}
+#about{left:16px;top:70px;width:300px;padding:14px 16px;border-radius:12px;background:rgba(14,18,27,.84);border:1px solid #2a3144;backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:.4s;transform:translateY(-8px)}
+#about.on{opacity:1;pointer-events:auto;transform:none}#about h3{margin:0 0 6px;font-size:12px;color:var(--v);letter-spacing:.1em;text-transform:uppercase}#about p{color:var(--mu);margin-bottom:6px}#about b{color:var(--tx)}
+.lb,#tip{position:fixed;left:0;top:0;z-index:4;pointer-events:none;font-size:11px;letter-spacing:.14em;white-space:nowrap;padding:2px 9px;border:1px solid #3a3470;border-radius:99px;background:rgba(14,18,27,.65);opacity:0;transition:opacity .3s}
+#tip{z-index:8;letter-spacing:.04em;transition:opacity .15s}
+@media(max-width:900px){#cards{grid-template-columns:1fr 1fr;gap:8px}.hk{padding:10px 12px}.hk .n{font-size:24px}.hk .f{font-size:11px}.sq{display:none}
+ #hero{top:84px;transform:none}.promise{margin:12px 0 18px}.big{padding:14px 24px;font-size:15px}#veil{background:linear-gradient(180deg,rgba(10,13,19,.85),rgba(10,13,19,.3) 55%,rgba(10,13,19,.8))}
+ #map{top:80px;transform:none}.pre{grid-template-columns:1fr}#q{width:100%;order:3}#hint2{display:none}#lg{max-width:92vw;bottom:44px;font-size:11px}#about{width:calc(100vw - 32px)}#info{left:16px;width:auto}}
+@media(max-height:700px) and (min-width:901px){.title{font-size:54px}.promise{margin:12px 0 18px}.hk .n{font-size:28px}.sq{display:none}.hk .mb{display:none}}
+</style></head>
+<body data-s="hero">
+<div id="stage"></div><div id="vig"></div>
+<div id="veil" data-show="hero map"></div>
+<div id="fb"></div>
+
+<header class="brand" data-show="hero map done"><i><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></svg></i>OptiSlot<small>Allocate · Prove · Revise</small></header>
+
+<section id="hero" data-show="hero">
+ <div class="eyebrow">DeltaV · CHARM I/O · signal allocation</div>
+ <h1 class="title"><span>Allocate.</span><span class="g">Prove.</span><span>Revise.</span></h1>
+ <p class="promise">Drop your IO list. Every signal lands in the right cabinet, baseplate and CHARM — verified, certified, and stable when the list changes.</p>
+ <div class="cta"><button class="btn pri big" id="import"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/></svg>Import MDB</button>
+  <span class="hint">or drop a file anywhere · <u id="browse">browse…</u></span></div>
+</section>
+
+<section id="cards" data-show="hero">
+ <div class="hk"><div class="k">Allocation speed</div><div class="n"><span data-n="189">0</span><small>signals → 3 cabinets</small></div><div class="f">in under 2 s · solved in <b data-n="1.8" data-d="1">0.0</b> s</div><div class="mb"><i id="mb1"></i></div></div>
+ <div class="hk"><div class="k">Proof</div><div class="n ok"><span data-n="0">0</span><small>violations</small></div><div class="f">independently verified · <b data-n="22">0</b>/22 checks</div><div class="sq" id="sq"></div></div>
+ <div class="hk"><div class="k">Revision stability</div><div class="n"><span><span data-n="97.9" data-d="1">0</span>%</span><small>unchanged</small></div><div class="f">Rev B · <b>185</b> of 189 signals stayed put</div><div class="mb"><i id="mb3"></i></div></div>
+ <div class="hk"><div class="k">Tamper test</div><div class="n ok" id="tn">CLEAN</div><div class="f" id="hs">sha256:9f2c7a1be04d…e4a2</div><div class="f" id="tf">Tamper → caught, certificate revoked</div></div>
+</section>
+
+<section id="map" data-show="map">
+ <div class="card">
+  <div class="file"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div><div><b id="fname">U400_IOList_RevC.mdb</b><div class="mono"><span id="fsize">412 KB</span> · table tblIO · 189 rows</div></div></div>
+  <div class="bar"><i id="mbar"></i></div>
+  <h3>Column mapping</h3>
+  <table><thead><tr><th>Source column</th><th>→ Field</th><th>Sample</th><th>Match</th></tr></thead><tbody id="mrows"></tbody></table>
+  <div class="pre" id="pre"></div>
+  <button class="btn pri" id="goalloc"><svg viewBox="0 0 24 24"><path d="m6 4 14 8-14 8z"/></svg>Allocate</button>
+ </div>
+</section>
+
+<div id="divehud" data-show="dive"><div class="lab" id="dstage">Allocating</div><div class="cnt"><span id="placed">0</span><small> / 189</small></div><div class="pb"><i id="pbar"></i></div></div>
+<button class="btn" id="skip" data-show="dive">Skip ▸ <span style="color:var(--mu)">Space</span></button>
+
+<section id="done" data-show="done">
+ <div class="stats"><span class="chip ok">✓ 189 signals placed</span><span class="chip ok">✓ 0 violations</span><span class="chip ok">✓ 22 / 22 checks</span><span class="chip" style="color:#b3a1ff;border-color:#7c5cff66">cert 9f2c…e4a2</span></div>
+ <div class="row"><button class="btn pri big" id="enter">Enter 3D Room</button><button class="btn" id="replay">↺ Replay</button></div>
+</section>
+
+<div id="roomhud" data-show="room">
+ <div class="hud" id="tl"><h1>Marshalling <b>Room</b></h1><div id="crumbs"></div></div>
+ <div class="hud" id="tr"><input id="q" placeholder="Go to 2-3-5-7  or  P30-DCM-32002-03/049/5/1" autocomplete="off" spellcheck="false"><button id="abtn">ⓘ About</button><button id="zin">+</button><button id="zout">−</button><button id="back">← Back (Esc)</button><button id="dive2">▶ Replay Dive</button></div>
+ <div class="hud" id="hint2">Click to zoom in · drag to orbit · scroll to dolly</div>
+ <div class="hud" id="info"></div>
+ <div class="hud" id="about"><h3>How it works</h3><p><b>3 cabinets</b> → <b>4 CIOCs</b> → <b>8 baseplates</b> → <b>12 CHARMs</b> = 1,152 modules; 189 carry signals.</p><p><b>Click</b> to zoom down, <b>Esc</b> to go back, <b>search</b> a tag or full location code.</p></div>
+</div>
+<div class="hud" id="lgw" style="left:16px;bottom:16px"></div>
+<div id="lg" data-show="dive done room" style="position:fixed;z-index:6;left:16px;bottom:16px;display:flex;gap:12px;flex-wrap:wrap;color:var(--mu);font-size:12px;max-width:60vw"></div>
+<div id="labels"></div><div id="tip"></div>
+<div id="dropov"><div>Drop your IO list<small>.mdb · .accdb · .xlsx · .csv — anywhere on this page</small></div></div>
+<input type="file" id="file" hidden accept=".mdb,.accdb,.xlsx,.xls,.csv">
+
+<script type="module">
+const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let engine=null,state='hero',fromRoom=false;
+
+/* ================= 3D ENGINE ================= */
+let THREE,CameraControls,EffectComposer,RenderPass,UnrealBloomPass,OutputPass,RoomEnvironment;
+try{
+ THREE=await import('three');
+ CameraControls=(await import('camera-controls')).default;
+ ({EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js'));
+ ({RenderPass}=await import('three/addons/postprocessing/RenderPass.js'));
+ ({UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js'));
+ ({OutputPass}=await import('three/addons/postprocessing/OutputPass.js'));
+ ({RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js'));
+}catch(err){THREE=null;const f=$('#fb');f.style.display='block';f.innerHTML='3D engine could not load (CDN unreachable?)<br><span style="color:var(--er)">'+String(err.message||err)+'</span>';console.error(err)}
+
+if(THREE){
+class Engine{
+ constructor(host,cb){
+  const T=THREE;
+  CameraControls.install({THREE:{Vector2:T.Vector2,Vector3:T.Vector3,Vector4:T.Vector4,Quaternion:T.Quaternion,Matrix4:T.Matrix4,Spherical:T.Spherical,Box3:T.Box3,Sphere:T.Sphere,Raycaster:T.Raycaster}});
+  const C=3,K=4,B=8,M=12,N=C*K*B*M,NS=189,CX=[-4.6,0,4.6],ACC=0x7C5CFF;
+  const IO=[{n:'AI',c:0x4F8CFF},{n:'AO',c:0xA78BFA},{n:'DI',c:0x34D399},{n:'DO',c:0xFBBF24},{n:'DO-ISO',c:0xF87171},{n:'ALM',c:0xF472B6}];
+  const IOC=IO.map(o=>new T.Color(o.c)),hex=c=>'#'+c.toString(16).padStart(6,'0');
+  const p2=n=>String(n).padStart(2,'0'),p3=n=>String(n).padStart(3,'0');
+  const loc=(c,k,b,m)=>`P30-DCM-${32001+c}-${p2(k+1)}/${p3(b*M+m+1)}/${b+1}/${m+1}`;
+  const $g=id=>document.getElementById(id);
+  $g('lg').innerHTML=IO.map(o=>`<span style="--c:${hex(o.c)}">${o.n==='ALM'?'Alarm':o.n}</span>`).join('');
+  let seed=11;const rnd=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+
+  /* ---- data: 189 signals (63 per cabinet); DO-ISO only in the isolated cabinet 3 ---- */
+  const type=new Int8Array(N).fill(-1),val=new Float32Array(N),sigOf=new Int16Array(N).fill(-1),sigs=[];
+  const idx=(c,k,b,m)=>((c*K+k)*B+b)*M+m;
+  const ixOf=k=>(k&1)?.72:-.72,zOf=k=>k<2?.38:-.38,bpY=(s,b)=>1.6+(b-3.5)*(.34+.3*s);
+  for(let i=0;i<N;i++)val[i]=rnd();
+  const wA=[0,0,0,1,2,2,3,5],wC=[0,0,1,2,2,3,4,4,5];
+  for(let c=0;c<C;c++){
+   const pool=[];for(let i=c*K*B*M;i<(c+1)*K*B*M;i++)pool.push(i);
+   for(let i=pool.length-1;i>0;i--){const j=rnd()*(i+1)|0;[pool[i],pool[j]]=[pool[j],pool[i]]}
+   const w=c==2?wC:wA;
+   for(let n=0;n<NS/C;n++){const i=pool[n],t=w[rnd()*w.length|0],m=i%M,b=(i/M|0)%B,k=(i/(M*B)|0)%K;
+    type[i]=t;sigOf[i]=sigs.length;sigs.push({i,c,k,b,m,t,t0:.3+c*1.35+rnd()*1.6,dur:1.25+rnd()*.45});}
+  }
+  for(const s of sigs)s.land=s.t0+s.dur;
+  const byLand=[...sigs].sort((a,b)=>a.land-b.land);
+
+  /* ---- renderer + bloom (adaptive resolution keeps >=55 fps) ---- */
+  const W=()=>innerWidth,H=()=>innerHeight;let pr=Math.min(devicePixelRatio||1,1.5);
+  const renderer=new T.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+  renderer.setPixelRatio(pr);renderer.setSize(W(),H());host.appendChild(renderer.domElement);const cv=renderer.domElement;
+  const scene=new T.Scene();scene.background=new T.Color(0x0A0D13);scene.fog=new T.FogExp2(0x0A0D13,.014);
+  const cam=new T.PerspectiveCamera(40,W()/H(),.05,200);
+  const rt=new T.WebGLRenderTarget(W()*pr,H()*pr,{type:T.HalfFloatType,samples:4});
+  const composer=new EffectComposer(renderer,rt);composer.addPass(new RenderPass(scene,cam));
+  const bloom=new UnrealBloomPass(new T.Vector2(W()*pr,H()*pr),.8,.7,.8);composer.addPass(bloom);composer.addPass(new OutputPass());
+  const applyRes=()=>{renderer.setPixelRatio(pr);renderer.setSize(W(),H());composer.setSize(W()*pr,H()*pr)};
+
+  const ctrl=new CameraControls(cam,cv);let lastInput=0,fovT=40,el=0,vo=0;
+  ctrl.addEventListener('controlstart',()=>lastInput=el);
+  ctrl.smoothTime=.6;ctrl.draggingSmoothTime=.12;ctrl.minDistance=.35;ctrl.maxDistance=60;ctrl.maxPolarAngle=1.55;ctrl.mouseButtons.right=CameraControls.ACTION.TRUCK;
+  ctrl.setLookAt(0,7,22,0,1.4,0,false);ctrl.enabled=false;
+
+  /* ---- room ---- */
+  const pm=new T.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),.04).texture;
+  scene.add(new T.HemisphereLight(0x8899cc,0x10131a,.9));
+  const dl=new T.DirectionalLight(0xbfc8ff,1.2);dl.position.set(6,12,10);scene.add(dl);
+  const floor=new T.Mesh(new T.PlaneGeometry(90,90),new T.MeshStandardMaterial({color:0x0c1019,roughness:.32,metalness:.65}));floor.rotation.x=-Math.PI/2;scene.add(floor);
+  const grid=new T.GridHelper(60,60,ACC,0x1b2231);grid.position.y=.003;grid.material.transparent=true;grid.material.opacity=.55;scene.add(grid);
+  const wall=new T.Mesh(new T.PlaneGeometry(60,20),new T.MeshStandardMaterial({color:0x0d1119,roughness:.9}));wall.position.set(0,10,-7.2);scene.add(wall);
+  const jb=new T.Mesh(new T.BoxGeometry(1.8,1.2,.5),new T.MeshStandardMaterial({color:0x1a1f2b,emissive:ACC,emissiveIntensity:.15,metalness:.6,roughness:.4}));jb.position.set(0,5.2,-6.9);scene.add(jb);
+  const jbLight=new T.PointLight(ACC,0,14);jbLight.position.set(0,5.2,-6);scene.add(jbLight);
+
+  const reg=[],pick=[],doors=[],cabs=[],iocs=[],nop=()=>{};
+  const reg1=(m,base,c,k,b,L)=>{m.transparent=true;m.opacity=base;reg.push({m,base,c,k,b,L,cur:1,t:1});return m};
+  const poolMat=(()=>{const cx=document.createElement('canvas');cx.width=cx.height=128;const g2=cx.getContext('2d'),gr=g2.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(124,92,255,.55)');gr.addColorStop(1,'rgba(124,92,255,0)');g2.fillStyle=gr;g2.fillRect(0,0,128,128);return new T.MeshBasicMaterial({map:new T.CanvasTexture(cx),transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false})})();
+  for(let c=0;c<C;c++){
+   const g=new T.Group();g.position.x=CX[c];scene.add(g);
+   const add=(geo,m,x,y,z)=>{const o=new T.Mesh(geo,reg1(m,1,c,-1,-1,1));o.position.set(x,y,z);o.userData={c};g.add(o);pick.push(o);return o};
+   const steel=()=>new T.MeshStandardMaterial({color:0x4d5666,metalness:.7,roughness:.45});
+   for(const sx of[-1,1])for(const sz of[-1,1])add(new T.BoxGeometry(.1,3.3,.1),steel(),sx*1.5,1.65,sz*.9);
+   for(const sz of[-1,1])add(new T.BoxGeometry(3.1,.08,.08),steel(),0,3.3,sz*.9);
+   for(const sx of[-1,1]){add(new T.BoxGeometry(.08,.08,1.8),steel(),sx*1.5,3.3,0);add(new T.BoxGeometry(.03,3.2,1.8),new T.MeshStandardMaterial({color:0x232a37,metalness:.5,roughness:.6}),sx*1.5,1.6,0)}
+   add(new T.BoxGeometry(3.1,.1,1.9),steel(),0,.05,0);
+   const dp=[];
+   for(const face of[1,-1])for(const side of[-1,1]){
+    const piv=new T.Group();piv.position.set(side*1.5,1.65,face*.9);g.add(piv);
+    const gl=new T.Mesh(new T.BoxGeometry(1.46,3.2,.03),reg1(new T.MeshPhysicalMaterial({color:0x9fb4d0,roughness:.05,depthWrite:false}),.16,c,-1,-1,1));
+    gl.position.x=-side*.75;gl.userData={c};piv.add(gl);pick.push(gl);
+    const ed=new T.LineSegments(new T.EdgesGeometry(gl.geometry),reg1(new T.LineBasicMaterial({color:ACC}),.85,c,-1,-1,1));ed.raycast=nop;gl.add(ed);
+    dp.push({piv,s:face*side});
+   }
+   doors.push({dp,o:0,t:0});
+   const pl=new T.PointLight(0xaabbff,7,9);pl.position.set(CX[c],2.2,0);scene.add(pl);cabs.push({light:pl,glow:0,gt:0});
+   const pool=new T.Mesh(new T.PlaneGeometry(6.5,4.2),poolMat);pool.rotation.x=-Math.PI/2;pool.position.set(CX[c],.012,0);scene.add(pool);
+   iocs.push([]);
+   for(let k=0;k<K;k++){
+    const ix=ixOf(k),z=zOf(k);
+    const frame=new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(1.42,3.1,.5)),reg1(new T.LineBasicMaterial({color:ACC}),.4,c,k,-1,2));frame.position.set(ix,1.6,z);frame.raycast=nop;g.add(frame);
+    const vol=new T.Mesh(new T.BoxGeometry(1.42,3.1,.5),new T.MeshBasicMaterial());vol.visible=false;vol.position.copy(frame.position);vol.userData={c,k};g.add(vol);pick.push(vol);
+    const bps=[];
+    for(let b=0;b<B;b++){const bp=new T.Mesh(new T.BoxGeometry(1.2,.12,.3),reg1(new T.MeshStandardMaterial({color:0x2c3442,metalness:.6,roughness:.5}),1,c,k,b,3));bp.userData={c,k,b};g.add(bp);pick.push(bp);bps.push(bp)}
+    iocs[c].push({frame,vol,bps,s:0,t:0});
+   }
+  }
+  /* ---- CHARMs: one InstancedMesh ---- */
+  const inst=new T.InstancedMesh(new T.BoxGeometry(.082,.15,.2),new T.MeshBasicMaterial({toneMapped:false}),N);
+  inst.instanceColor=new T.InstancedBufferAttribute(new Float32Array(N*3),3);inst.instanceColor.setUsage(T.DynamicDrawUsage);inst.frustumCulled=false;scene.add(inst);pick.push(inst);
+  const dm=new T.Object3D();
+  function updIoc(c,k){const o=iocs[c][k],ix=ixOf(k),z=zOf(k);
+   for(let b=0;b<B;b++){const y=bpY(o.s,b);o.bps[b].position.set(ix,y,z);for(let m=0;m<M;m++){dm.position.set(CX[c]+ix+(m-5.5)*.098,y+.13,z);dm.updateMatrix();inst.setMatrixAt(idx(c,k,b,m),dm.matrix)}}
+   o.frame.scale.y=o.vol.scale.y=(B*(.34+.3*o.s)+.3)/3.1;inst.instanceMatrix.needsUpdate=true}
+  for(let c=0;c<C;c++)for(let k=0;k<K;k++)updIoc(c,k);
+
+  /* ---- cable bundle (room mode, baseplate level) ---- */
+  const bundle=new T.Group(),bMats=[];
+  for(let j=0;j<7;j++){const x=(j-3)*.15,ex=(j-3)*.17;
+   const cu=new T.CatmullRomCurve3([[x*.3,3.4,-.1],[x*.5,2.1,-.28],[x*.9,.8,-.24],[ex,.1,-.17]].map(p=>new T.Vector3(...p)));
+   const mt=new T.MeshStandardMaterial({color:j%3==0?0x3a2f6b:0x1c2029,roughness:.5,metalness:.3,transparent:true,opacity:0,emissive:j%3==0?ACC:0,emissiveIntensity:.5});
+   bMats.push(mt);bundle.add(new T.Mesh(new T.TubeGeometry(cu,40,.03,8),mt))}
+  bundle.visible=false;scene.add(bundle);let bCur=0,bT=0;
+  scene.traverse(o=>{const m=o.material;if(m&&m.isMeshStandardMaterial)m.envMapIntensity=.35});
+
+  /* ---- state ---- */
+  let mode='hero',level=0,sc=-1,sk=-1,sb=-1,sm=-1,busy=false,diving=false,diveT=-1,trailA=0,trailT=0,baseGlow=.35,placed=0,nl=0,ck=0,finishResolve=null;
+  const tgt=new Float32Array(N).fill(1),cur=new Float32Array(N).fill(1),lit=new Float32Array(N).fill(1),litT=new Float32Array(N).fill(1),flash=new Float32Array(N);
+  /* ---- labels ---- */
+  const labelsEl=$g('labels'),labels=[],tmpV=new T.Vector3();
+  function addLabel(t,pos,show){const d=document.createElement('div');d.className='lb';d.textContent=t;labelsEl.appendChild(d);labels.push({el:d,pos,show})}
+  for(let c=0;c<C;c++){addLabel('CABINET '+(c+1),new T.Vector3(CX[c],3.9,0),()=>mode!=='dive'&&(level==0||(level==1&&sc==c)));
+   for(let k=0;k<K;k++){addLabel('CIOC '+(k+1)+(k<2?' · FRONT':' · REAR'),new T.Vector3(CX[c]+ixOf(k),3.55,zOf(k)),()=>level==1&&sc==c);
+    for(let b=0;b<B;b++)addLabel('BP '+(b+1),new T.Vector3(CX[c]+ixOf(k)+.85,bpY(1,b),zOf(k)),()=>level==2&&sc==c&&sk==k)}}
+  function Tg(c,k,b,m,L){if(level==0)return 1;if(c!==sc)return .07;if(L==1)return level>1?.12:1;if(level<2)return 1;if(k!==sk)return .08;if(L==2)return level>2?.15:1;if(level<3)return 1;if(b!==sb)return .1;if(L==3)return level>3?.15:1;if(level<4)return 1;return m!==sm?.25:1}
+  function retarget(){for(const r of reg)r.t=Tg(r.c,r.k,r.b,0,r.L);
+   for(let i=0;i<N;i++){const m=i%M,b=(i/M|0)%B,k=(i/(M*B)|0)%K,c=i/(M*B*K)|0;tgt[i]=Tg(c,k,b,m,4)}
+   for(let c=0;c<C;c++){doors[c].t=(level>=1&&c===sc)?1:0;for(let k=0;k<K;k++)iocs[c][k].t=(level>=2&&c===sc&&k===sk)?1:0}
+   bT=level>=3?1:0;if(level>=3){bundle.position.set(CX[sc]+ixOf(sk),bpY(1,sb),zOf(sk));bundle.visible=true}}
+  const ray=new T.Raycaster(),nd=new T.Vector2();
+  function hitAt(e){if(mode!=='room')return;const r=cv.getBoundingClientRect();nd.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(nd,cam);const n=Math.min(level+1,4);
+   for(const h of ray.intersectObjects(pick,false)){let i;
+    if(h.object===inst){const id=h.instanceId;i={c:id/(M*B*K)|0,k:(id/(M*B)|0)%K,b:(id/M|0)%B,m:id%M}}else{const u=h.object.userData;i={c:u.c,k:u.k??-1,b:u.b??-1,m:-1}}
+    if(level>=1&&i.c!==sc)continue;if(level>=2&&i.k!==sk)continue;if(level>=3&&i.b!==sb)continue;
+    if(n>=2&&i.k<0)continue;if(n>=3&&i.b<0)continue;if(n>=4&&i.m<0)continue;return i}}
+  const bx=(x,y,z,w,h,d)=>new T.Box3().setFromCenterAndSize(new T.Vector3(x,y,z),new T.Vector3(w,h,d));
+  function focus(){if(level==0){ctrl.setLookAt(0,7.5,23,0,1.4,0,true);return}
+   let box,az=0,pol=1.4,pad=.25;
+   if(level==1){box=bx(CX[sc],1.7,0,3.4,3.6,2);az=.35;pol=1.3}
+   else{const x=CX[sc]+ixOf(sk),z=zOf(sk);az=(sk>=2?Math.PI:0)+(sk&1?-.12:.12);
+    if(level==2){box=bx(x,1.6,z,1.5,5.4,.6);pol=1.45}else if(level==3){box=bx(x,bpY(1,sb)+.5,z,1.5,1.5,.8)}else{box=bx(x+(sm-5.5)*.098,bpY(1,sb)+.13,z,.12,.17,.22);pad=.9;pol=1.35}}
+   const c0=ctrl.azimuthAngle;az+=Math.PI*2*Math.round((c0-az)/(Math.PI*2));ctrl.rotateTo(az,pol,true);ctrl.fitToBox(box,true,{paddingLeft:pad,paddingRight:pad,paddingTop:pad,paddingBottom:pad})}
+  const infoEl=$g('info'),crumbs=$g('crumbs'),about=$g('about');
+  function setSel(l,c=-1,k=-1,b=-1,m=-1){about.classList.remove('on');lastInput=el;level=l;sc=c;sk=k;sb=b;sm=m;retarget();focus();ui()}
+  const goTo=l=>{if(l>=level)return;setSel(l,l>=1?sc:-1,l>=2?sk:-1,l>=3?sb:-1,-1)};
+  function ui(){
+   const p=['Room'];if(level>=1)p.push('Cabinet '+(sc+1));if(level>=2)p.push('CIOC '+(sk+1)+(sk<2?' (front)':' (rear)'));if(level>=3)p.push('Baseplate '+(sb+1));if(level>=4)p.push('CHARM '+(sm+1));
+   crumbs.innerHTML=p.map((t,i)=>`<span class="${i==level?'cur':''}" data-l="${i}">${t}</span>`).join('<i>›</i>');
+   $g('back').style.visibility=level?'visible':'hidden';
+   if(level==4){const i=idx(sc,sk,sb,sm),t=type[i],v=val[i],col=t>=0?hex(IO[t].c):'#8791A7';
+    const rd=t<0?'—':t==0?(v*100).toFixed(1)+' %':t==1?(v*20).toFixed(2)+' mA':t==5?(v>.5?'ALARM':'NORMAL'):(v>.5?'ON':'OFF');
+    infoEl.innerHTML=`<h2>CHARM ${sm+1}</h2><div class="tag">${t>=0?loc(sc,sk,sb,sm):'unassigned slot'}</div><dl><dt>Type</dt><dd><span class="tchip" style="color:${col};border-color:${col}">${t>=0?(t==5?'Alarm':IO[t].n):'Spare'}</span></dd><dt>Status</dt><dd>${t>=0?'Active':'Unassigned'}</dd><dt>Value</dt><dd>${rd}</dd><dt>Baseplate</dt><dd>${sb+1} / 8</dd><dt>CIOC</dt><dd>${sk+1} (${sk<2?'front':'rear'})</dd><dt>Cabinet</dt><dd>${sc+1}${sc==2?' (iso)':''}</dd></dl>`;infoEl.classList.add('on')}
+   else infoEl.classList.remove('on')}
+  crumbs.onclick=e=>{const l=e.target.dataset.l;if(l!==undefined&&!busy)goTo(+l)};
+  $g('back').onclick=()=>{if(!busy)goTo(level-1)};
+  addEventListener('keydown',e=>{if(e.key==='Escape'&&mode==='room'&&!busy&&level)goTo(level-1)});
+  let pd=null;cv.addEventListener('pointerdown',e=>pd={x:e.clientX,y:e.clientY,t:performance.now()});
+  cv.addEventListener('pointerup',e=>{if(!pd||busy||mode!=='room')return;const mv=Math.hypot(e.clientX-pd.x,e.clientY-pd.y),dt=performance.now()-pd.t;pd=null;if(mv>5||dt>500)return;const h=hitAt(e);if(!h)return;
+   if(level==0)setSel(1,h.c);else if(level==1)setSel(2,sc,h.k);else if(level==2)setSel(3,sc,sk,h.b);else setSel(4,sc,sk,sb,h.m)});
+  let lastHv=0;const tip=$g('tip');
+  cv.addEventListener('pointermove',e=>{if(mode!=='room')return;const n=performance.now();if(n-lastHv<90||e.buttons)return;lastHv=n;const h=busy?null:hitAt(e);cv.style.cursor=h?'pointer':'default';
+   if(!h){tip.style.opacity=0;return}
+   let t='Cabinet '+(h.c+1);if(level>=1&&h.k>=0)t+=' · CIOC '+(h.k+1);if(level>=2&&h.b>=0)t+=' · BP '+(h.b+1);
+   if(level>=3&&h.m>=0){const ty=type[idx(h.c,h.k,h.b,h.m)];t+=' · CH '+(h.m+1)+' · '+(ty>=0?IO[ty].n:'spare')}
+   tip.textContent=t;tip.style.opacity=1;tip.style.transform=`translate(${e.clientX+14}px,${e.clientY+14}px)`});
+  cv.addEventListener('pointerleave',()=>tip.style.opacity=0);
+
+  /* ---- light trails: junction box -> baseplates (shared by the rain path) ---- */
+  const trails=[],tU={uT:{value:0}},jPos=new T.Vector3(0,5.2,-6.6);
+  const vs='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
+  const fs='uniform float uT,uD,uA,uS;uniform vec3 uC;varying vec2 vUv;void main(){float on=smoothstep(uD,uD+.3,uT);float p=fract((uT-uD)*.4+uS);float d=p-vUv.x;float a=(d>0.&&d<.3)?pow(1.-d/.3,2.):0.;gl_FragColor=vec4(uC*(a*3.+.12),(a+.05)*uA*on);}';
+  for(let c=0;c<C;c++)for(let k=0;k<K;k++)for(const b of[1,3,5,7]){const x=CX[c]+ixOf(k),z=zOf(k),y=bpY(0,b);
+   const pts=[jPos,new T.Vector3(x*.4,6.2,-4.2),new T.Vector3(x,4.8,z*1.4-.4),new T.Vector3(x+(rnd()-.5)*.6,y+.6,z),new T.Vector3(x+(rnd()-.5)*.8,y+.12,z)];
+   const mt=new T.ShaderMaterial({vertexShader:vs,fragmentShader:fs,transparent:true,depthWrite:false,blending:T.AdditiveBlending,uniforms:{uT:tU.uT,uD:{value:.3+c*1.35+k*.1+b*.03},uA:{value:0},uS:{value:rnd()},uC:{value:new T.Color(IO[(c+k+b)%5].c).lerp(new T.Color(ACC),.4)}}});
+   const m=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts),64,.018,4),mt);m.visible=false;m.frustumCulled=false;scene.add(m);trails.push(m)}
+
+  /* ---- LOCATION RAIN: instanced text billboards + droplet points; all motion is evaluated in the vertex shader ---- */
+  const COLS=4,ROWS=Math.ceil(NS/COLS),CW=384,CH=48;
+  const ac=document.createElement('canvas');ac.width=COLS*CW;ac.height=ROWS*CH;const g2=ac.getContext('2d');
+  g2.font='700 25px ui-monospace,Menlo,Consolas,"Courier New",monospace';g2.textAlign='center';g2.textBaseline='middle';g2.fillStyle='#fff';
+  sigs.forEach((s,n)=>g2.fillText(loc(s.c,s.k,s.b,s.m),(n%COLS)*CW+CW/2,((n/COLS|0)*CH)+CH/2+1));
+  const atlas=new T.CanvasTexture(ac);atlas.generateMipmaps=false;atlas.minFilter=T.LinearFilter;atlas.magFilter=T.LinearFilter;
+  const PATH=`uniform vec3 uJ;
+   vec3 pathPos(float u,vec3 s,vec3 d,float sd){
+    const float KK=.38;vec3 p;
+    if(u<KK){float f=clamp(u/KK,0.,1.);f=f*f;p=mix(s,uJ,f);}
+    else{float g=clamp((u-KK)/(1.-KK),0.,1.);g=mix(g,g*g*(3.-2.*g),.55);
+     vec3 p1=vec3(d.x*.35,4.4,-4.2),p2=vec3(d.x,d.y+2.4,d.z*1.4-.5);float h=1.-g;
+     p=h*h*h*uJ+3.*h*h*g*p1+3.*h*g*g*p2+g*g*g*d;}
+    p.x+=sin(u*18.+sd*6.283)*.05*(1.-u);return p;}`;
+  const qd=new T.PlaneGeometry(1,1),rg=new T.InstancedBufferGeometry();
+  rg.index=qd.index;rg.setAttribute('position',qd.getAttribute('position'));rg.setAttribute('uv',qd.getAttribute('uv'));rg.instanceCount=NS;
+  const A=new Float32Array(NS*4),S=new Float32Array(NS*3),D=new Float32Array(NS*3),Cc=new Float32Array(NS*3);
+  sigs.forEach((s,n)=>{A.set([s.t0,s.dur,n,rnd()],n*4);
+   S.set([(rnd()-.5)*5,15+rnd()*3,-6.6+(rnd()-.5)*.6],n*3);
+   D.set([CX[s.c]+ixOf(s.k)+(s.m-5.5)*.098,bpY(0,s.b)+.13,zOf(s.k)],n*3);
+   const cc=IOC[s.t];Cc.set([cc.r,cc.g,cc.b],n*3)});
+  rg.setAttribute('aA',new T.InstancedBufferAttribute(A,4));rg.setAttribute('aS',new T.InstancedBufferAttribute(S,3));rg.setAttribute('aD',new T.InstancedBufferAttribute(D,3));rg.setAttribute('aC',new T.InstancedBufferAttribute(Cc,3));
+  const rainMat=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,
+   uniforms:{uT:tU.uT,uJ:{value:jPos},uSz:{value:new T.Vector2(3.4,.425)},uTex:{value:atlas}},
+   vertexShader:`#define COLS ${COLS}.\n#define ROWS ${ROWS}.\nuniform float uT;uniform vec2 uSz;attribute vec4 aA;attribute vec3 aS;attribute vec3 aD;attribute vec3 aC;varying vec2 vUv;varying vec4 vCol;\n${PATH}
+    void main(){float u=(uT-aA.x)/aA.y;float on=step(0.,u)*step(u,1.);vec3 p=pathPos(u,aS,aD,aA.w);
+     float sc=mix(1.,.55,smoothstep(.88,1.,u));vec4 mv=viewMatrix*vec4(p,1.);mv.xy+=position.xy*uSz*sc;
+     gl_Position=on>.5?projectionMatrix*mv:vec4(2.,2.,2.,1.);
+     vCol=vec4(aC,smoothstep(0.,.08,u)*(1.-smoothstep(.93,1.,u)));
+     float col=mod(aA.z,COLS),row=floor(aA.z/COLS);vUv=vec2((col+uv.x)/COLS,1.-(row+1.-uv.y)/ROWS);}`,
+   fragmentShader:`uniform sampler2D uTex;varying vec2 vUv;varying vec4 vCol;void main(){float t=texture2D(uTex,vUv).a;gl_FragColor=vec4(vCol.rgb*3.2,t*vCol.a);}`});
+  const rainMesh=new T.Mesh(rg,rainMat);rainMesh.frustumCulled=false;rainMesh.renderOrder=5;
+  const NT=3,lags=[.06,.13,.22],pg=new T.BufferGeometry();
+  const tA=new Float32Array(NS*NT*4),tS=new Float32Array(NS*NT*3),tD=new Float32Array(NS*NT*3),tC=new Float32Array(NS*NT*3);
+  for(let n=0;n<NS;n++)for(let j=0;j<NT;j++){const o=n*NT+j;tA.set([A[n*4],A[n*4+1],lags[j]/A[n*4+1],A[n*4+3]],o*4);tS.set(S.subarray(n*3,n*3+3),o*3);tD.set(D.subarray(n*3,n*3+3),o*3);tC.set(Cc.subarray(n*3,n*3+3),o*3)}
+  pg.setAttribute('position',new T.BufferAttribute(new Float32Array(NS*NT*3),3));pg.setAttribute('aA',new T.BufferAttribute(tA,4));pg.setAttribute('aS',new T.BufferAttribute(tS,3));pg.setAttribute('aD',new T.BufferAttribute(tD,3));pg.setAttribute('aC',new T.BufferAttribute(tC,3));
+  const uPx={value:600};
+  const dropMat=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,uniforms:{uT:tU.uT,uJ:{value:jPos},uPx},
+   vertexShader:`uniform float uT,uPx;attribute vec4 aA;attribute vec3 aS;attribute vec3 aD;attribute vec3 aC;varying vec4 vCol;\n${PATH}
+    void main(){float u=(uT-aA.x)/aA.y-aA.z;float on=step(0.,u)*step(u,1.);vec3 p=pathPos(u,aS,aD,aA.w);vec4 mv=viewMatrix*vec4(p,1.);
+     gl_Position=on>.5?projectionMatrix*mv:vec4(2.,2.,2.,1.);gl_PointSize=uPx*.085*(1.-aA.z*2.2)/max(-mv.z,.1);
+     vCol=vec4(aC,smoothstep(0.,.06,u)*(1.-smoothstep(.95,1.,u))*(1.-aA.z*2.6));}`,
+   fragmentShader:`varying vec4 vCol;void main(){float d=length(gl_PointCoord-.5);gl_FragColor=vec4(vCol.rgb*2.6,smoothstep(.5,0.,d)*vCol.a);}`});
+  const dropPts=new T.Points(pg,dropMat);dropPts.frustumCulled=false;dropPts.renderOrder=5;
+  rainMesh.visible=dropPts.visible=false;scene.add(rainMesh,dropPts);
+
+  /* ---- dive timeline ---- */
+  const END=7.5;
+  const KEYS=[[.05,1.4,0,8.5,21,0,6.2,-3],[1.5,1.2,-6.5,4.6,13.5,-3,2.6,0],[3.0,1.2,0,3.4,12,0,2.3,0],[4.3,1.2,6.5,4.8,13.5,3,2.6,0],[5.9,1.3,0,7.5,23,0,1.4,0]];
+  const setStage=t=>{const e=$g('dstage');if(e)e.textContent=t<1.4?'Routing through junction box':t<6.2?'Landing signals in CHARMs':'Settling'};
+  this.playRain=()=>new Promise(res=>{
+   if(diving){res();return}
+   busy=true;diving=true;mode='dive';level=0;sc=sk=sb=sm=-1;retarget();ui();ctrl.enabled=false;
+   about.classList.remove('on');
+   for(let i=0;i<N;i++){if(type[i]>=0)litT[i]=0;flash[i]=0}
+   placed=0;nl=0;ck=0;finishResolve=res;cb.onProgress(0,NS);
+   cabs.forEach(c=>c.gt=0);
+   rainMesh.visible=dropPts.visible=true;trailA=0;trailT=1;diveT=el;
+   cam.fov=80;cam.updateProjectionMatrix();fovT=40;ctrl.smoothTime=1.4;ctrl.setLookAt(0,12,40,0,7,-4,false);
+  });
+  const finishDive=()=>{diving=false;diveT=-1;busy=false;trailT=0;rainMesh.visible=dropPts.visible=false;cabs.forEach(c=>c.gt=0);ctrl.smoothTime=.6;mode='done';
+   for(let i=0;i<N;i++)litT[i]=1;const r=finishResolve;finishResolve=null;if(r)r()};
+  this.skip=()=>{if(!diving)return;
+   for(let i=0;i<N;i++)if(type[i]>=0){litT[i]=1;flash[i]=.7}
+   placed=NS;nl=byLand.length;cb.onProgress(NS,NS);ctrl.smoothTime=.7;ctrl.setLookAt(0,7.5,23,0,1.4,0,true);finishDive()};
+  this.setMode=m=>{if(m==='dive')return;mode=m;ctrl.enabled=(m==='room');baseGlow=(m==='hero'||m==='map')?.35:0;
+   if(!diving){cabs.forEach(c=>c.gt=baseGlow);for(let i=0;i<N;i++)litT[i]=1}
+   if(m==='room'){about.classList.add('on');lastInput=el;ui()}
+   if(m!=='room'&&level){level=0;sc=sk=sb=sm=-1;retarget();ui();ctrl.setLookAt(0,7.5,23,0,1.4,0,true)}};
+  this.resetLevel=()=>{if(level)setSel(0)};
+  this.__room=()=>level;
+
+  /* ---- UI wiring ---- */
+  const flashEl=n=>{n.classList.add('bad');setTimeout(()=>n.classList.remove('bad'),500)};
+  $g('q').addEventListener('keydown',e=>{if(e.key!=='Enter'||busy)return;const v=e.target.value;let n;
+   const mm=v.match(/DCM-(\d{5})-(\d+)\/(\d+)\/(\d+)\/(\d+)/i);
+   if(mm){const slot=+mm[3]-1;n=[+mm[1]-32000,+mm[2],(+mm[4]),(+mm[5])]}else n=(v.match(/\d+/g)||[]).map(Number);
+   const lim=[C,K,B,M];if(!n.length||n.length>4||n.some((x,i)=>x<1||x>lim[i]))return flashEl(e.target);
+   e.target.blur();setSel(n.length,...n.map(x=>x-1))});
+  $g('zin').onclick=()=>ctrl.dolly(ctrl.distance*.3,true);$g('zout').onclick=()=>ctrl.dolly(-ctrl.distance*.4,true);
+  $g('abtn').onclick=()=>about.classList.toggle('on');$g('dive2').onclick=()=>cb.onReplay();
+  addEventListener('resize',()=>{applyRes();cam.aspect=W()/H();cam.updateProjectionMatrix()});
+
+  /* ---- render loop ---- */
+  const clock=new T.Clock();let fAcc=0,fN=0;ui();
+  const tick=()=>{requestAnimationFrame(tick);
+   const dt=Math.min(clock.getDelta(),.05);el+=dt;const k=1-Math.exp(-dt*5);
+   fAcc+=dt;if(++fN>=90){const ms=fAcc/fN*1000;if(ms>18.2&&pr>.75){pr=Math.max(.75,pr-.25);applyRes()}fAcc=0;fN=0}
+   const drift=!diving&&(mode==='hero'||mode==='map'||mode==='done'||(mode==='room'&&level==0&&el-lastInput>4));
+   if(drift)ctrl.rotate(dt*.07,0,true);
+   if(Math.abs(fovT-cam.fov)>.01){cam.fov+=(fovT-cam.fov)*Math.min(1,dt*1.3);cam.updateProjectionMatrix()}
+   const want=((mode==='hero'||mode==='map')&&W()>900)?W()*.17:0;vo+=(want-vo)*Math.min(1,dt*2.2);
+   if(Math.abs(vo)>.4)cam.setViewOffset(W(),H(),-vo,0,W(),H());else if(cam.view&&cam.view.enabled)cam.clearViewOffset();
+   ctrl.update(dt);
+   /* dive: camera keys + landings */
+   const tt=diveT<0?0:el-diveT;
+   if(diving){
+    while(ck<KEYS.length&&KEYS[ck][0]<=tt){const q=KEYS[ck++];ctrl.smoothTime=q[1];ctrl.setLookAt(q[2],q[3],q[4],q[5],q[6],q[7],true)}
+    while(nl<byLand.length&&byLand[nl].land<=tt){const s=byLand[nl++];lit[s.i]=1;litT[s.i]=1;flash[s.i]=1;placed++;cabs[s.c].gt=1;cb.onProgress(placed,NS)}
+    setStage(tt);if(tt>=END)finishDive();
+   }
+   uPx.value=H()*pr/(2*Math.tan(cam.fov*Math.PI/360));
+   for(const r of reg){r.cur+=(r.t-r.cur)*k;r.m.opacity=r.base*r.cur}
+   for(let c=0;c<C;c++){const d=doors[c];d.o+=(d.t-d.o)*k*.6;const e=d.o*d.o*(3-2*d.o);for(const p of d.dp)p.piv.rotation.y=p.s*e*1.9;
+    const cb2=cabs[c];cb2.glow+=(cb2.gt-cb2.glow)*Math.min(1,dt*3);cb2.light.intensity=7+cb2.glow*40;
+    for(let kk=0;kk<K;kk++){const o=iocs[c][kk];if(Math.abs(o.t-o.s)>.001){o.s+=(o.t-o.s)*k*.8;updIoc(c,kk)}}}
+   trailA+=(trailT-trailA)*Math.min(1,dt*2.5);const tv=trailA>.004||trailT>0;
+   for(const t of trails){t.visible=tv;t.material.uniforms.uA.value=trailA}
+   tU.uT.value=diveT<0?0:tt;
+   const g=cabs.reduce((a,c)=>a+c.glow,0)/C;bloom.strength=.8+g*.5;jb.material.emissiveIntensity=.15+g*2.5+(diving?.6:0);jbLight.intensity=g*30;
+   bCur+=(bT-bCur)*k;for(const m of bMats)m.opacity=bCur;if(bCur<.01&&bT==0)bundle.visible=false;
+   const ca=inst.instanceColor.array,sel=(mode==='room'&&level==4)?idx(sc,sk,sb,sm):-1,lk=Math.min(1,dt*2.2),fd=Math.exp(-dt*2.4);
+   for(let i=0;i<N;i++){const a=cur[i]+=(tgt[i]-cur[i])*k,t=type[i],c3=i*3;
+    if(t<0){const v=(.07+val[i]*.04)*a;ca[c3]=v;ca[c3+1]=v*1.15;ca[c3+2]=v*1.5}
+    else{const L=lit[i]+=(litT[i]-lit[i])*lk,fl=flash[i];flash[i]=fl>.002?fl*fd:0;
+     const cc=IOC[t],cg=cabs[i/(M*B*K)|0].glow,f=(1.5+.25*Math.sin(el*2+i)+cg*1.3+(i===sel?1.2:0)+fl*3.5)*a,d=(.07+val[i]*.04)*a*(1-L);
+     ca[c3]=cc.r*f*L+d;ca[c3+1]=cc.g*f*L+d*1.15;ca[c3+2]=cc.b*f*L+d*1.5}}
+   inst.instanceColor.needsUpdate=true;cam.updateMatrixWorld();
+   const w=W(),h=H();
+   for(const l of labels){if(!l.show()){l.el.style.opacity=0;continue}tmpV.copy(l.pos).project(cam);if(tmpV.z>1){l.el.style.opacity=0;continue}
+    l.el.style.opacity=1;l.el.style.transform=`translate(${(tmpV.x*.5+.5)*w}px,${(-tmpV.y*.5+.5)*h}px) translate(-50%,-50%)`}
+   composer.render()};
+  cabs.forEach(c=>c.gt=baseGlow);
+  tick();
+ }
+}
+engine=new Engine($('#stage'),{
+ onProgress:(n,t)=>{$('#placed').textContent=n;$('#pbar').style.width=(n/t*100)+'%'},
+ onReplay:()=>{fromRoom=true;startDive()}
+});
+}
+
+/* ================= playRain(): play the dive, resolve when it ends or is skipped ================= */
+function playRain(){return engine?engine.playRain():fallbackRain()}
+async function fallbackRain(){for(let i=0;i<=189;i+=9){$('#placed').textContent=i;$('#pbar').style.width=(i/189*100)+'%';await sleep(120)}}
+
+/* ================= UI state machine ================= */
+function setState(s){state=s;document.body.dataset.s=s;
+ $$('[data-show]').forEach(e=>e.classList.toggle('on',e.dataset.show.split(' ').includes(s)));
+ if(engine)engine.setMode(s)}
+async function startDive(){
+ const back=fromRoom?'room':'done';fromRoom=false;
+ if(engine)engine.resetLevel&&0;
+ setState('dive');await playRain();setState(back==='room'?'room':'done');
+}
+const count=el=>{const to=+el.dataset.n,d=+(el.dataset.d||0),s=performance.now(),dur=1500;(function f(n){const k=Math.min((n-s)/dur,1),e=1-Math.pow(1-k,3);el.textContent=(to*e).toFixed(d);if(k<1)requestAnimationFrame(f)})(s)};
+const sq=$('#sq');sq.innerHTML='<i></i>'.repeat(22);
+let cardT=[],tmr=null;
+function runCards(){cardT.forEach(clearTimeout);cardT=[];
+ $$('#cards [data-n]').forEach(count);
+ $('#mb1').style.width='0';$('#mb3').style.width='0';cardT.push(setTimeout(()=>{$('#mb1').style.width='92%';$('#mb3').style.width='97.9%'},80));
+ $$('#sq i').forEach((e,i)=>{e.classList.remove('on');cardT.push(setTimeout(()=>e.classList.add('on'),200+i*62))});
+ clearInterval(tmr);const run=()=>{const tn=$('#tn'),hs=$('#hs'),tf=$('#tf');tn.textContent='CLEAN';tn.className='n ok';hs.innerHTML='sha256:9f2c7a1be04d…e4a2';tf.textContent='Verifying certificate…';
+  cardT.push(setTimeout(()=>{hs.innerHTML='sha256:9f2c7a<u>0</u>be04d…e4a2';tf.textContent='1 bit flipped in the input…'},1700));
+  cardT.push(setTimeout(()=>{tn.textContent='CAUGHT';tn.className='n er';tf.textContent='Hash mismatch → certificate revoked'},2500))};
+ run();tmr=setInterval(run,5600)}
+runCards();
+
+/* mapping step (faked) */
+const MAPROWS=[['TAG_NO','Tag','FT-1001',99],['SIG_TYPE','IO type','AI',97],['DESC','Description','Feed flow',93],['RANGE_LO/HI','Range','4–20 mA',91],['CABLE_PAIR','Cable / Pair','C12/P3',88],['AREA','Zone','Z-04',84]];
+const PRE=['189 signals parsed','0 duplicate tags','Ranges present on all analog','Cable pairs consistent'];
+$('#mrows').innerHTML=MAPROWS.map(r=>`<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td class="mono" style="color:var(--mu)">${r[2]}</td><td><span class="chip ${r[3]>85?'ok':'wa'}">${r[3]}%</span></td></tr>`).join('');
+$('#pre').innerHTML=PRE.map(t=>`<div><span class="chip ok">✓</span>${t}</div>`).join('');
+let mapT=[];const fmt=b=>b>1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+function startMapping(file){
+ if(state!=='hero')return;mapT.forEach(clearTimeout);mapT=[];
+ $('#fname').textContent=file?file.name:'U400_IOList_RevC.mdb';$('#fsize').textContent=file?fmt(file.size):'412 KB';
+ $$('#mrows tr').forEach(r=>r.classList.remove('on'));$$('#pre div').forEach(r=>r.classList.remove('on'));$('#goalloc').classList.remove('on');$('#mbar').style.width='0';
+ setState('map');
+ $$('#mrows tr').forEach((r,i)=>mapT.push(setTimeout(()=>{r.classList.add('on');$('#mbar').style.width=((i+1)/MAPROWS.length*70)+'%'},450+i*240)));
+ $$('#pre div').forEach((r,i)=>mapT.push(setTimeout(()=>{r.classList.add('on');$('#mbar').style.width=(70+(i+1)*7.5)+'%'},2000+i*170)));
+ mapT.push(setTimeout(()=>$('#goalloc').classList.add('on'),2800));
+}
+$('#import').onclick=()=>startMapping(null);
+$('#browse').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{const f=e.target.files[0];if(f)startMapping(f);e.target.value=''};
+$('#goalloc').onclick=()=>{mapT.forEach(clearTimeout);startDive()};
+$('#skip').onclick=()=>engine?engine.skip():0;
+$('#enter').onclick=()=>setState('room');
+$('#replay').onclick=()=>startDive();
+addEventListener('keydown',e=>{if(state==='dive'&&(e.key==='Escape'||e.key===' ')){e.preventDefault();engine&&engine.skip()}});
+/* drop anywhere */
+let dc=0;const ov=$('#dropov');
+addEventListener('dragenter',e=>{e.preventDefault();if(state==='hero'){dc++;ov.classList.add('on')}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('dragleave',e=>{if(state==='hero'&&--dc<=0){dc=0;ov.classList.remove('on')}});
+addEventListener('drop',e=>{e.preventDefault();dc=0;ov.classList.remove('on');const f=e.dataTransfer&&e.dataTransfer.files[0];if(state==='hero')startMapping(f||null)});
+setState('hero');
+</script>
+</body></html>

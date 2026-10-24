@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>OptiSlot — Mission Control</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{color-scheme:dark;--bg:#0A0D13;--p1:#10141D;--p2:#151A25;--p3:#1B2130;--ln:#232A3A;--tx:#E6EAF2;--mu:#8791A7;--v:#7C5CFF;--c:#22D3EE;--ok:#34D399;--wa:#FBBF24;--er:#F87171;--AI:#4F8CFF;--AO:#A78BFA;--DI:#34D399;--DO:#FBBF24;--DOI:#F87171;--AL:#F472B6;--sans:Inter,system-ui,-apple-system,Segoe UI,sans-serif;--mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box;margin:0}
+body{background:radial-gradient(1200px 500px at 70% -10%,#7c5cff14,transparent),var(--bg);color:var(--tx);font:13px/1.45 var(--sans);height:100vh;display:grid;grid-template-columns:64px 1fr;grid-template-rows:56px auto 1fr;overflow:hidden}
+svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mono{font-family:var(--mono)}
+#rail{grid-row:1/4;background:var(--p1);border-right:1px solid var(--ln);display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0}
+.logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--v),var(--c));box-shadow:0 0 18px #7c5cff66;margin-bottom:10px}
+.nv{width:40px;height:38px;display:grid;place-items:center;border-radius:10px;color:var(--mu);position:relative;transition:.2s;cursor:pointer}
+.nv:hover{color:var(--tx);background:var(--p2)}.nv.on{color:#fff;background:linear-gradient(90deg,#7c5cff33,#7c5cff0d)}
+.nv.on:before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--v);box-shadow:0 0 10px var(--v)}
+#top{grid-column:2;display:flex;align-items:center;gap:18px;padding:0 20px;border-bottom:1px solid var(--ln);background:var(--p1)}
+.proj{font-weight:600}.rev{font:600 11px var(--mono);padding:4px 10px;border-radius:7px;background:#7c5cff22;border:1px solid #7c5cff66;color:#c9bcff}
+.steps{display:flex;gap:10px;align-items:center;margin:0 auto;color:var(--mu);font-size:12.5px}
+.steps span{display:flex;gap:7px;align-items:center}.steps i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font:600 10px var(--mono);border:1px solid var(--ln)}
+.steps .d i{background:#34d39922;border-color:#34d39966;color:var(--ok)}.steps .d{color:var(--tx)}.steps u{width:26px;height:1px;background:var(--ln)}
+.btn{display:flex;gap:7px;align-items:center;padding:6px 12px;border:1px solid var(--ln);border-radius:9px;background:var(--p2);color:var(--tx);font:500 12.5px var(--sans);cursor:pointer;transition:.2s}.btn:hover{border-color:#7c5cff88;box-shadow:0 0 14px #7c5cff33}
+#kpi{grid-column:2;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--ln);background:var(--p1)}
+.k{padding:11px 16px;border-right:1px solid var(--ln)}.k:last-child{border:0}
+.k small{display:flex;gap:6px;align-items:center;font-size:10.5px;letter-spacing:.1em;color:var(--mu);text-transform:uppercase}.k small:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.k.ok small:before{background:var(--ok)}.k.wa small:before{background:var(--wa)}.k.nd small:before{display:none}
+.k b{display:block;font:600 26px/1.15 var(--mono);letter-spacing:-.5px}.k.ok b{color:var(--ok)}.k.wa b{color:var(--wa)}.k em{font-style:normal;color:var(--mu);font-size:11.5px}
+main{grid-column:2;overflow:auto;padding:20px 26px 30px}
+h1{font-size:22px;letter-spacing:-.3px}.sub{color:var(--mu);margin-bottom:16px;display:flex;justify-content:space-between;gap:12px}
+.chips{display:flex;gap:8px}.chip{font:11.5px var(--mono);padding:4px 10px;border:1px solid var(--ln);border-radius:7px;background:var(--p2);color:var(--mu)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:linear-gradient(180deg,var(--p1),#0d1119);border:1px solid var(--ln);border-radius:14px;padding:16px;transition:.25s;min-width:0;opacity:0;transform:translateY(10px);animation:in .6s cubic-bezier(.2,.8,.2,1) forwards}
+.card:hover{border-color:#7c5cff55;box-shadow:0 0 24px #7c5cff18}
+@keyframes in{to{opacity:1;transform:none}}
+.card h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--mu);font-weight:600;margin-bottom:12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.pill{font:600 10.5px var(--mono);padding:3px 9px;border-radius:7px;letter-spacing:.04em;text-transform:none}
+.pill.ok{background:#34d39918;color:var(--ok);border:1px solid #34d39955}.pill.wa{background:#fbbf2418;color:var(--wa);border:1px solid #fbbf2455}.pill.er{background:#f8717118;color:var(--er);border:1px solid #f8717155}.pill.mu{background:var(--p2);color:var(--mu);border:1px solid var(--ln)}
+.live:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-right:6px;animation:pl 1.6s infinite}
+@keyframes pl{50%{opacity:.25;box-shadow:0 0 8px var(--ok)}}
+#room{height:300px;position:relative;border-radius:10px;background:radial-gradient(500px 220px at 50% 90%,#7c5cff1c,transparent);overflow:hidden}
+#room canvas{display:block;width:100%;height:100%}
+#rlab{position:absolute;left:12px;bottom:10px;font:11.5px var(--mono);color:var(--mu);pointer-events:none}#rlab b{color:var(--tx)}
+.rings{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.ring{cursor:pointer;padding:6px 2px;border-radius:10px;border:1px solid transparent;transition:.2s}.ring.sel,.ring:hover{border-color:#7c5cff66;background:#7c5cff10}
+.ring svg{width:92px;height:92px}.ring .n{font:600 11px var(--mono);margin-top:4px}.ring small{display:block;color:var(--mu);font-size:10.5px;font-family:var(--mono)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:12px}.kv dt{color:var(--mu)}.kv dd{font-family:var(--mono);text-align:right}
+.big{font:600 30px var(--mono);letter-spacing:-.5px;margin-bottom:8px}.big s{text-decoration:none;color:var(--mu);font-size:14px;font-weight:500}
+.ticks{display:flex;gap:4px;margin-top:12px}.ticks i{flex:1;height:8px;border-radius:2px;background:var(--ln);transition:.3s}.ticks i.on{background:var(--ok);box-shadow:0 0 6px #34d39966}
+.bl{display:grid;grid-template-columns:44px 1fr 54px;gap:10px;align-items:center;margin-bottom:12px;font:11.5px var(--mono)}
+.bar{height:14px;position:relative;background:linear-gradient(90deg,#1b2130,#151a25);border-radius:4px}
+.bar i{position:absolute;left:0;top:4px;height:6px;border-radius:3px;width:0;transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:#fff;box-shadow:0 0 6px #fff9}
+.hm{display:grid;grid-template-columns:130px repeat(4,1fr);gap:8px 14px;align-items:center}
+.hm .rl{font:11px var(--mono);color:var(--mu)}.hm .ch{font-size:10.5px;color:var(--mu)}
+.cioc{padding:6px;border-radius:8px;border:1px solid var(--ln);background:var(--bg);cursor:default;transition:.2s}.cioc:hover{border-color:#7c5cff99;box-shadow:0 0 12px #7c5cff44}
+.cells{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}.cells i{aspect-ratio:1;border-radius:3px;background:#161b27;border:1px dashed #2a3246;transform:scale(.4);opacity:0;transition:.5s}.cells i.f{border:0;transform:none;opacity:1}.cells i.e{transform:none;opacity:1}
+.cioc b{display:block;font:600 11px var(--mono);margin-top:5px}.cioc b span{color:var(--mu);font-weight:400}
+.leg{display:flex;gap:12px;font-size:10.5px;color:var(--mu);text-transform:none;letter-spacing:0;font-weight:400}.leg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+#tip{position:fixed;pointer-events:none;background:var(--p3);border:1px solid #7c5cff77;border-radius:8px;padding:7px 10px;font:11.5px var(--mono);opacity:0;transition:opacity .15s;z-index:9;box-shadow:0 8px 24px #000a}
+.tq{padding:11px 12px;border:1px solid var(--ln);border-radius:10px;background:var(--p2);margin-bottom:8px}
+.tq .h{display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:12px}.tq .h .mono{color:var(--mu)}.tq p{color:#b4bccd;font-size:12px}
+.sp{width:100%;height:70px}.cap{display:flex;justify-content:space-between;color:var(--mu);font:11px var(--mono);margin-top:6px}
+@media(max-width:1100px){#kpi{grid-template-columns:repeat(4,1fr)}.grid>*{grid-column:1/-1!important}.steps{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+</style></head><body>
+<nav id="rail"><div class="logo"></div>
+<div class="nv on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></div>
+<div class="nv"><svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></div>
+<div class="nv"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
+<div class="nv"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4 20h16L14 9V3"/></svg></div>
+<div class="nv"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3 8-8 9-5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+<div class="nv"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></div></nav>
+
+<header id="top"><span class="proj">OptiSlot</span><span class="proj" style="font-weight:500">Demo — VIT Sample ▾</span><span class="rev">Rev A</span>
+<div class="steps"><span class="d"><i>✓</i>Upload</span><u></u><span class="d"><i>✓</i>Rules</span><u></u><span class="d"><i>✓</i>Allocate</span><u></u><span class="d"><i>✓</i>Verify</span><u></u><span><i>5</i>Revise</span><u></u><span><i>6</i>Export</span></div>
+<button class="btn"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4 20h16L14 9V3"/></svg>Inject Rev B</button><button class="btn mono">⌘ K</button></header>
+
+<section id="kpi">
+<div class="k ok"><small>Allocated</small><b data-n="100" data-s="%">0</b><em>189/189 live</em></div>
+<div class="k ok"><small>Violations</small><b data-n="0">0</b><em>21/21 checks</em></div>
+<div class="k wa"><small>Open TQs</small><b data-n="1">0</b><em>1 raised · 0 unplaced</em></div>
+<div class="k nd"><small>Untouched</small><b>—</b><em>after Rev B</em></div>
+<div class="k"><small>Cabinets</small><b data-n="3">0</b><em>3 controllers</em></div>
+<div class="k"><small>CIOCs</small><b data-n="12">0</b><em>26 BPs used</em></div>
+<div class="k"><small>Fill</small><b data-n="18.5" data-d="1" data-s="%">0</b><em>24/24 wired spares</em></div>
+</section>
+
+<main>
+<h1>Mission Control</h1>
+<div class="sub"><span>The whole project at a glance — every tile is live data and opens its screen.</span><span class="chips"><span class="chip">Demo — VIT Sample</span><span class="chip">Rev A</span><span class="chip">run-857ce56f60a8</span></span></div>
+<div class="grid">
+
+<div class="card" style="grid-column:span 7;animation-delay:.05s"><h3><span class="live">Marshalling room</span><span style="text-transform:none;letter-spacing:0;font-weight:400">3 cabinets · click one to dive in</span></h3>
+<div id="room"><div id="rlab">Selected <b id="rsel">—</b></div></div></div>
+
+<div style="grid-column:span 5;display:grid;gap:16px">
+<div class="card" style="animation-delay:.12s"><h3>Run certificate<span class="pill ok">✓ PASS</span></h3>
+<div class="big" style="color:var(--ok)"><span data-n="0">0</span> violations <span style="color:var(--mu)">·</span> <span style="color:var(--tx)"><span data-n="21">0</span>/21</span> <s>checks</s></div>
+<dl class="kv"><dt># Input MDB</dt><dd>a0f9035042…a6a1</dd><dt># Rule set</dt><dd>89917bb155…7ce9</dd><dt># Output</dt><dd>bed503c0bd…d1d5</dd><dt>Engine</dt><dd>optislot-0.1.0 · 2026-10-24 07:19:37</dd></dl>
+<div class="ticks" id="ticks"></div></div>
+
+<div class="card" style="animation-delay:.18s"><h3>Revision stability<span class="pill mu">Rev A · baseline</span></h3>
+<div style="display:flex;gap:16px;align-items:center">
+<svg viewBox="0 0 200 118" style="width:200px;height:118px"><defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#22D3EE"/></linearGradient></defs>
+<path d="M20 104A80 80 0 0 1 180 104" stroke="#1B2130" stroke-width="10" stroke-linecap="round"/>
+<path id="garc" d="M20 104A80 80 0 0 1 180 104" stroke="url(#gg)" stroke-width="10" stroke-linecap="round" stroke-dasharray="252" stroke-dashoffset="252" style="transition:stroke-dashoffset 1.6s cubic-bezier(.2,.8,.2,1)"/>
+<g id="needle" style="transform-origin:100px 104px;transform:rotate(-90deg);transition:transform 1.8s cubic-bezier(.3,1.4,.5,1)"><path d="M100 104L100 36" stroke="#E6EAF2" stroke-width="2.5"/></g><circle cx="100" cy="104" r="6" fill="#E6EAF2"/>
+<text x="100" y="116" text-anchor="middle" font-size="9" fill="#8791A7" letter-spacing="2" style="font-family:var(--mono)">STABILITY</text></svg>
+<p style="color:var(--mu);font-size:12.5px">Rev A is the baseline. All <b style="color:var(--tx)">189</b> live signals are pinned and stay in their slots when Rev B arrives.<br><button class="btn" style="margin-top:10px">Inject Rev B</button></p></div></div>
+</div>
+
+<div class="card" style="grid-column:span 4;animation-delay:.24s"><h3>Cabinet fill<span class="pill mu">18.5% overall</span></h3>
+<div class="rings" id="rings"></div></div>
+
+<div class="card" style="grid-column:span 4;animation-delay:.3s"><h3>Wired spares vs target<span class="pill ok">all met</span></h3><div id="bl"></div>
+<div class="cap"><span>● wired</span><span>| target</span><span>24 / 24</span></div></div>
+
+<div class="card" style="grid-column:span 4;animation-delay:.36s"><h3>Technical queries<span class="pill wa">1 open</span></h3>
+<div class="tq"><div class="h"><span class="mono">TQ-HW-001</span><span class="pill wa">medium</span><b style="font-weight:500">DO hardware conflict</b><span style="margin-left:auto;color:var(--mu)">candidate</span></div><p>PS requires isolated + fused DO for horns/beacons/sounders, but these alarm outputs use standard high-side DO (as in the sample). Confirm the load and inrush. Instrument type(s) XA, 5…</p></div>
+<div style="color:var(--mu);font-size:11.5px;margin:12px 0 4px">Run history · violations per run</div>
+<svg class="sp" id="spark" viewBox="0 0 300 70" preserveAspectRatio="none"></svg>
+<div class="cap"><span>run-1</span><span>run-857ce56f60a8 ●</span></div></div>
+
+<div class="card" style="grid-column:span 12;animation-delay:.42s"><h3>CIOC fill heat-map<span class="leg"><span><i style="background:var(--AI)"></i>AI</span><span><i style="background:var(--AO)"></i>AO</span><span><i style="background:var(--DI)"></i>DI</span><span><i style="background:var(--DO)"></i>DO std</span><span><i style="background:var(--DOI)"></i>DO iso+fuse</span><span><i style="background:var(--AL)"></i>Cabinet alarm</span></span></h3>
+<div class="hm" id="hm"></div></div>
+</div></main>
+<div id="tip"></div>
+
+<script>
+const css=getComputedStyle(document.documentElement),V=n=>css.getPropertyValue(n).trim(),$=s=>document.querySelector(s);
+const CAB=[{id:'P30-DCM-32001-01',f:20,u:76,w:8,s:300,e:23,fb:4,fld:70,c:'--AI'},{id:'P30-DCM-32001-04',f:17,u:67,w:9,s:308,e:23,fb:4,fld:64,c:'--AO'},{id:'P24-DCM-50002-01',f:12,u:46,w:7,s:331,e:24,fb:4,fld:43,c:'--DI'}];
+// count-up
+document.querySelectorAll('[data-n]').forEach(el=>{const t=+el.dataset.n,d=+(el.dataset.d||0),s=el.dataset.s||'',t0=performance.now();
+ (function f(now){const p=Math.min(1,(now-t0)/1400),e=1-Math.pow(1-p,3);el.textContent=(t*e).toFixed(d)+s;if(p<1)requestAnimationFrame(f)})(t0)});
+// verifier ticks
+const tk=$('#ticks');for(let i=0;i<21;i++){const x=document.createElement('i');tk.append(x);setTimeout(()=>x.classList.add('on'),600+i*55)}
+// stability gauge
+setTimeout(()=>{$('#garc').style.strokeDashoffset=0;$('#needle').style.transform='rotate(90deg)';},500);
+setInterval(()=>{$('#needle').style.transform='rotate('+(88+Math.random()*4)+'deg)'},3500);
+// rings
+const R=34,C=2*Math.PI*R,rg=$('#rings');
+CAB.forEach((c,i)=>{const d=document.createElement('div');d.className='ring';d.dataset.i=i;
+ d.innerHTML=`<svg viewBox="0 0 92 92"><circle cx="46" cy="46" r="${R}" stroke="#1B2130" stroke-width="8"/><circle class="a" cx="46" cy="46" r="${R}" stroke="${V(c.c)}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}" transform="rotate(-90 46 46)" style="transition:stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1) ${i*.15}s;filter:drop-shadow(0 0 4px ${V(c.c)}88)"/><text x="46" y="51" text-anchor="middle" fill="#E6EAF2" font-size="16" font-weight="600" style="font-family:var(--mono)">${c.f}%</text></svg><div class="n">${c.id.replace('-DCM','')}</div><small>${c.u} used · ${c.w} wired</small><small>${c.s} spare · ${c.e} BP free</small>`;
+ d.onclick=()=>select(i);rg.append(d); setTimeout(()=>d.querySelector('.a').style.strokeDashoffset=C*(1-c.f/100*2.5),400)});
+// bullet charts
+[['AIR',5,4,'--AI'],['AOR',6,6,'--AO'],['DIR',7,6,'--DI'],['DOR',6,6,'--DO']].forEach(([n,w,t,c],i)=>{const m=8,r=document.createElement('div');r.className='bl';
+ r.innerHTML=`<span style="color:${V(c)}">${n}</span><div class="bar"><i style="background:${V(c)};box-shadow:0 0 8px ${V(c)}88"></i><u style="left:${t/m*100}%"></u></div><span>${w}/${t} ✓</span>`;$('#bl').append(r);
+ setTimeout(()=>r.querySelector('i').style.width=w/m*100+'%',400+i*120)});
+// sparkline
+(function(){const v=[9,7,8,5,6,3,4,2,1,1,0,0],W=300,H=70,pts=v.map((y,i)=>[i/(v.length-1)*W,6+(1-y/9)*(H-16)]),p='M'+pts.map(q=>q.join(',')).join('L');
+ $('#spark').innerHTML=`<defs><linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22D3EE" stop-opacity=".3"/><stop offset="1" stop-color="#22D3EE" stop-opacity="0"/></linearGradient></defs><path d="${p}L${W},${H}L0,${H}Z" fill="url(#sf)"/><path id="sl" d="${p}" fill="none" stroke="#22D3EE" stroke-width="2" vector-effect="non-scaling-stroke" stroke-dasharray="600" stroke-dashoffset="600" style="transition:stroke-dashoffset 1.8s ease"/>`;
+ setTimeout(()=>$('#sl').style.strokeDashoffset=0,500)})();
+// heat-map
+const types=['--AI','--AI','--DI','--DO','--AO','--DOI','--AL','--DI'],NB=[[3,2,3,1],[3,2,2,1],[2,2,3,2]],FILL=[[27,22,32,6],[24,19,21,8],[18,14,22,11]],hm=$('#hm'),tip=$('#tip');
+hm.innerHTML='<span></span>'+['CIOC 1 · front','CIOC 2 · front','CIOC 3 · rear','CIOC 4 · rear'].map(x=>`<span class="ch">${x}</span>`).join('');
+CAB.forEach((c,ci)=>{const l=document.createElement('span');l.className='rl';l.textContent=c.id;hm.append(l);
+ for(let k=0;k<4;k++){const n=NB[ci][k],d=document.createElement('div');d.className='cioc';
+  let h='<div class="cells">';for(let b=0;b<8;b++)h+=b<n?`<i class="f" style="background:${V(types[(b*3+k+ci)%8])};box-shadow:0 0 6px ${V(types[(b*3+k+ci)%8])}66"></i>`:'<i class="e"></i>';
+  d.innerHTML=h+`</div><b>${FILL[ci][k]}% <span>· ${n}/8 BP</span></b>`;
+  d.onmousemove=e=>{tip.style.opacity=1;tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY-10+'px';tip.innerHTML=`${c.id}<br>CIOC ${k+1} · ${k<2?'front':'rear'}<br><b>${FILL[ci][k]}%</b> fill · ${n}/8 BP · ${8-n} empty`};
+  d.onmouseleave=()=>tip.style.opacity=0;hm.append(d);
+  d.querySelectorAll('.cells i').forEach((x,j)=>setTimeout(()=>{x.style.transitionDelay=(ci*4+k)*30+j*25+'ms';x.style.transform='';x.style.opacity=1},100));}});
+// selection sync
+let sel=-1,setSel=()=>{};
+function select(i){sel=i;document.querySelectorAll('.ring').forEach((r,j)=>r.classList.toggle('sel',j==i));$('#rsel').textContent=CAB[i].id+' · '+CAB[i].fld+' field · '+CAB[i].w+' wired spare · '+CAB[i].f+'% full';setSel(i)}
+// 3D mini room
+import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js').then(T=>{
+ const el=$('#room'),W=()=>el.clientWidth,H=()=>el.clientHeight,r=new T.WebGLRenderer({antialias:true,alpha:true});r.setPixelRatio(Math.min(2,devicePixelRatio));r.setSize(W(),H());el.prepend(r.domElement);
+ const sc=new T.Scene(),cam=new T.PerspectiveCamera(32,W()/H(),.1,100);cam.position.set(0,2.2,13);cam.lookAt(0,.2,0);
+ sc.add(new T.AmbientLight(0x8890b0,1.1));const dl=new T.DirectionalLight(0xffffff,1.6);dl.position.set(4,6,8);sc.add(dl);
+ const grid=new T.GridHelper(24,24,0x2a3246,0x161b27);grid.position.y=-2.1;sc.add(grid);
+ const g=new T.Group();sc.add(g);const cabs=[];
+ CAB.forEach((c,i)=>{const grp=new T.Group(),body=new T.Mesh(new T.BoxGeometry(2.6,4,1.2),new T.MeshStandardMaterial({color:0x10141d,metalness:.6,roughness:.45,emissive:0x7c5cff,emissiveIntensity:0}));body.userData.i=i;grp.add(body);
+  grp.add(new T.LineSegments(new T.EdgesGeometry(body.geometry),new T.LineBasicMaterial({color:0x2a3246})));
+  for(let k=0;k<14;k++){const col=new T.Color(V(types[(k+i*2)%8])),len=.5+((k*7+i*5)%10)/10*1.6;const b=new T.Mesh(new T.BoxGeometry(len,.12,.05),new T.MeshBasicMaterial({color:col,transparent:true,opacity:k<(7+i*2)?.9:.15}));b.position.set(-1.1+len/2,1.6-k*.22-(k>6?.4:0),.63);grp.add(b)}
+  grp.position.x=(i-1)*3.6;g.add(grp);cabs.push({grp,body})});
+ setSel=i=>cabs.forEach((c,j)=>{c.tgt=j==i?1:0});
+ const ray=new T.Raycaster(),m=new T.Vector2();
+ r.domElement.onclick=e=>{const b=r.domElement.getBoundingClientRect();m.set((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1);ray.setFromCamera(m,cam);const h=ray.intersectObjects(cabs.map(c=>c.body))[0];if(h)select(h.object.userData.i)};
+ const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+ (function loop(t){requestAnimationFrame(loop);if(!reduce)g.rotation.y=Math.sin(t/4000)*.42;
+  cabs.forEach(c=>{const x=c.tgt||0,mt=c.body.material;mt.emissiveIntensity+=(x*.55-mt.emissiveIntensity)*.1;c.grp.position.z+=(x*.6-c.grp.position.z)*.1});r.render(sc,cam)})(0);
+ new ResizeObserver(()=>{r.setSize(W(),H());cam.aspect=W()/H();cam.updateProjectionMatrix()}).observe(el);
+ select(0);
+}).catch(()=>{$('#rlab').textContent='3D preview unavailable offline — load three.js to enable'});
+</script></body></html>
