@@ -241,10 +241,10 @@ def read_table(src: str | Path | bytes, filename: str | None = None, sheet: str 
             raise ValueError(f"'{name}' is not an .xlsx or CSV file")
         try:
             dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
-        except csv.Error:
-            first = text.splitlines()[0] if text.strip() else ""
-            delim = max(",;\t|", key=first.count)
-            dialect = csv.excel if first.count(delim) == 0 else type("D", (csv.excel,), {"delimiter": delim})
+        except csv.Error:      # title rows above the header carry no delimiters, so look at the first rows, not the first line
+            head = [ln for ln in text.splitlines()[:HEADER_SCAN_ROWS] if ln.strip()]
+            delim = max(",;\t|", key=lambda d: sum(ln.count(d) for ln in head))
+            dialect = csv.excel if sum(ln.count(delim) for ln in head) == 0 else type("D", (csv.excel,), {"delimiter": delim})
         sheets.append(("CSV", [[c.strip() for c in r] for r in csv.reader(io.StringIO(text), dialect)]))
 
     title, hi, rows, notes = _choose_sheet(sheets)

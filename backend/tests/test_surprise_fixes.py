@@ -26,3 +26,21 @@ def test_room_and_area_spelling_do_not_split_a_controller_domain():
     assert rep.verdict == "PASS", [(c.id, v.message) for c in rep.checks for v in c.violations]
     alarms = [r for r in out.rows if r["Tag Status"] == "Cabinet Alarm"]
     assert len(alarms) == 3 and {r["Electronic/ Marshalling Cabinet"] for r in alarms} == {"P24-DCM-50002-01"}
+
+
+def csv_bytes(rows, titles, delimiter=";"):
+    from tests.helpers import HEADERS
+    lines = [*titles, delimiter.join(HEADERS)]
+    lines += [delimiter.join(r.get(h, "") for h in HEADERS) for r in rows]
+    return "\r\n".join(lines).encode("latin-1", errors="replace")
+
+
+def test_semicolon_csv_with_title_rows_above_the_header_is_read():
+    from xio.reader import read_table
+    rows = [row(f"T-{p}", "AI", "CB-1", p, 12) for p in range(1, 13)]
+    data = csv_bytes(rows, ["PROJECT 4471 — IO LIST", "", "Rev A;2026-10-24;Issued for design", "Confidential"])
+    t = read_table(data, filename="io.csv")
+    assert t.header_row == 5 and "Tag Number" in t.headers and len(t.rows) == 12
+    out = run(data, filename="io.csv")
+    assert out.kpis.allocated == 12 and not [t for t in out.tqs if t.category.startswith("SYS-")]
+    assert verified(out).verdict == "PASS"
