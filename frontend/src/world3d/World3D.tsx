@@ -133,7 +133,16 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
   useEffect(() => {
     if (!ready) return;
     const id = useUi.getState().inspectorSlot;
-    if (id) void eng.current?.flyToSlot(id);
+    const cab = Number(params.get("cab"));
+    if (params.has("cab") && Number.isInteger(cab) && cab >= 0 && cab < model.cabinets.length) {
+      // Mission Control hand-off (?cab=&cioc=&face=): fly to that cabinet — door open — or on into one of its CIOCs, once.
+      const cioc = Number(params.get("cioc")) || -1;
+      const face = params.get("face") === "R" ? "R" : "F";
+      ["cab", "cioc", "face"].forEach((k) => params.delete(k));
+      setParams(params, { replace: true });
+      useUi.setState({ cabIdx: cab });
+      void (cioc > 0 ? eng.current?.goTo(2, { cab, cioc, face }) : eng.current?.goTo(1, { cab, face }));
+    } else if (id) void eng.current?.flyToSlot(id);
     else {
       const idx = useUi.getState().cabIdx;
       if (idx > 0 && idx < model.cabinets.length) void eng.current?.goTo(1, { cab: idx });

@@ -10,6 +10,7 @@
  *   window.__optislot.world3d.scan(fails?) / tamper(ids) / refuse(id) / revdiff(diff) / animateMove(from, to, opts)
  *   window.__optislot.verify.tamper()            (Proof Center: the Tamper test button)
  *   window.__optislot.room.refresh() / mode("before" | "now") / moves()   (3D Room: re-read the Workbench sandbox change set)
+ *   window.__optislot.miniroom.stats() / pick(cab) / hover(cab|null)   (Mission Control's live mini room)
  *   window.__optislot.fps.measure(ms)            → { avg, p95, worst, frames }
  */
 type Api = Record<string, unknown>;
@@ -22,6 +23,7 @@ interface DemoHooks {
   verify?: Api;
   world3d?: Api;
   room?: Api;
+  miniroom?: Api;
   fps: { measure: (ms: number) => Promise<{ avg: number; p95: number; worst: number; frames: number }> };
 }
 
@@ -71,7 +73,7 @@ export function installDemoHooks() {
 }
 
 /** Register a sequence API; returns the unregister function. No-op outside demo mode. */
-export function registerDemo(name: "dive" | "glide" | "revb" | "verify" | "world3d" | "room", api: Api) {
+export function registerDemo(name: "dive" | "glide" | "revb" | "verify" | "world3d" | "room" | "miniroom", api: Api) {
   const h = window.__optislot;
   if (!h) return () => {};
   h[name] = api;

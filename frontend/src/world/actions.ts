@@ -50,3 +50,28 @@ export function enterCabinet(nav: NavigateFunction, idx: number, opts: { side?: 
   });
   nav("/explorer");
 }
+
+/**
+ * Mission Control → the 3D Room, flown straight to a cabinet (door open), optionally to one of its CIOCs. The query string is the
+ * hand-off the Room's World3D reads once (`cab` 0-based, `cioc` 1-based, `face` F|R); the store carries the same intent for the
+ * 2D fallback. The deliberate fly-in replaces the once-per-session Upload Dive.
+ */
+export function openInRoom(nav: NavigateFunction, idx: number, opts: { cioc?: number | null; face?: "F" | "R" } = {}) {
+  try {
+    sessionStorage.setItem(DIVE_KEY, "1");
+  } catch {
+    /* storage can be blocked */
+  }
+  useUi.setState({
+    cabIdx: idx,
+    side: opts.face ?? "F",
+    level: opts.cioc ? "detail" : "cabinet",
+    focusCioc: opts.cioc ?? null,
+    inspectorSlot: null,
+    arriveFrom: null,
+  });
+  const q = new URLSearchParams({ cab: String(idx) });
+  if (opts.cioc) q.set("cioc", String(opts.cioc));
+  if (opts.face) q.set("face", opts.face);
+  nav(`${ALLOCATE_LANDING_ROUTE}?${q}`);
+}

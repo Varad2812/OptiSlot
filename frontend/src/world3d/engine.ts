@@ -102,6 +102,11 @@ export interface EngineStats {
 export interface EngineOptions {
   /** Calm motion: cuts instead of staged camera flights, no dive choreography. Read on every call. */
   calm?: () => boolean;
+  /**
+   * Low-cost card mode (Mission Control's live room): no camera input, a slow side-to-side drift at the Room level, 1.5x pixel
+   * ratio, and a click on a cabinet calls `onPick` instead of flying in — the page decides where it goes.
+   */
+  mini?: { onPick: (cab: number) => void; bloom?: boolean };
 }
 /** The running motion moment (verify scan, tamper, move, refused move, Rev B diff, dive) — see `seek`. */
 export type MomentName = "scan" | "tamper" | "move" | "refuse" | "revdiff" | "dive";
@@ -336,7 +341,7 @@ export class World3DEngine {
 
     // ===== RENDERER: WebGL + MSAA render target + bloom post-processing =====
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, opts.mini ? 1.5 : 2));
     this.renderer.setSize(this.w, this.h);
     this.renderer.info.autoReset = false;
     const cv = this.renderer.domElement;
@@ -368,6 +373,11 @@ export class World3DEngine {
     ctrl.maxPolarAngle = 1.55;
     ctrl.mouseButtons.right = CameraControls.ACTION.TRUCK;
     ctrl.setLookAt(0, 7.5, 23, 0, 1.4, 0, false);
+    if (opts.mini) {
+      ctrl.enabled = false; // the card is a view, not a viewport: wheel and drag belong to the page
+      this.bloom.enabled = opts.mini.bloom !== false;
+      this.lastInput = -99;
+    }
 
     // ===== ROOM: lights, image-based reflections, glossy floor, grid, back wall, junction box =====
     this.pm = new THREE.PMREMGenerator(this.renderer);
@@ -405,6 +415,7 @@ export class World3DEngine {
     this.jbLabel.position.set(0, 0.72, 0);
     this.jb.add(this.jbLabel);
     this.scene.add(this.jb);
+    if (opts.mini) this.jbLabel.visible = false; // the cabinet name plates own that strip of a small card
     this.jbLight = new THREE.PointLight(ACC, 0, 14);
     this.scene.add(this.jbLight);
 
@@ -649,6 +660,11 @@ export class World3DEngine {
       this.face = isRear(L, s.k) ? 0 : 1;
       void this.goTo(1);
     }
+  }
+
+  /** Outline a cabinet from outside the canvas (a ring or heat-map row under the pointer); null clears it. */
+  hoverCabinet(c: number | null) {
+    this.setHover(c == null || !this.L || c < 0 || c >= this.L.n ? null : { c, k: -1, b: -1, m: -1 });
   }
 
   /** Bloom on / off (the FPS fallback switches it off before giving up on 3D). */
@@ -1936,7 +1952,8 @@ export class World3DEngine {
       if (L.rows <= 1) {
         // Frame the row itself (cabinets + their name plates), so the cabinets fill the view instead of a far-off pose.
         void ctrl.rotateTo(az, 1.24, t);
-        void ctrl.fitToBox(bx(0, 2.05, r.cz, r.w + 0.5, 4.3, L.D), t, { paddingLeft: 0.35, paddingRight: 0.35, paddingTop: 0.55, paddingBottom: 0.2 });
+        const mini = !!this.opts.mini; // a small card keeps its hint line and name plates clear of the cabinets
+        void ctrl.fitToBox(bx(0, 2.05, r.cz, r.w + 0.5, 4.3, L.D), t, { paddingLeft: 0.35, paddingRight: 0.35, paddingTop: mini ? 0.8 : 0.55, paddingBottom: mini ? 1 : 0.2 });
         return;
       }
       // Several rows: look down the room from higher up so every row stays readable.
@@ -2090,6 +2107,7 @@ export class World3DEngine {
     const h = this.hitAt(e.clientX, e.clientY);
     if (!h) return;
     const { level } = this.sel;
+    if (this.opts.mini) return void (h.k < 0 && this.opts.mini.onPick(h.c));
     if (h.k < 0) void this.goTo(1, { cab: h.c });
     else if (level == 1) void this.goTo(2, { cab: h.c, cioc: h.k + 1 });
     else if (level == 2) void this.goTo(3, { cab: h.c, cioc: h.k + 1, bp: h.b + 1 });
@@ -2175,7 +2193,9 @@ export class World3DEngine {
         mo.apply(mo.p);
       }
     }
-    if (this.sel.level == 0 && !this.diving && el - this.lastInput > 4) this.ctrl.rotate(dt * 0.07, 0, true); // idle drift
+    if (this.opts.mini) {
+      if (this.sel.level == 0) this.ctrl.rotateAzimuthTo(Math.sin(el * 0.32) * 0.42, true); // side-to-side, never the back wall
+    } else if (this.sel.level == 0 && !this.diving && el - this.lastInput > 4) this.ctrl.rotate(dt * 0.07, 0, true); // idle drift
     if (Math.abs(this.fovT - cam.fov) > 0.01) {
       cam.fov += (this.fovT - cam.fov) * Math.min(1, dt * 1.3);
       cam.updateProjectionMatrix();
