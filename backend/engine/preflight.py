@@ -203,7 +203,10 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
     # ONE project-level TQ per rule and kind — never one per row (and no rows[]/tags[]: this TQ must not excuse a
     # missing tag in the verifier).
     for rule in rules.all("segregate"):
-        if rule is rules.primary_seg or not rule.params.get("default_family"):
+        if rule is rules.primary_seg:
+            _unknown_primary_codes(rule, signals, book)
+            continue
+        if not rule.params.get("default_family"):
             continue
         f, dflt = seg_field(rule), rule.params["default_family"]
         label = rule.params.get("field_label") or f
@@ -267,3 +270,26 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                                                            "value": insts[0]}}],
                  unchanged="Only the CHARM/TB of these rows can change; no slot moves.")
     return exceptions
+
+
+def _unknown_primary_codes(rule, signals: list[Signal], book: TQBook) -> None:
+    """The primary A/B rule lists the group codes it knows as neutral (`neutral`); any other code is treated as neutral
+    and raises ONE candidate TQ (project level: no rows[]/tags[], so it never excuses a missing tag in the verifier)."""
+    if "neutral" not in rule.params:
+        return
+    f = seg_field(rule)
+    known = {m.strip().upper() for ms in rule.params.get("families", {}).values() for m in ms}
+    known |= {m.strip().upper() for m in rule.params["neutral"]} | {"", "-"}
+    odd = [s for s in signals if s.live and not s.quarantined and seg_value(s, f).upper() not in known]
+    if not odd:
+        return
+    vals = sorted({seg_value(s, f) for s in odd})
+    book.add("project", "Unrecognised segregation code", "medium",
+             f"IO grouping code(s) {', '.join(repr(v) for v in vals[:6])} on {len(odd)} signal(s) ({_span(_rows(odd))}) are in "
+             f"no family of rule {rule.id} ({rule.label}) — treated as neutral (they may share any CIOC). Confirm which family "
+             f"they belong to.", field="IO grouping / segregation", rules=[rule.id], confidence="candidate",
+             key=f"segunknown:{rule.id}",
+             fixes=[{"label": f"Add {v!r} to a family of rule {rule.id}"} for v in vals[:3]]
+             + [{"label": f"Confirm {v!r} as neutral",
+                 "rule_patch": {"rule_id": rule.id, "op": "list_add", "path": "neutral", "value": v}} for v in vals[:3]],
+             unchanged="Allocation proceeds; these signals are neutral.")

@@ -73,12 +73,20 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
     alarm_rule = rules.first("reserve_baseplate")
     deleted = {s.upper() for s in settings.deleted_statuses}
 
-    for f, label in [("room", "Technical room"), ("area", "Design / risk area"), ("group", "IO grouping / segregation"),
-                     ("cable_spec", "Cable spec / size"), ("status", "Status")]:
+    missing_loc = [(f, label, d) for f, label, d in [("room", "Technical room", f"location prefix {settings.loc_prefix_default}"),
+                                                      ("area", "Design / risk area", f"area code {settings.area_code_default}")]
+                   if f not in mapping]
+    if missing_loc:   # ONE project-level TQ for every missing location/area column
+        names_ = " and ".join(label for _, label, _ in missing_loc)
+        uses = " and ".join(d for _, _, d in missing_loc)
+        book.add("project", "Project setting", "low",
+                 f"{names_} column not found in the MDB — every signal uses {uses}. Confirm or map a column.",
+                 field=" / ".join(label for _, label, _ in missing_loc),
+                 fixes=[{"label": "Map a column on the Import page"}, {"label": "Accept the defaults"}],
+                 unchanged="Allocation proceeds with the defaults.", key="missing-col:location-area")
+    for f, label in [("group", "IO grouping / segregation"), ("cable_spec", "Cable spec / size"), ("status", "Status")]:
         if f not in mapping:
             msg = {
-                "room": f"{label} column not found in the MDB — every signal uses location prefix {settings.loc_prefix_default}. Confirm or map a column.",
-                "area": f"{label} column not found — every signal uses area code {settings.area_code_default}. Confirm or map a column.",
                 "group": "No IO Grouping / segregation column — A/B segregation cannot be checked. Map a column if one exists.",
                 "cable_spec": "No cable spec column — cable sizes are inferred from the highest pair used (rounded to 2/6/12/24). Confirm.",
                 "status": "No status column — every row is treated as live.",
@@ -88,8 +96,12 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                      unchanged="Allocation proceeds with the default.", key=f"missing-col:{f}")
 
     signals: list[Signal] = []
+    notes_ignored: list[int] = []
     for row_no, rec in table.rows:
         try:
+            if all(blank(col(rec, f)) for f in ("tag", "io_type", "cable", "pair")):
+                notes_ignored.append(row_no)    # a note / separator row: no signal data at all → not a signal
+                continue
             tag = col(rec, "tag").strip()
             status = col(rec, "status").strip()
             s = Signal(row=row_no, tag=tag, tag_key=tag_key(tag), status=status or "-",
@@ -161,4 +173,7 @@ def normalise(table: RawTable, mapping: dict[str, str], rules: Rules, settings: 
                        tags=[tag] if tag else [], severity="high")
             book.quarantine_signal(bad, "SYS-normalise: unexpected error", t)
             signals.append(bad)
+    if notes_ignored:
+        table.notes.append(f"{len(notes_ignored)} note/separator row(s) with no tag, IO type, cable or pair ignored "
+                           f"(rows {', '.join(map(str, notes_ignored[:8]))}{' …' if len(notes_ignored) > 8 else ''})")
     return signals
