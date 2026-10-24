@@ -5,6 +5,8 @@ Sources: `data/IO_Allocation_Fundamentals.docx` (the guide: "Basic allocation ru
 `rulesets/default.json`; engine steps are in `backend/engine/` (`preflight.py` = pre-flight, `allocate.py` = the engine);
 checks are in `backend/verify/checks.py` (the verifier imports nothing from the engine). **Gaps are listed at the bottom — read them.**
 
+The default rule set runs **22 checks in memory** (C01–C20, C07.2, C17.2) and **23** on a re-read workbook (C00); every enabled custom rule adds one (C23+). Quote the number a report shows.
+
 Every rule below is *data*: it can be switched off, re-parameterised or extended in Rules Studio and the engine and the verifier both
 follow (`backend/tests/test_no_hardcoded_literals.py` asserts that no part number or remark text lives in code).
 
@@ -45,7 +47,7 @@ follow (`backend/tests/test_no_hardcoded_literals.py` asserts that no part numbe
 | 21 | Future space: 10 % of each cabinet's baseplates (≈ 3–4 of 32) kept free at the END of the cabinet | `r-future` | `Engine.reserve` | **C12** |
 | 22 | Cabinet alarms (internal wiring / equipment is a cabinet) on baseplate 1 of CIOC 1 of each marshalling cabinet, exclusively | `r-alarm-bp` | `place_alarms`, `pack_alarms`, `alarm_remark` (remark text comes from the rule) | **C15** |
 | 23 | Names follow the project patterns (system cabinet, controller, marshalling cabinet, CIOC, baseplate, wired-spare tag, visualization). A cable lands together, so its rows share ONE location: a row with a blank/unmapped room or area inherits the cable's (`app/cabledomain.py`, one function used by pre-flight and by C10) | `r-names` | `Engine.tokens`, `name()`, pre-flight §4 (`cable_homes`) | **C10** (expects the cable-resolved location, not the row's raw area) |
-| 24 | Engineering columns are copied from the MDB (tag, service, signal type, …) | `r-out` | `xio/render.py` | **C17** |
+| 24 | Engineering columns are copied from the MDB (tag, service, signal type, …). Identity columns are HARD: the engineering columns the rule does not list as descriptive, plus Field Cable No / Size / Pair; a wired spare or spare slot may only carry a real MDB cable with that cable's size, inherited values must be values of its cable / cabinet, a spare slot carries no signal data. Descriptive text, constants, never-filled columns and Sr. No. are SOFT | `r-out` (`columns`, `soft_columns`, `dash_columns`, `spare_inherit`, `slot_inherit`) | `xio/render.py` | **C17** (hard) and **C17.2** (soft); the tamper matrix `tests/test_tamper_matrix.py` edits every column of every row kind |
 | 25 | Tag Status discipline: Field / Wired Spare / Spare Slot / Cabinet Alarm are not interchanged (guide "Common mistakes") | — | `Engine.put_signal`, `fill` | **C14** |
 | 26 | The CIOC count in the rows, the Capacity BOM and the KPIs agree | — | `compute_kpis`, `capacity_bom` | **C19** |
 
@@ -78,6 +80,8 @@ follow (`backend/tests/test_no_hardcoded_literals.py` asserts that no part numbe
 | `custom_expr` | `hardware.resolve` | C09 |
 
 ## 6. Gaps (what is **not** independently verified)
+
+* **Free-text revision columns.** An edit to `Revision No`, `Remarks` or `Change Type` is not detected (see the next bullet for what that means for revisions). A forged "Excepted by TQ-…" remark cannot hide a segregation violation: the cited TQ must exist in the project's TQ register.
 
 * **Change traceability** (guide "Change traceability": revision number, remarks, old tag, change type). The engine writes `Revision No`,
   `Change Type`, `Remarks`, `Old Tag` (`revise.annotate`) but no verifier check re-reads those four columns; a hand-edited `Change Type`

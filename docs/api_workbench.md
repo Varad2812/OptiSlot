@@ -106,7 +106,7 @@ the target (pair *p* of a 24-pair cable can only sit on channel *p mod 12*).
 { "verdict": "allowed", "tag": "320-XYV  -42170", "cable": "320-CS-0022", "pair": 1, "block_id": "320-CS-0022",
   "from_slot": "P30-DCM-32001-04/016/1/1", "to_slot": "P30-DCM-32001-04/015/5/1",
   "reasons": [ { "kind": "info", "text": "Moves the whole 6-pair cable 320-CS-0022 so that pair 1 lands on … (cables never split — rule r-cable)." },
-               { "kind": "info", "text": "The independent verifier re-checked the result: 21/21 checks, 0 violation(s)." } ],
+               { "kind": "info", "text": "The independent verifier re-checked the result: 22/22 checks, 0 violation(s)." } ],
   "changes": { "moves": [ { "tag": "320-XYV  -42170", "cable": "320-CS-0022", "pair": 1,
                             "from_slot": "P30-DCM-32001-04/016/1/1", "to_slot": "P30-DCM-32001-04/015/5/1", "reason": "Moved … Manual override: …" }, "…3 more" ],
                "hardware": [ ],                         // {tag, slot_id, charm_before/after, tb_before/after} — a swap or a moved cable can change them

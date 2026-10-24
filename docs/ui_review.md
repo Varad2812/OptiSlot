@@ -61,7 +61,7 @@ Behaviour checked against the real API (scratch Playwright runs, temp DB):
   times, and the server's reason is shown ("… cannot join CIOC P30DCIOC3201001 which holds A-family signals — rule r-ab …").
 - Compact switch → Impact **CIOCs 12 → 5 (−7)**, 0 violations; Discard restores Balanced (12).
 - Valid move (12-pair cable, BP 3 → BP 6) → ghost flies on an arc, Impact "9 signals moved", Undo/Redo/Commit and a server-side Undo all work.
-- Inject Rev B → added 10 / deleted 1 / modified 1 / moved 0, stability 98.9 %, auto re-verify "0 violations · 22/22 checks",
+- Inject Rev B → added 10 / deleted 1 / modified 1 / moved 0, stability 98.9 %, auto re-verify "0 violations · 23/23 checks",
   scoreboard stays at 0 violations; only the 12 changed slots get an element in the diff overlay.
 
 | # | Where | Issue | Fix | Status |

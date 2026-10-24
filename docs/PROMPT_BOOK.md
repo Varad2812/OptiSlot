@@ -76,7 +76,7 @@ them; no new colours or ad-hoc components. Build ONLY:
    <CabinetWorld> at Plant level, and clicking a cabinet dives into the Explorer with the camera
    transition; every tile clickable.
 2. Proof Center (§10.5.4) with the Verify scan (§10.4.3) and Tamper caught (§10.4.4) motion:
-   certificate stamp; the 20 checks ticking; "Re-verify now"; the "Verify any Excel" drop zone
+   certificate stamp; the verifier's checks ticking (the report's count, 23 on the default rule set); "Re-verify now"; the "Verify any Excel" drop zone
    using POST /api/verify-file; failing rows → "fly to slot"; run history with hashes.
 Visual QA loop incl. motion frames. Commit on your branch.
 Done when: tampering an exported file and dropping it in shows the red pulse on the exact slot,

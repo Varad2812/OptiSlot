@@ -152,6 +152,8 @@ Inputs: **output rows + normalised MDB + rule set**. Checks:
 **Run certificate**: sha256 of the input MDB(s) + ruleset version hash + output file hash + engine version + timestamp, shown on the certificate and stored in run history. The same inputs give the same hash and the same output (reproducible).
 Output: `RuleCheckReport` (per-check pass/fail counts + violating rows). UI certificate: **"0 violations · N/N checks"**. Also run it on the reference workbook as a sanity check.
 
+**Check count (verified by counting the Checks sheet of `Rule_Check_Report.xlsx` for the sample MDB and the adversarial MDB — 23 rows each).** The default rule set runs **22 checks in memory**: C01–C20 plus **C07.2** (the second `segregate` rule, IS/NON-IS) and **C17.2** (descriptive columns, soft); there is no C21 or C22. Re-reading an exported workbook adds **C00** ("workbook has every template column"), so the app and the report show **23**. Each enabled custom rule adds one more (C23, C24, …). Always quote the number the report shows — it is computed, never fixed.
+
 ## 7. Revisions
 - Load Rev A (our previous output or allocation state) → map tag → slot. Diff Rev B against the MDB.
 - **Unchanged** → pinned (frozen) to the same slot. **Freezing never blocks a new hard rule**: if a pinned signal now violates a hard rule, it moves, with a reason.
@@ -270,7 +272,7 @@ Level of detail: render full detail only for the visible cabinet ± 1. Memoised 
    - ←/→, minimap click or swipe → the camera **pans along the row** to the next cabinet with slight parallax (floor grid moves slower than the cabinets) and a zoom-out-pan-zoom-in arc (~700 ms);
    - the cabinet name and stats cross-fade in a header plate; `F` flips front/rear with a 3D `rotateY` card-flip (~500 ms).
 3. **Verify scan**:
-   - a cyan scan beam sweeps across the visible cabinet while the 20 checks tick one by one in the Proof panel (40 ms stagger);
+   - a cyan scan beam sweeps across the visible cabinet while the verifier's checks (the number in the report: 23 for an exported workbook) tick one by one in the Proof panel (40 ms stagger);
    - the certificate **stamps** in (scale 1.15→1 with a short glow), showing the hashes.
 4. **Tamper caught**: drop an edited Excel → the scan runs → the failing slot and row **pulse red** three times, and the camera flies to that slot.
 5. **Rev B diff**:
@@ -300,7 +302,7 @@ Rules: durations 150–400 ms for UI and ≤ 4 s for the hero sequences; ease `[
    - tools: click-to-move a slot or whole cable block; rule toggles; wired-spare % and future-spare % sliders; the balanced/compact switch;
    - **Commit / Discard**; undo/redo; an amber "Sandbox" banner.
 4. **Proof Center** (the re-verify USP):
-   - the certificate (input/ruleset/output hashes, engine version, time) and the 20 checks with pass counts;
+   - the certificate (input/ruleset/output hashes, engine version, time) and every check in the report (23 on the default rule set) with pass counts;
    - a "Re-verify now" button; a **"Verify any Excel"** drop zone (the tampered-copy demo) with the failing rows listed and "fly to slot";
    - run history (hashes), showing that the same inputs give the same hash.
 5. **Revision Center**:
@@ -387,7 +389,7 @@ The team built a static mock (fake data, no backend) in one HTML file and approv
 - **Revisions:** 4 stat cards with count-up (Stability %, Moved, Unchanged, New/Removed) + diff table (Tag, IO, Rev A → Rev B, Cause).
 - **Export:** cards (icon, name, filename, size, Download).
 - **Visual vocabulary to reuse exactly:** the CSS variables in that file (they equal §10.1), `.card` hover glow, gradient primary button, outlined chips, mono for IDs/numbers, 12 px uppercase 0.1em section labels, soft violet glow on active nav.
-- **Hard truthfulness rules when porting:** no invented data. The mock's numbers (1,284 signals, 22 checks list wording, solver "v2.4.1", seed, power/heat/fieldbus rules, DXF/PDF/FHX exports, SIL column, "Unit 400 / PX-2291") are placeholders. Show only what the backend returns: the real verifier checks (C01…C22), the real 5 export files, real rules from the ruleset, real project name. Do not ship a rule or export that doesn't exist.
+- **Hard truthfulness rules when porting:** no invented data. The mock's numbers (1,284 signals, "22 checks" list wording, solver "v2.4.1", seed, power/heat/fieldbus rules, DXF/PDF/FHX exports, SIL column, "Unit 400 / PX-2291") are placeholders. Show only what the backend returns: the real verifier checks (C00–C20 with C07.2 and C17.2, plus C23+ for custom rules — whatever the report lists), the real 5 export files, real rules from the ruleset, real project name. Do not ship a rule or export that doesn't exist.
 - **Improve over the mock:** real data everywhere; virtualised tables; keyboard nav; empty/error/loading states; light theme parity; undo for Workbench moves; every row has "Show in 3D"; Workbench lists ALL signals incl. unallocated/quarantined with plain-English reasons from the engine.
 
 ### 10.10 Hero launch + "location rain" + Mission Control v2 (cinematic layer, added at finale)

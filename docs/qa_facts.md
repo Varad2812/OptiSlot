@@ -14,6 +14,8 @@ No source, test or config file in the repo was edited; this file is the only thi
 Helper scripts live in the scratchpad, replicas in `/tmp/optislot_replicas/`.
 Machine: macOS (Darwin 24.6.0), Python 3.11 via `uv`. All commands run from `<snap>/backend` with `uv run python <script>`.
 
+> **Later changes (not re-tested in this document).** The tamper gaps in §4 were closed by the C17 / C17.2 split (`tests/test_tamper_matrix.py`), the cold-start cost in §3b by `app/warmup.py`, and the check count in §6 is now 22 in memory / 23 on an exported workbook (C07.2 and C17.2 both exist; see CLAUDE.md §6 and docs/rule_coverage.md).
+
 > **Headline findings (read these first)**
 > 1. At a15e108 the **adversarial MDB fails the verifier** (1 violation, check C10) on the greedy path, and the CP-SAT result
 >    is **rejected by the verifier gate**. Commit `2e7ebc4` fixes it (re-verified: PASS, CP-SAT OPTIMAL and adopted). See §3.

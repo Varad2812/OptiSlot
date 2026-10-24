@@ -73,7 +73,7 @@ Two kinds of rule:
 3. **Show me it can fail.** The Tamper test changes one CHARM in a copy of our own export and the verifier names the row and check. The copy is separate, so your real allocation is never touched.
 4. **Is the result optimal?** We don't claim global optimality. The verifier proves validity; CP-SAT minimises CIOCs and keeps groups together and in sequence. **[CHECK]** whether the UI shows a cabinet lower bound.
 5. **"Excepted by TQ": isn't that hiding failures?** It is the opposite of silent: when a clash cannot be satisfied (A and B on one cable, a mixed IS/NON-IS cable), we place the cable, raise a TQ naming the clash, and the verifier labels it "excepted by TQ", not a pass. Each one is counted and visible.
-6. **Why 21 checks?** It is the number of rule checks the verifier ran, not the signal count; each enabled custom rule adds one (C23 and up). **[CHECK]** the exact count on the demo machine.
+6. **Why 23 checks?** It is the number of rule checks the verifier ran, not the signal count. The default rule set runs 22 (C01–C20, plus C07.2 for IS/NON-IS and C17.2 for descriptive columns); re-reading the exported workbook adds C00 (all template columns present). Each enabled custom rule adds one (C23 and up). Verified by counting the Checks sheet of Rule_Check_Report.xlsx for the sample and the adversarial MDB (23 rows each).
 
 **Rules and flexibility**
 
