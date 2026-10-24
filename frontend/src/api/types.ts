@@ -226,6 +226,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{pid}/rules/nl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rules Nl
+         * @description English → validated rule candidates (LLM when a key is set, else a deterministic parser). Saves NOTHING: preview with
+         *     POST /rules/preview, then POST /rules.
+         */
+        post: operations["rules_nl_api_projects__pid__rules_nl_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assist/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Assist Status */
+        get: operations["assist_status_api_assist_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{pid}/assist/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assist Ask
+         * @description Help chat grounded in existing data (signal reasons, placement checks, the rule listing). Rephrases, never decides.
+         */
+        post: operations["assist_ask_api_projects__pid__assist_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{pid}/rules/preview": {
         parameters: {
             query?: never;
@@ -920,6 +978,40 @@ export interface components {
             /** Activity */
             activity?: components["schemas"]["ActivityEvent"][];
         };
+        /** AssistAnswer */
+        AssistAnswer: {
+            /** Answer */
+            answer: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "llm" | "facts" | "refused";
+            /** Facts */
+            facts?: string[];
+        };
+        /** AssistAskRequest */
+        AssistAskRequest: {
+            /** Question */
+            question: string;
+            /** Tag */
+            tag?: string | null;
+            /** Row */
+            row?: number | null;
+        };
+        /** AssistStatus */
+        AssistStatus: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "gemini" | "anthropic" | "none";
+            /**
+             * Model
+             * @default
+             */
+            model: string;
+        };
         /** BaseplateInfo */
         BaseplateInfo: {
             /** Bp */
@@ -1306,6 +1398,35 @@ export interface components {
             to_slot?: string | null;
             /** Reason */
             reason: string;
+        };
+        /** NLRuleRequest */
+        NLRuleRequest: {
+            /** Text */
+            text: string;
+        };
+        /** NLRuleResult */
+        NLRuleResult: {
+            /** Candidates */
+            candidates?: components["schemas"]["RuleCandidate"][];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "llm" | "fallback";
+            /**
+             * Provider
+             * @default none
+             */
+            provider: string;
+            /** Clarifying Question */
+            clarifying_question?: string | null;
+            /** Errors */
+            errors?: string[];
+            /**
+             * Saved
+             * @default false
+             */
+            saved: boolean;
         };
         /** OptimiserInfo */
         OptimiserInfo: {
@@ -1783,6 +1904,44 @@ export interface components {
             params?: {
                 [key: string]: unknown;
             };
+        };
+        /** RuleCandidate */
+        RuleCandidate: {
+            /** Rule Type */
+            rule_type: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Filters */
+            filters?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Scope */
+            scope?: string | null;
+            /**
+             * Severity
+             * @default hard
+             * @enum {string}
+             */
+            severity: "hard" | "soft";
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /** Readback */
+            readback: string;
+            /**
+             * Confidence
+             * @default 0.5
+             */
+            confidence: number;
+            /** Warnings */
+            warnings?: string[];
+            rule: components["schemas"]["RuleInput"];
         };
         /** RuleCatalogue */
         RuleCatalogue: {
@@ -3275,6 +3434,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuleListing"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_nl_api_projects__pid__rules_nl_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NLRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NLRuleResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assist_status_api_assist_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistStatus"];
+                };
+            };
+        };
+    };
+    assist_ask_api_projects__pid__assist_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistAskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistAnswer"];
                 };
             };
             /** @description Validation Error */

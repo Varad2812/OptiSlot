@@ -672,6 +672,124 @@
     }
    }
   },
+  "/api/projects/{pid}/rules/nl": {
+   "post": {
+    "summary": "Rules Nl",
+    "description": "English \u2192 validated rule candidates (LLM when a key is set, else a deterministic parser). Saves NOTHING: preview with\nPOST /rules/preview, then POST /rules.",
+    "operationId": "rules_nl_api_projects__pid__rules_nl_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NLRuleRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/NLRuleResult"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/assist/status": {
+   "get": {
+    "summary": "Assist Status",
+    "operationId": "assist_status_api_assist_status_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AssistStatus"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/projects/{pid}/assist/ask": {
+   "post": {
+    "summary": "Assist Ask",
+    "description": "Help chat grounded in existing data (signal reasons, placement checks, the rule listing). Rephrases, never decides.",
+    "operationId": "assist_ask_api_projects__pid__assist_ask_post",
+    "parameters": [
+     {
+      "name": "pid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Pid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AssistAskRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AssistAnswer"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/projects/{pid}/rules/preview": {
    "post": {
     "summary": "Preview Rule",
@@ -2817,6 +2935,97 @@
     ],
     "title": "AllocationResult"
    },
+   "AssistAnswer": {
+    "properties": {
+     "answer": {
+      "type": "string",
+      "title": "Answer"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "llm",
+       "facts",
+       "refused"
+      ],
+      "title": "Source"
+     },
+     "facts": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Facts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "answer",
+     "source"
+    ],
+    "title": "AssistAnswer"
+   },
+   "AssistAskRequest": {
+    "properties": {
+     "question": {
+      "type": "string",
+      "title": "Question"
+     },
+     "tag": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag"
+     },
+     "row": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Row"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "question"
+    ],
+    "title": "AssistAskRequest"
+   },
+   "AssistStatus": {
+    "properties": {
+     "provider": {
+      "type": "string",
+      "enum": [
+       "gemini",
+       "anthropic",
+       "none"
+      ],
+      "title": "Provider"
+     },
+     "model": {
+      "type": "string",
+      "title": "Model",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "provider"
+    ],
+    "title": "AssistStatus"
+   },
    "BaseplateInfo": {
     "properties": {
      "bp": {
@@ -3795,6 +4004,73 @@
      "reason"
     ],
     "title": "MoveItem"
+   },
+   "NLRuleRequest": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "text"
+    ],
+    "title": "NLRuleRequest"
+   },
+   "NLRuleResult": {
+    "properties": {
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/RuleCandidate"
+      },
+      "type": "array",
+      "title": "Candidates"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "llm",
+       "fallback"
+      ],
+      "title": "Source"
+     },
+     "provider": {
+      "type": "string",
+      "title": "Provider",
+      "default": "none"
+     },
+     "clarifying_question": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Clarifying Question"
+     },
+     "errors": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Errors"
+     },
+     "saved": {
+      "type": "boolean",
+      "title": "Saved",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "source"
+    ],
+    "title": "NLRuleResult"
    },
    "OptimiserInfo": {
     "properties": {
@@ -5010,6 +5286,82 @@
      "label"
     ],
     "title": "Rule"
+   },
+   "RuleCandidate": {
+    "properties": {
+     "rule_type": {
+      "type": "string",
+      "title": "Rule Type"
+     },
+     "params": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Params"
+     },
+     "filters": {
+      "additionalProperties": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "object",
+      "title": "Filters"
+     },
+     "scope": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scope"
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "hard",
+       "soft"
+      ],
+      "title": "Severity",
+      "default": "hard"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label",
+      "default": ""
+     },
+     "readback": {
+      "type": "string",
+      "title": "Readback"
+     },
+     "confidence": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "default": 0.5
+     },
+     "warnings": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Warnings"
+     },
+     "rule": {
+      "$ref": "#/components/schemas/RuleInput"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "rule_type",
+     "params",
+     "readback",
+     "rule"
+    ],
+    "title": "RuleCandidate"
    },
    "RuleCatalogue": {
     "properties": {

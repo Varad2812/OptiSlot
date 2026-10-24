@@ -18,6 +18,7 @@ from app.schemas import (
     AllocationResult, ColumnMapping, DecisionEntry, ExportFile, ImportSummary, PlacementApplyRequest, PlacementApplyResult,
     PlacementChangeSet, PlacementCheck, PlacementCheckRequest, PlacementCommitRequest, PlacementCommitResult, PlacementState,
     DataPatch, Project, ProjectSettings, RevisionImpact, RuleCatalogue, RuleChange, RuleCheckReport, RuleDraft, RuleEdit, RuleInput,
+    AssistAnswer, AssistAskRequest, AssistStatus, NLRuleRequest, NLRuleResult,
     RuleListing, RulePreviewRequest, RuleSet, RunRecord, SignalList, SignalPatchRequest, SignalPatchResult, SignalRow, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
 )
 from app.service import DEMO_ID, Service
@@ -156,6 +157,29 @@ def rules_listing(pid: str):
     """Every rule with enforced | advisory | off, its severity, the verifier checks that test it and their last result."""
     from app.rulesapi import listing
     return listing(svc, pid)
+
+
+@app.post("/api/projects/{pid}/rules/nl", response_model=NLRuleResult)
+def rules_nl(pid: str, req: NLRuleRequest):
+    """English → validated rule candidates (LLM when a key is set, else a deterministic parser). Saves NOTHING: preview with
+    POST /rules/preview, then POST /rules."""
+    from app.assist import nl_rule
+    svc.get(pid)
+    return nl_rule(req.text)
+
+
+@app.get("/api/assist/status", response_model=AssistStatus)
+def assist_status():
+    from app.assist import status
+    return status()
+
+
+@app.post("/api/projects/{pid}/assist/ask", response_model=AssistAnswer)
+def assist_ask(pid: str, req: AssistAskRequest):
+    """Help chat grounded in existing data (signal reasons, placement checks, the rule listing). Rephrases, never decides."""
+    from app.assist import ask
+    svc.get(pid)
+    return ask(svc, pid, req)
 
 
 @app.post("/api/projects/{pid}/rules", response_model=RuleChange)

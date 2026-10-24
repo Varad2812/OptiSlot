@@ -18,7 +18,7 @@ for _n in ("httpx", "httpcore"):
     logging.getLogger(_n).setLevel(logging.WARNING)
 
 TIMEOUT_S = 8.0
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"   # 2.0/2.5-flash answer 404 for current keys; 3.8-flash exceeds the 8 s budget
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5"
 
 

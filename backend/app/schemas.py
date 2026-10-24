@@ -904,3 +904,48 @@ class RuleChange(Model):
     moves: int = 0
     new_tqs: list[str] = Field(default_factory=list)
     resolved_tqs: list[str] = Field(default_factory=list)
+
+
+# ───────────────────────────── rule assistant (optional AI) ─────────────────────────────
+
+class NLRuleRequest(Model):
+    text: str
+
+
+class RuleCandidate(Model):
+    rule_type: str
+    params: dict[str, Any]
+    filters: dict[str, dict[str, Any]] = Field(default_factory=dict)    # the filter(s) found in params, by param name
+    scope: str | None = None                                           # baseplate | cioc | cabinet, when the rule has one
+    severity: RuleSeverity = "hard"
+    label: str = ""
+    readback: str                                                      # plain English, generated from the validated rule
+    confidence: float = Field(0.5, ge=0, le=1)
+    warnings: list[str] = Field(default_factory=list)
+    rule: RuleInput                                                    # ready for POST /rules/preview then POST /rules
+
+
+class NLRuleResult(Model):
+    candidates: list[RuleCandidate] = Field(default_factory=list)
+    source: Literal["llm", "fallback"]
+    provider: str = "none"
+    clarifying_question: str | None = None
+    errors: list[str] = Field(default_factory=list)                    # validator messages for candidates that were dropped
+    saved: bool = False                                                # always false: the UI previews, then saves
+
+
+class AssistAskRequest(Model):
+    question: str
+    tag: str | None = None
+    row: int | None = None
+
+
+class AssistAnswer(Model):
+    answer: str
+    source: Literal["llm", "facts", "refused"]
+    facts: list[str] = Field(default_factory=list)
+
+
+class AssistStatus(Model):
+    provider: Literal["gemini", "anthropic", "none"]
+    model: str = ""
