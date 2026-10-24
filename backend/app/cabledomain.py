@@ -47,8 +47,10 @@ def lands_on_cable(s: Signal) -> bool:
 
 
 def domain_of(s: Signal, settings: ProjectSettings) -> str:
-    """The controller-domain key of one row (the project's `domain_keys` columns joined)."""
-    return "|".join(getattr(s, k, "") if hasattr(s, k) else s.extra.get(k, "") for k in settings.domain_keys) or "ALL"
+    """The controller-domain key of one row (the project's `domain_keys` columns joined). Case and spacing are not part of
+    the key: 'pib-24' and 'PIB-24 ' are the same room, not two controller domains."""
+    vals = (getattr(s, k, "") if hasattr(s, k) else s.extra.get(k, "") for k in settings.domain_keys)
+    return "|".join(" ".join(str(v or "").split()).upper() for v in vals) or "ALL"
 
 
 def row_home(s: Signal, derive_spec: dict, settings: ProjectSettings) -> RowHome:
