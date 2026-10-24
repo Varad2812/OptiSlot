@@ -59,7 +59,8 @@ export function makeLayout(n: number, d: Dims): Layout {
   return {
     n, K, perSide, B, M, N: n * K * B * M, W, H: CAB_H, D: CAB_D, cab, rows,
     room: { cx: 0, cz, w, d: depth, wallZ, floor, grid: Math.ceil(Math.max(60, (w + depth) * 2)), fog: 0.014 / scale, scale },
-    jb: [0, 5.2, wallZ + 0.3],
+    // on the back wall, in the gap left of the row's centre cabinet: never behind a cabinet's name plate
+    jb: [perRow % 2 ? -pitchX / 2 : 0, 5.1, wallZ + 0.2],
     // the prototype's (0, 7.5, 23) pose, pulled in a little: the World sits in a panel, not a full window
     home: { pos: [0, 1.4 + 5.2 * scale, cz + 19.5 * scale], target: [0, 1.4, cz] },
     charm: { w: pitchCh * 0.84, h: 0.15, d: 0.2, pitch: pitchCh },

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 
 import type { WorldModel } from "@/api/derive";
-import { IO_COLOURS, IO_LABELS, IO_ORDER } from "@/lib/io";
+import { IO_COLOURS, IO_LABELS, IO_ORDER, type IoKey } from "@/lib/io";
+import { cn } from "@/lib/utils";
 import { EASE } from "@/motion/shared";
 
 // Shared by the 2D Cabinet Explorer and the 3D Marshalling Room so both read as one product (§10.8 cohesion).
@@ -46,15 +47,33 @@ function Mini({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
-export function Legend() {
+/** The IO legend. With `onToggle` the IO entries double as filter chips (the 3D Room has no toolbar row for them). */
+export function Legend({ active, onToggle }: { active?: string[]; onToggle?: (k: IoKey) => void } = {}) {
+  const any = !!active?.length;
   return (
     <div className="glass flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-card border border-border px-3 py-2 text-[11px] text-muted-foreground" data-testid="legend">
-      {IO_ORDER.map((k) => (
-        <span key={k} className="flex items-center gap-1.5">
-          <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: IO_COLOURS[k] }} />
-          {IO_LABELS[k]}
-        </span>
-      ))}
+      {IO_ORDER.map((k) =>
+        onToggle ? (
+          <button
+            key={k}
+            onClick={() => onToggle(k)}
+            aria-pressed={!!active?.includes(k)}
+            title={`Show only ${IO_LABELS[k]} (click again to clear)`}
+            className={cn(
+              "-mx-1 flex items-center gap-1.5 rounded-chip px-1 py-0.5 transition-colors hover:text-text",
+              active?.includes(k) ? "bg-live/10 text-text ring-1 ring-live/50" : any && "opacity-55",
+            )}
+          >
+            <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: IO_COLOURS[k] }} />
+            {IO_LABELS[k]}
+          </button>
+        ) : (
+          <span key={k} className="flex items-center gap-1.5">
+            <span className="h-2.5 w-3.5 rounded-[3px]" style={{ background: IO_COLOURS[k] }} />
+            {IO_LABELS[k]}
+          </span>
+        ),
+      )}
       <span className="flex items-center gap-1.5">
         <span className="hatch h-2.5 w-3.5 rounded-[3px] border" style={{ color: IO_COLOURS.ai, borderColor: IO_COLOURS.ai }} /> Wired spare
       </span>

@@ -91,3 +91,9 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+/* 3D Room: per-CHARM tag labels at L3 hang below their CHARM, read top → bottom (CSS2DRenderer anchors the zero-size parent). */
+.w3d-tag { position: absolute; left: 0; top: 0; transform: translateX(-50%); writing-mode: vertical-rl; text-shadow: 0 0 4px #000, 0 0 2px #000; }
+.w3d-tag.spare { color: #5B6478; }
+@keyframes shake-x { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+.shake { animation: shake-x 0.32s ease-out; }

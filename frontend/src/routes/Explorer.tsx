@@ -4,11 +4,11 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSearchParams } from "react-router-dom";
 
 import { dimsOf, worldModel, type Dims, type WorldModel } from "@/api/derive";
-import { useAllocation, useImportSummary, useProject, useRules, type AllocationResult, type Project, type Slot } from "@/api/hooks";
+import { useAllocation, useImportSummary, useProject, useRules, type AllocationResult, type Project } from "@/api/hooks";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { IO_COLOURS, IO_LABELS, IO_ORDER, ioKey, type IoKey } from "@/lib/io";
+import { IO_COLOURS, IO_LABELS, IO_ORDER, type IoKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { demoMode, registerDemo, setDemoReady } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
@@ -17,6 +17,7 @@ import { UploadDiveOverlay } from "@/motion/UploadDive";
 import { typing } from "@/shell/useHotkeys";
 import { NO_FILTERS, useUi, type ExplorerFilters, type Level } from "@/store/ui";
 import { CabinetWorld, type Tier } from "@/world/CabinetWorld";
+import { matcher } from "@/world/filters";
 import { cabinetBounds, ciocRect, fit, plantRect, slotXY, type Cam, type Insets } from "@/world/geometry";
 import { Minimap } from "@/world/Minimap";
 import { HeaderPlate, Legend } from "@/world/Plates";
@@ -392,17 +393,6 @@ function ExplorerInner({ a, p }: { a: AllocationResult; p: Project | undefined }
       </div>
     </div>
   );
-}
-
-function matcher(f: ExplorerFilters): ((s: Slot) => boolean) | null {
-  if (f === NO_FILTERS || (!f.io.length && !f.status.length && !f.family.length && !f.group && !f.search.trim())) return null;
-  const q = f.search.trim().toLowerCase().replace(/\s+/g, "");
-  return (s) =>
-    (!f.io.length || f.io.includes(ioKey(s))) &&
-    (!f.status.length || f.status.includes(s.status)) &&
-    (!f.family.length || f.family.includes(s.family ?? "-")) &&
-    (!f.group || s.group === f.group) &&
-    (!q || s.tag_key.toLowerCase().includes(q) || s.cable.toLowerCase().includes(q));
 }
 
 function IconBtn({ label, onClick, children, disabled }: { label: string; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {

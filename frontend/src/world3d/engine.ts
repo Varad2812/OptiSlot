@@ -27,9 +27,9 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import type { Slot } from "@/api/hooks";
-import { IO_COLOURS } from "@/lib/io";
+import { IO_COLOURS, ioKey } from "@/lib/io";
 
-import { KIND_KEYS, NONE, SPARE, ST_WIRED, type World3DData } from "./data";
+import { KIND_KEYS, NONE, SPARE, ST_ALARM, ST_FIELD, ST_SPARE, ST_WIRED, type World3DData } from "./data";
 import { bpY, chX, decode, frameH, idxOf, isRear, ixOf, stackY, zOf, type Layout } from "./layout";
 import { buildTrails, type Trails } from "./trails";
 
@@ -43,8 +43,17 @@ CameraControls.install({
 const ACC = 0x7c5cff;
 const BG = 0x0a0d13;
 const IOC = KIND_KEYS.map((k) => new THREE.Color(IO_COLOURS[k]));
+// Per-IO emissive gain: bright hues (DO yellow) would bloom far more than blue at the same factor, so every
+// kind is normalised towards the same luminance — the prototype's glow, just even.
+const IOGAIN = IOC.map((c) => Math.min(1.15, Math.max(0.55, Math.sqrt(0.3 / Math.max(0.05, 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b)))));
+const HOVER = 0x22d3ee; // brand-2: focus rings only
+const CHANGED = 0xffffff;
+const RING = 0xc9bdff; // A/B family ring: a lighter violet than the CIOC frame so it reads as its own mark
 const RIGS = 3;
 const TRAILS_MAX = 48;
+const OVERLAY_MAX = 512;
+const BLOOM = 0.66;
+const RIG_LIGHT = 2.6; // prototype 7: its point light left hot white spots on the glass and hinges
 
 export type Level = 0 | 1 | 2 | 3 | 4;
 /** Public address: cab 0-based, cioc/bp/ch 1-based (Slot fields), -1 = not applicable at this level. */
@@ -56,6 +65,8 @@ export interface Address {
 }
 export interface Selection extends Address {
   level: Level;
+  /** The face in view: F (front) or R (rear, after F / an orbit to a rear CIOC). */
+  face: "F" | "R";
 }
 /** hover / select payload (§10.8): the address under the pointer (or selected) + where to anchor a DOM card. */
 export interface WorldEvent extends Selection {
@@ -132,6 +143,8 @@ function labelEl(cls: string, html: string) {
 }
 const LABEL =
   "w3d-in pointer-events-none select-none whitespace-nowrap rounded-full border border-[#3a3470] bg-[rgba(14,18,27,.68)] px-2.5 py-0.5 text-[10.5px] font-medium uppercase tracking-[0.12em] text-[#ECEEF3]";
+const TAG_LABEL =
+  "w3d-in w3d-tag pointer-events-none select-none whitespace-nowrap font-mono text-[9.5px] leading-none tracking-[0.02em] text-[#C9CFDB]";
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
 export class World3DEngine {
@@ -167,6 +180,9 @@ export class World3DEngine {
   private grid: THREE.GridHelper;
   private wall: THREE.Mesh;
   private jb: THREE.Mesh;
+  private jbLabel: CSS2DObject;
+  private jbA = 1;
+  private jbT = 1;
   private jbLight: THREE.PointLight;
   private bundle = new THREE.Group();
   private bMats: THREE.MeshStandardMaterial[] = [];
@@ -189,6 +205,24 @@ export class World3DEngine {
   };
   private charms!: THREE.InstancedMesh;
   private hatch!: THREE.InstancedMesh;
+  // Working copies of the allocation arrays: Before | Now patches them (setOverlay) without touching the cached data.
+  private kind = new Int8Array(0);
+  private status = new Uint8Array(0);
+  private slots: (Slot | null)[] = [];
+  private hidden = new Uint8Array(0); // 1 = drawn by a flyer right now (animateMove) — the slot itself waits
+  // overlays: changed-CHARM outlines, ghosts at the old slot, flyers for animateMove, the hover outline, L3 tags
+  private outline!: THREE.InstancedMesh;
+  private ghosts!: THREE.InstancedMesh;
+  private flyers!: THREE.InstancedMesh;
+  private outPos = new Int32Array(0);
+  private ghostPos = new Int32Array(0);
+  private flights: { from: THREE.Vector3; to: THREE.Vector3; out: number; t0: number; dur: number; lift: number }[] = [];
+  private flightDone: (() => void) | null = null;
+  private hoverBox!: THREE.Mesh;
+  private hoverGeo = new Map<string, THREE.BufferGeometry>();
+  private hov: { c: number; k: number; b: number; m: number } | null = null;
+  private chLabels: CSS2DObject[] = [];
+  private face = 0; // L0/L1 viewing side: 0 front, 1 rear (F)
   private wsPos = new Int32Array(0); // idx → hatch instance, -1 if not a wired spare
   private wsIdx = new Int32Array(0); // hatch instance → idx
   private tgt = new Float32Array(0);
@@ -240,7 +274,8 @@ export class World3DEngine {
     this.rt = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(this.renderer, this.rt);
     this.composer.addPass(new RenderPass(this.scene, this.cam));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w, this.h), 0.8, 0.7, 0.8);
+    // A touch under the prototype's (0.8, 0.7, 0.8): same glow on Field CHARMs, less haze around bright yellows.
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w, this.h), BLOOM, 0.6, 0.86);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -262,16 +297,33 @@ export class World3DEngine {
     const dl = new THREE.DirectionalLight(0xbfc8ff, 1.2);
     dl.position.set(6, 12, 10);
     this.scene.add(dl);
-    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.std({ color: 0x0c1019, roughness: 0.32, metalness: 0.65 }));
+    // satin floor: still catches the cabinets' glow, without mirror-sharp blobs under each light
+    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.std({ color: 0x0a0d14, roughness: 0.55, metalness: 0.5 }));
+    (this.floor.material as THREE.MeshStandardMaterial).envMapIntensity = 0.18;
     this.floor.rotation.x = -Math.PI / 2;
     this.scene.add(this.floor);
     this.grid = this.makeGrid(60);
     this.wall = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.std({ color: 0x0d1119, roughness: 0.9 }));
     this.scene.add(this.wall);
+    // Junction box: a wall-mounted enclosure (steel body, accent edges, a gland plate the field cables leave from) with a
+    // label — it is where the Upload Dive trails start, so it must read as equipment, not a floating slab.
     this.jb = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 1.2, 0.5),
-      this.std({ color: 0x1a1f2b, emissive: ACC, emissiveIntensity: 0.15, metalness: 0.6, roughness: 0.4 }),
+      new THREE.BoxGeometry(1.3, 0.9, 0.32),
+      this.std({ color: 0x1a1f2b, emissive: ACC, emissiveIntensity: 0.04, metalness: 0.6, roughness: 0.45, transparent: true }),
     );
+    const jbEdge = new THREE.LineSegments(new THREE.EdgesGeometry(this.jb.geometry), new THREE.LineBasicMaterial({ color: ACC, transparent: true, opacity: 0.7 }));
+    jbEdge.raycast = nop;
+    this.jb.add(jbEdge);
+    const gland = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.26), this.std({ color: 0x2c3442, metalness: 0.6, roughness: 0.5, transparent: true }));
+    gland.position.y = -0.48;
+    this.jb.add(gland);
+    // the conduit that carries the field cables down the wall into the floor trench: the box is mounted, not floating
+    const conduit = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1, 0.12), this.std({ color: 0x232a37, metalness: 0.5, roughness: 0.6, transparent: true }));
+    conduit.name = "conduit";
+    this.jb.add(conduit);
+    this.jbLabel = new CSS2DObject(labelEl(LABEL, "Junction box · field cables"));
+    this.jbLabel.position.set(0, 0.72, 0);
+    this.jb.add(this.jbLabel);
     this.scene.add(this.jb);
     this.jbLight = new THREE.PointLight(ACC, 0, 14);
     this.scene.add(this.jbLight);
@@ -329,7 +381,7 @@ export class World3DEngine {
   get selectedSlotId(): string | null {
     const s = this.sel;
     if (s.level < 4 || !this.L || !this.data) return null;
-    return this.data.slots[idxOf(this.L, s.c, s.k, s.b, s.m)]?.id ?? null;
+    return this.slots[idxOf(this.L, s.c, s.k, s.b, s.m)]?.id ?? null;
   }
 
   /** Feed a (new) allocation. Rebuilds the instanced world; keeps the selection when it still exists. */
@@ -339,10 +391,20 @@ export class World3DEngine {
     this.data = data;
     const L = (this.L = data.layout);
     this.clearDyn();
+    this.kind = data.kind.slice();
+    this.status = data.status.slice();
+    this.slots = data.slots.slice();
+    this.hidden = new Uint8Array(L.N);
+    this.flights = [];
+    this.flightDone?.();
+    this.hov = null;
     this.layoutRoom(L);
-    this.buildCharms(data, L);
+    this.buildCharms(L);
+    this.buildOverlays(L);
     this.buildFar(L);
     this.buildRigs(L);
+    for (let c = 0; c < L.n; c++) for (let k = 0; k < L.K; k++) this.layCharms(c, k, 0);
+    this.colourDirty = true;
     this.buildCabLabels(data, L);
     this.cabs = Array.from({ length: L.n }, () => ({ glow: 0, gt: 0 }));
     this.trails = null;
@@ -389,7 +451,7 @@ export class World3DEngine {
   /** Dim every CHARM whose slot does not match (null = no filter). */
   setFilter(fn: ((s: Slot) => boolean) | null) {
     if (!this.data) return;
-    const { slots } = this.data;
+    const { slots } = this;
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i];
       this.dim[i] = fn && s ? (fn(s) ? 0 : 1) : 0;
@@ -412,9 +474,146 @@ export class World3DEngine {
     return this.sleep(ms);
   }
 
-  // Later motion moments (§10.7 motion 2–6) build on the API above; they resolve immediately until then.
+  /**
+   * Before | Now (§10.8): draw a patched state on top of the allocation. `slots` replace the slots with the same id
+   * (null = the plain allocation), `outline` frames the changed CHARMs, `ghosts` leave a translucent copy of the
+   * listed slots (as they were in the allocation) where a moved CHARM used to be.
+   */
+  setOverlay(o: { slots?: Slot[] | null; outline?: string[]; ghosts?: string[] } = {}) {
+    const d = this.data, L = this.L;
+    if (!d || !L) return;
+    this.kind.set(d.kind);
+    this.status.set(d.status);
+    for (let i = 0; i < L.N; i++) this.slots[i] = d.slots[i];
+    for (const sl of o.slots ?? []) {
+      const i = d.index.get(sl.id);
+      if (i == null) continue;
+      this.slots[i] = sl;
+      const key = ioKey(sl);
+      this.kind[i] = key === "spare" ? SPARE : KIND_KEYS.indexOf(key);
+      this.status[i] = sl.status === "Field" ? ST_FIELD : sl.status === "Wired Spare" ? ST_WIRED : sl.status === "Cabinet Alarm" ? ST_ALARM : ST_SPARE;
+    }
+    const wiredChanged = this.status.some((v, i) => (v === ST_WIRED) !== (this.wsPos[i] >= 0));
+    if (wiredChanged) this.buildHatch(L);
+    const fill = (ids: string[] | undefined, pos: Int32Array, im: THREE.InstancedMesh, colour?: (i: number) => THREE.Color) => {
+      pos.fill(-1);
+      let n = 0;
+      for (const id of ids ?? []) {
+        const i = d.index.get(id);
+        if (i == null || pos[i] >= 0 || n >= OVERLAY_MAX) continue;
+        pos[i] = n;
+        if (colour) im.setColorAt(n, colour(i));
+        n++;
+      }
+      im.count = n;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    };
+    fill(o.outline, this.outPos, this.outline);
+    fill(o.ghosts, this.ghostPos, this.ghosts, (i) => {
+      const k = d.kind[i];
+      return k >= 0 ? IOC[k].clone().multiplyScalar(0.9 * IOGAIN[k]) : new THREE.Color(0x2a3242);
+    });
+    this.relayAll();
+    this.colourDirty = true;
+  }
+
+  /**
+   * Workbench move (§10.7 motion 4, §10.8): each CHARM lifts off its old slot, flies an arc and settles on the new one
+   * (pairs of a cable fly together), then the new slots glow. A ghost stays at the old slot when the overlay has one.
+   */
+  animateMove(from: string[], to: string[]): Promise<void> {
+    const d = this.data, L = this.L;
+    if (!d || !L) return Promise.resolve();
+    this.flightDone?.();
+    const toIdx: number[] = [];
+    this.flights = [];
+    const fa = this.flyers;
+    for (let j = 0; j < Math.min(from.length, to.length, OVERLAY_MAX); j++) {
+      const a = d.index.get(from[j]), b = d.index.get(to[j]);
+      if (a == null || b == null || a === b) continue;
+      toIdx.push(b);
+      const p0 = this.charmPos(a), p1 = this.charmPos(b);
+      const k = this.kind[b] >= 0 ? this.kind[b] : d.kind[a];
+      fa.setColorAt(this.flights.length, k >= 0 ? IOC[k].clone().multiplyScalar(1.6 * IOGAIN[k]) : new THREE.Color(0x8c95a8));
+      const dist = p0.distanceTo(p1);
+      const out = isRear(L, decode(L, b).k) ? -1 : 1;
+      this.flights.push({ from: p0, to: p1, out, t0: this.el + j * 0.035, dur: Math.min(1.1, 0.55 + dist * 0.12), lift: Math.min(1.2, 0.18 + dist * 0.25) });
+    }
+    if (!this.flights.length) return Promise.resolve();
+    fa.count = this.flights.length;
+    fa.instanceColor!.needsUpdate = true;
+    const calm = this.opts.calm?.();
+    if (calm) for (const f of this.flights) f.dur = 0.01;
+    for (const i of toIdx) this.hidden[i] = 1;
+    this.retarget();
+    return new Promise<void>((res) => {
+      this.flightDone = () => {
+        this.flightDone = null;
+        this.flights = [];
+        this.flyers.count = 0;
+        for (const i of toIdx) this.hidden[i] = 0;
+        this.retarget();
+        res();
+      };
+    }).then(() => (calm ? undefined : this.pulse(to, "#22D3EE", 900)));
+  }
+
+  /** Previous / next sibling at the current level (←/→): cabinet, CIOC, baseplate or CHARM. */
+  sibling(dir: 1 | -1) {
+    const L = this.L, d = this.data;
+    if (!L || !d || this.diving) return;
+    const s = this.sel;
+    if (s.level == 0) return void this.goTo(1, { cab: dir > 0 ? 0 : L.n - 1 });
+    if (s.level == 1) {
+      const c = s.c + dir;
+      if (c >= 0 && c < L.n) void this.goTo(1, { cab: c });
+      return;
+    }
+    if (s.level == 2) {
+      for (let k = s.k + dir; k >= 0 && k < L.K; k += dir) if (d.cabinets[s.c].ciocs[k]) return void this.goTo(2, { cioc: k + 1 });
+      return;
+    }
+    if (s.level == 3) {
+      const b = s.b + dir;
+      if (b >= 0 && b < L.B) void this.goTo(3, { bp: b + 1 });
+      return;
+    }
+    for (let m = s.m + dir; m >= 0 && m < L.M; m += dir)
+      if (this.kind[idxOf(L, s.c, s.k, s.b, m)] !== NONE) return void this.goTo(4, { ch: m + 1 });
+  }
+
+  /** F: turn to the other face. Room / cabinet: the camera orbits 180°; inside a CIOC it moves to the CIOC behind it. */
+  flip() {
+    const L = this.L, d = this.data;
+    if (!L || !d || this.diving) return;
+    const s = this.sel;
+    if (s.level <= 1) {
+      this.face ^= 1;
+      this.lastInput = this.el;
+      this.focus(!this.opts.calm?.());
+      return this.emitLevel();
+    }
+    const opp = s.k < L.perSide ? s.k + L.perSide : s.k - L.perSide;
+    if (opp >= 0 && opp < L.K && d.cabinets[s.c].ciocs[opp]) void this.goTo(s.level, { cioc: opp + 1 });
+    else {
+      this.face = isRear(L, s.k) ? 0 : 1;
+      void this.goTo(1);
+    }
+  }
+
+  /** Bloom on / off (the FPS fallback switches it off before giving up on 3D). */
+  setBloom(on: boolean) {
+    this.bloom.enabled = on;
+  }
+
+  /** Dolly the camera in (k > 0) or out (k < 0) by a fraction of the current distance (HUD zoom ±). */
+  zoom(k: number) {
+    this.lastInput = this.el;
+    void this.ctrl.dolly(this.ctrl.distance * k, true);
+  }
+
+  // Later motion moments (§10.7 motion 2, 5, 6) build on the API above; they resolve immediately until then.
   playVerifyScan(): Promise<void> { return Promise.resolve(); }
-  animateMove(_from: string[], _to: string[]): Promise<void> { return Promise.resolve(); }
   playRevDiff(_diff: unknown): Promise<void> { return Promise.resolve(); }
   playTour(): Promise<void> { return Promise.resolve(); }
 
@@ -525,6 +724,7 @@ export class World3DEngine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.flightDone?.();
     this.diveSkip?.();
     const cv = this.renderer.domElement;
     cv.removeEventListener("pointerdown", this.onDown);
@@ -582,6 +782,9 @@ export class World3DEngine {
     this.wall.scale.set(Math.max(60, r.w * 2.5), 20, 1);
     this.wall.position.set(0, 10, r.wallZ);
     this.jb.position.set(...L.jb);
+    const conduit = this.jb.getObjectByName("conduit")!;
+    conduit.scale.y = L.jb[1] - 0.5;
+    conduit.position.set(0, -0.5 - (L.jb[1] - 0.5) / 2, -0.06);
     this.jbLight.position.set(L.jb[0], L.jb[1], L.jb[2] + 0.6);
     (this.scene.fog as THREE.FogExp2).density = r.fog;
     this.cam.far = 200 * r.scale;
@@ -610,54 +813,118 @@ export class World3DEngine {
     this.rigs = [];
     this.cabLabels = [];
     this.cableLabels = [];
+    this.chLabels = [];
   }
 
   /** CHARMS: every module in ONE InstancedMesh (+ one hatched mesh for wired spares); colour carries IO type + fade. */
-  private buildCharms(d: World3DData, L: Layout) {
+  private buildCharms(L: Layout) {
     const geo = new THREE.BoxGeometry(L.charm.w, L.charm.h, L.charm.d);
     this.charms = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ toneMapped: false }), L.N);
     this.charms.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(L.N * 3), 3);
     this.charms.instanceColor.setUsage(THREE.DynamicDrawUsage);
     this.charms.frustumCulled = false;
     this.dyn.add(this.charms);
+    this.tgt = new Float32Array(L.N).fill(1);
+    this.cur = new Float32Array(L.N).fill(1);
+    this.dim = new Uint8Array(L.N);
+    this.pulseMask = new Uint8Array(L.N);
+    this.outPos = new Int32Array(L.N).fill(-1);
+    this.ghostPos = new Int32Array(L.N).fill(-1);
+    this.buildHatch(L);
+  }
+
+  /** The wired-spare mesh is sized to the current wired spares; rebuilt when Before | Now changes which slots are wired. */
+  private buildHatch(L: Layout) {
+    if (this.hatch) {
+      this.dyn.remove(this.hatch);
+      this.hatch.dispose();
+      (this.hatch.material as THREE.MeshBasicMaterial).map?.dispose();
+      (this.hatch.material as THREE.Material).dispose();
+    }
     this.wsPos = new Int32Array(L.N).fill(-1);
     const ws: number[] = [];
-    for (let i = 0; i < L.N; i++) if (d.status[i] === ST_WIRED) (this.wsPos[i] = ws.length), ws.push(i);
+    for (let i = 0; i < L.N; i++) if (this.status[i] === ST_WIRED) (this.wsPos[i] = ws.length), ws.push(i);
     this.wsIdx = Int32Array.from(ws);
     const n = Math.max(1, ws.length);
-    this.hatch = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ toneMapped: false, map: hatchTexture() }), n);
+    this.hatch = new THREE.InstancedMesh(this.charms.geometry, new THREE.MeshBasicMaterial({ toneMapped: false, map: hatchTexture() }), n);
     this.hatch.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
     this.hatch.instanceColor.setUsage(THREE.DynamicDrawUsage);
     this.hatch.frustumCulled = false;
     if (!ws.length) this.hatch.setMatrixAt(0, new THREE.Matrix4().makeScale(0, 0, 0));
     this.dyn.add(this.hatch);
-    this.tgt = new Float32Array(L.N).fill(1);
-    this.cur = new Float32Array(L.N).fill(1);
-    this.dim = new Uint8Array(L.N);
-    this.pulseMask = new Uint8Array(L.N);
-    for (let c = 0; c < L.n; c++) for (let k = 0; k < L.K; k++) this.layCharms(c, k, 0);
-    this.colourDirty = true;
+  }
+
+  /** Outline frames (changed CHARMs), ghosts (where a moved CHARM was), flyers (animateMove), the hover box, L3 tags. */
+  private buildOverlays(L: Layout) {
+    const { w, h, d } = L.charm;
+    this.outline = new THREE.InstancedMesh(frameGeometry(w + 0.014, h + 0.014, d + 0.014, 0.0055), new THREE.MeshBasicMaterial({ color: CHANGED, toneMapped: false, transparent: true, opacity: 0.95 }), OVERLAY_MAX);
+    this.ghosts = new THREE.InstancedMesh(this.charms.geometry, new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.28, depthWrite: false }), OVERLAY_MAX);
+    this.ghosts.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(OVERLAY_MAX * 3), 3);
+    this.flyers = new THREE.InstancedMesh(this.charms.geometry, new THREE.MeshBasicMaterial({ toneMapped: false }), OVERLAY_MAX);
+    this.flyers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(OVERLAY_MAX * 3), 3);
+    for (const im of [this.outline, this.ghosts, this.flyers]) {
+      im.count = 0;
+      im.frustumCulled = false;
+      im.raycast = nop;
+      this.dyn.add(im);
+    }
+    this.hoverGeo.forEach((g) => g.dispose());
+    this.hoverGeo.clear();
+    this.hoverBox = new THREE.Mesh(undefined, new THREE.MeshBasicMaterial({ color: HOVER, toneMapped: false, transparent: true, opacity: 0.9, depthTest: false }));
+    this.hoverBox.renderOrder = 10;
+    this.hoverBox.visible = false;
+    this.hoverBox.raycast = nop;
+    this.dyn.add(this.hoverBox);
+    this.chLabels = Array.from({ length: L.M }, () => {
+      const lb = new CSS2DObject(labelEl(TAG_LABEL, ""));
+      lb.visible = false;
+      this.dyn.add(lb);
+      return lb;
+    });
+  }
+
+  /** World position of CHARM i at its CIOC's current spread (rigged cabinets explode; the rest are packed). */
+  private charmPos(i: number, out = new THREE.Vector3()) {
+    const L = this.L!, { c, k, b, m } = decode(L, i), cab = L.cab[c];
+    const s = this.rigs.find((r) => r.c === c)?.iocs[k].s ?? 0;
+    return out.set(cab.x + ixOf(L, k) + chX(L, m), bpY(L, s, b) + 0.13, cab.z + zOf(L, k));
   }
 
   /** Write the CHARM matrices of one CIOC for spread s (prototype updIoc's inner loop). Translation-only matrices. */
   private layCharms(c: number, k: number, s: number) {
-    const L = this.L!, d = this.data!;
+    const L = this.L!;
     const cab = L.cab[c];
     const x0 = cab.x + ixOf(L, k), z = cab.z + zOf(L, k);
     const ma = this.charms.instanceMatrix.array as Float32Array;
     const ha = this.hatch.instanceMatrix.array as Float32Array;
+    const oa = this.outline.instanceMatrix.array as Float32Array;
+    const ga = this.ghosts.instanceMatrix.array as Float32Array;
+    let ov = false;
     for (let b = 0; b < L.B; b++) {
       const y = bpY(L, s, b) + 0.13;
       for (let m = 0; m < L.M; m++) {
         const i = idxOf(L, c, k, b, m);
-        const kind = d.kind[i];
+        const kind = this.kind[i];
         const wp = this.wsPos[i];
-        writeT(ma, i, x0 + chX(L, m), y, z, kind !== NONE && wp < 0);
-        if (wp >= 0) writeT(ha, wp, x0 + chX(L, m), y, z, true);
+        const x = x0 + chX(L, m);
+        writeT(ma, i, x, y, z, kind !== NONE && wp < 0);
+        if (wp >= 0) writeT(ha, wp, x, y, z, true);
+        if (this.outPos[i] >= 0) (writeT(oa, this.outPos[i], x, y, z, true), (ov = true));
+        if (this.ghostPos[i] >= 0) (writeT(ga, this.ghostPos[i], x, y, z, true), (ov = true));
       }
     }
     this.charms.instanceMatrix.needsUpdate = true;
     this.hatch.instanceMatrix.needsUpdate = true;
+    if (ov) this.outline.instanceMatrix.needsUpdate = this.ghosts.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Re-lay every CHARM at its CIOC's current spread (after Before | Now changed kinds, outlines or ghosts). */
+  private relayAll() {
+    const L = this.L!;
+    for (let c = 0; c < L.n; c++) {
+      const rig = this.rigs.find((r) => r.c === c);
+      for (let k = 0; k < L.K; k++) this.layCharms(c, k, rig ? rig.iocs[k].s : 0);
+    }
   }
 
   /** Far cabinets: an instanced shell (one draw call per part) + merged frame/door edges. */
@@ -683,7 +950,7 @@ export class World3DEngine {
     };
     const steelMat = this.std({ color: 0x4d5666, metalness: 0.7, roughness: 0.45, transparent: true });
     const panelMat = this.std({ color: 0x232a37, metalness: 0.5, roughness: 0.6, transparent: true });
-    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.05, depthWrite: false, transparent: true, opacity: 0.16 });
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.28, specularIntensity: 0.25, depthWrite: false, transparent: true, opacity: 0.16 });
     glassMat.envMapIntensity = 0.35;
     const bpMat = this.std({ color: 0x2c3442, metalness: 0.6, roughness: 0.5, transparent: true });
     const steel = mk(steelParts, steelMat, L.n);
@@ -762,7 +1029,7 @@ export class World3DEngine {
       const g = new THREE.Group();
       g.visible = false;
       this.dyn.add(g);
-      const rig: Rig = { c: -1, group: g, dp: [], door: { o: 0, t: 0 }, light: new THREE.PointLight(0xaabbff, 7, 9), iocs: [] };
+      const rig: Rig = { c: -1, group: g, dp: [], door: { o: 0, t: 0 }, light: new THREE.PointLight(0xaabbff, RIG_LIGHT, 9), iocs: [] };
       const reg1 = <M extends THREE.Material>(m: M, base: number, k: number, b: number, lv: number): M => {
         m.transparent = true;
         m.opacity = base;
@@ -789,7 +1056,7 @@ export class World3DEngine {
           const piv = new THREE.Group();
           piv.position.set(side * hw, 1.65, face * hd);
           g.add(piv);
-          const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.05, depthWrite: false });
+          const glassM = new THREE.MeshPhysicalMaterial({ color: 0x9fb4d0, roughness: 0.28, specularIntensity: 0.25, depthWrite: false });
           glassM.envMapIntensity = 0.35;
           const gl = new THREE.Mesh(new THREE.BoxGeometry(leafW, 3.2, 0.03), reg1(glassM, 0.16, -1, -1, 1));
           gl.position.x = (-side * leafW) / 2;
@@ -814,13 +1081,14 @@ export class World3DEngine {
         vol.visible = false;
         vol.userData = { k };
         g.add(vol);
-        // A/B family: a thin outline on the CIOC's outer face — solid = A, dashed = B.
-        const rect = new THREE.BufferGeometry().setFromPoints(
-          [[-0.79, -0.5], [0.79, -0.5], [0.79, -0.5], [0.79, 0.5], [0.79, 0.5], [-0.79, 0.5], [-0.79, 0.5], [-0.79, -0.5]].map(
-            ([x, y]) => new THREE.Vector3(x, y, 0),
-          ),
-        );
-        const ring = new THREE.LineSegments(rect, reg1(new THREE.LineBasicMaterial({ color: ACC }), 0.9, k, -1, 2));
+        // A/B family: a ring on the CIOC's outer face — solid = A, dashed = B (§10.1). WebGL lines are 1 px, so the
+        // "2 px" ring is two concentric outlines.
+        const pts: THREE.Vector3[] = [];
+        for (const [hx, hy] of [[0.79, 0.5], [0.805, 0.508]])
+          for (const [a, b] of [[[-1, -1], [1, -1]], [[1, -1], [1, 1]], [[1, 1], [-1, 1]], [[-1, 1], [-1, -1]]])
+            pts.push(new THREE.Vector3(a[0] * hx, a[1] * hy, 0), new THREE.Vector3(b[0] * hx, b[1] * hy, 0));
+        const rect = new THREE.BufferGeometry().setFromPoints(pts);
+        const ring = new THREE.LineSegments(rect, reg1(new THREE.LineBasicMaterial({ color: RING }), 0.95, k, -1, 2));
         ring.raycast = nop;
         ring.position.set(ix, 0, z + (isRear(L, k) ? -0.27 : 0.27));
         g.add(ring);
@@ -905,7 +1173,7 @@ export class World3DEngine {
       const dashed = fam === "B";
       const old = ring.material as THREE.Material;
       if (dashed !== old instanceof THREE.LineDashedMaterial) {
-        const nm = dashed ? new THREE.LineDashedMaterial({ color: ACC, dashSize: 0.07, gapSize: 0.05 }) : new THREE.LineBasicMaterial({ color: ACC });
+        const nm = dashed ? new THREE.LineDashedMaterial({ color: RING, dashSize: 0.07, gapSize: 0.05 }) : new THREE.LineBasicMaterial({ color: RING });
         nm.transparent = true;
         const r = this.reg.find((x) => x.m === old);
         if (r) r.m = nm;
@@ -976,7 +1244,7 @@ export class World3DEngine {
     if (k !== sk) return 0.08;
     if (L == 2) return level > 2 ? 0.15 : 1;
     if (level < 3) return 1;
-    if (b !== sb) return 0.1;
+    if (b !== sb) return L == 4 ? 0.045 : 0.1; // neighbouring baseplates' CHARMs recede further than their steel
     if (L == 3) return level > 3 ? 0.15 : 1;
     if (level < 4) return 1;
     return m !== sm ? 0.25 : 1;
@@ -991,7 +1259,7 @@ export class World3DEngine {
     this.far.t = level == 0 ? 1 : 0.07;
     for (let i = 0; i < Lo.N; i++) {
       const { c, k, b, m } = decode(Lo, i);
-      this.tgt[i] = this.T(c, k, b, m, 4) * (this.dim[i] ? 0.12 : 1);
+      this.tgt[i] = this.hidden[i] ? 0 : this.T(c, k, b, m, 4) * (this.dim[i] ? 0.12 : 1);
     }
     for (const rig of this.rigs) {
       rig.door.t = level >= 1 && rig.c === sc ? 1 : 0;
@@ -1003,6 +1271,20 @@ export class World3DEngine {
       });
     }
     this.cabLabels.forEach((lb) => (lb.visible = level == 0 && !this.diving && Lo.rows <= 1));
+    this.jbT = level == 0 || this.diving ? 1 : 0;
+    this.jbLabel.visible = level == 0 && !this.diving;
+    // L3: every CHARM's tag hangs below it (focused level only)
+    this.chLabels.forEach((lb, m) => {
+      const i = level == 3 ? idxOf(Lo, sc, sk, sb, m) : -1;
+      if (i < 0 || this.kind[i] === NONE) return void (lb.visible = false);
+      const sl = this.slots[i], el = lb.element.firstChild as HTMLElement;
+      const spare = !sl || sl.status === "Spare Slot";
+      el.textContent = spare ? "spare" : sl.tag;
+      el.classList.toggle("spare", spare);
+      const cab = Lo.cab[sc];
+      lb.position.set(cab.x + ixOf(Lo, sk) + chX(Lo, m), bpY(Lo, 1, sb) + 0.13 - Lo.charm.h / 2 - 0.014, cab.z + zOf(Lo, sk) + Lo.charm.d / 2);
+      lb.visible = true;
+    });
     this.bT = level >= 3 ? 1 : 0;
     for (const lb of this.cableLabels) (lb.element.remove(), lb.removeFromParent());
     this.cableLabels = [];
@@ -1028,6 +1310,8 @@ export class World3DEngine {
     const prevC = this.sel.c;
     this.lastInput = this.el;
     this.sel = { ...s };
+    if (s.level >= 2 && this.L) this.face = isRear(this.L, s.k) ? 1 : 0;
+    this.setHover(null);
     if (s.c >= 0) this.assignRigs(prevC >= 0 && prevC !== s.c ? [s.c, prevC] : [s.c]);
     this.retarget();
     this.focus(transition && !this.opts.calm?.());
@@ -1038,11 +1322,17 @@ export class World3DEngine {
   /** Fly the camera to the current selection (fitToBox + rotate to front or rear). */
   private focus(t: boolean) {
     const L = this.L!, ctrl = this.ctrl, { level, c: sc, k: sk, b: sb, m: sm } = this.sel;
+    const turn = (az: number) => az + Math.PI * 2 * Math.round((ctrl.azimuthAngle - az) / (Math.PI * 2));
     if (level == 0) {
-      if (L.rows <= 1) return void ctrl.setLookAt(...L.home.pos, ...L.home.target, t);
+      const r = L.room, az = turn(this.face * Math.PI);
+      if (L.rows <= 1) {
+        // Frame the row itself (cabinets + their name plates), so the cabinets fill the view instead of a far-off pose.
+        void ctrl.rotateTo(az, 1.24, t);
+        void ctrl.fitToBox(bx(0, 2.05, r.cz, r.w + 0.5, 4.3, L.D), t, { paddingLeft: 0.35, paddingRight: 0.35, paddingTop: 0.55, paddingBottom: 0.2 });
+        return;
+      }
       // Several rows: look down the room from higher up so every row stays readable.
-      const r = L.room;
-      void ctrl.rotateTo(0, 0.95, t);
+      void ctrl.rotateTo(az, 0.95, t);
       void ctrl.fitToBox(bx(0, 1.65, r.cz, r.w + 1, 3.3, r.d + 1), t, { paddingLeft: 0.4, paddingRight: 0.4, paddingTop: 0.4, paddingBottom: 0.4 });
       return;
     }
@@ -1050,7 +1340,7 @@ export class World3DEngine {
     let box: THREE.Box3, az = 0, pol = 1.4, pad = 0.25;
     if (level == 1) {
       box = bx(cab.x, 1.7, cab.z, L.W + 0.3, 3.6, 2);
-      az = 0.35;
+      az = this.face * Math.PI + 0.35;
       pol = 1.3;
     } else {
       const ix = ixOf(L, sk), x = cab.x + ix, z = cab.z + zOf(L, sk);
@@ -1058,16 +1348,19 @@ export class World3DEngine {
       if (level == 2) {
         box = bx(x, stackY(L, 1), z, 1.5, frameH(L, 1), 0.6);
         pol = 1.45;
-      } else if (level == 3) box = bx(x, bpY(L, 1, sb) + 0.5, z, 1.5, 1.5, 0.8);
+      } else if (level == 3) {
+        // the 12 CHARMs centred with margin: cable label above, the tags hanging below
+        box = bx(x, bpY(L, 1, sb) + 0.17, z, L.bpW + 0.22, 0.92, 0.36);
+        pad = 0.2;
+        pol = 1.48;
+      }
       else {
         box = bx(x + chX(L, sm), bpY(L, 1, sb) + 0.13, z, 0.12, 0.17, 0.22);
         pad = 0.9;
         pol = 1.35;
       }
     }
-    const c0 = ctrl.azimuthAngle;
-    az += Math.PI * 2 * Math.round((c0 - az) / (Math.PI * 2));
-    void ctrl.rotateTo(az, pol, t);
+    void ctrl.rotateTo(turn(az), pol, t);
     void ctrl.fitToBox(box, t, { paddingLeft: pad, paddingRight: pad, paddingTop: pad, paddingBottom: pad });
   }
 
@@ -1100,13 +1393,13 @@ export class World3DEngine {
   }
 
   private pub(s: Sel): Selection {
-    return { level: s.level, cab: s.c, cioc: s.k >= 0 ? s.k + 1 : -1, bp: s.b >= 0 ? s.b + 1 : -1, ch: s.m >= 0 ? s.m + 1 : -1 };
+    return { level: s.level, cab: s.c, cioc: s.k >= 0 ? s.k + 1 : -1, bp: s.b >= 0 ? s.b + 1 : -1, ch: s.m >= 0 ? s.m + 1 : -1, face: this.face ? "R" : "F" };
   }
 
   private extra(s: Sel) {
     const d = this.data!;
     const cabinet = s.c >= 0 ? d.cabinets[s.c]?.name : undefined;
-    const slot = s.level >= 4 ? d.slots[idxOf(this.L!, s.c, s.k, s.b, s.m)] : null;
+    const slot = s.level >= 4 ? this.slots[idxOf(this.L!, s.c, s.k, s.b, s.m)] : null;
     return { cabinet, slotId: slot?.id };
   }
 
@@ -1153,7 +1446,7 @@ export class World3DEngine {
       if (h.object === this.charms || h.object === this.hatch) {
         const i = h.object === this.hatch ? this.wsIdx[h.instanceId!] : h.instanceId!;
         const p = decode(L, i);
-        if (p.c !== sc || p.k !== sk || p.b !== sb || this.data.kind[i] === NONE) continue;
+        if (p.c !== sc || p.k !== sk || p.b !== sb || this.kind[i] === NONE) continue;
         return p;
       }
       const u = h.object.userData as { k: number; b?: number };
@@ -1165,7 +1458,7 @@ export class World3DEngine {
       const p = this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -z), new THREE.Vector3());
       if (p && Math.abs(p.y - y) < L.charm.h && Math.abs(p.x - x0) < L.bpW / 2) {
         const m = Math.min(L.M - 1, Math.max(0, Math.round((p.x - x0) / L.charm.pitch + (L.M - 1) / 2)));
-        if (this.data.kind[idxOf(L, sc, sk, sb, m)] !== NONE) return { c: sc, k: sk, b: sb, m };
+        if (this.kind[idxOf(L, sc, sk, sb, m)] !== NONE) return { c: sc, k: sk, b: sb, m };
       }
     }
     // Outside the current cabinet: another cabinet opens instead (the prototype ignored it).
@@ -1202,6 +1495,7 @@ export class World3DEngine {
     const h = this.diving ? null : this.hitAt(e.clientX, e.clientY);
     const cv = this.renderer.domElement;
     cv.style.cursor = h ? "pointer" : "default";
+    this.setHover(h);
     if (!h) return this.emit("hover", null);
     const r = cv.getBoundingClientRect();
     const level = (h.m >= 0 ? 4 : h.b >= 0 ? 3 : h.k >= 0 ? 2 : 1) as Level;
@@ -1209,7 +1503,46 @@ export class World3DEngine {
     this.emit("hover", { ...this.pub(s), ...this.extra(s), screen: { x: e.clientX - r.left, y: e.clientY - r.top } });
   };
 
-  private onLeave = () => this.emit("hover", null);
+  private onLeave = () => {
+    this.setHover(null);
+    this.emit("hover", null);
+  };
+
+  /** Hover highlight: a cyan outline around whatever a click would open (cabinet, CIOC, baseplate or CHARM). */
+  private setHover(h: { c: number; k: number; b: number; m: number } | null) {
+    this.hov = h;
+    if (this.hoverBox) this.hoverBox.visible = !!h;
+    if (h) this.placeHover();
+  }
+
+  private placeHover() {
+    const L = this.L, h = this.hov;
+    if (!L || !h) return;
+    const cab = L.cab[h.c], hb = this.hoverBox;
+    const s = this.rigs.find((r) => r.c === h.c)?.iocs[Math.max(0, h.k)]?.s ?? 0;
+    // [w, h, d, bar thickness] per level; the frame is real geometry (WebGL lines are 1 px — too faint for a focus ring)
+    let dims: [number, number, number, number];
+    if (h.k < 0) {
+      hb.position.set(cab.x, L.H / 2 + 0.02, cab.z);
+      dims = [L.W + 0.08, L.H + 0.08, L.D + 0.08, 0.03];
+    } else if (h.b < 0) {
+      hb.position.set(cab.x + ixOf(L, h.k), stackY(L, s), cab.z + zOf(L, h.k));
+      dims = [1.48, frameH(L, s) + 0.06, 0.56, 0.016];
+    } else if (h.m < 0) {
+      hb.position.set(cab.x + ixOf(L, h.k), bpY(L, s, h.b) + 0.05, cab.z + zOf(L, h.k));
+      dims = [L.bpW + 0.05, 0.34, 0.36, 0.01];
+    } else {
+      this.charmPos(idxOf(L, h.c, h.k, h.b, h.m), hb.position);
+      dims = [L.charm.w + 0.02, L.charm.h + 0.02, L.charm.d + 0.02, 0.007];
+    }
+    const key = dims.map((v) => v.toFixed(3)).join("x");
+    let g = this.hoverGeo.get(key);
+    if (!g) {
+      if (this.hoverGeo.size > 24) (this.hoverGeo.forEach((x) => x !== hb.geometry && x.dispose()), this.hoverGeo.clear());
+      this.hoverGeo.set(key, (g = frameGeometry(...dims)));
+    }
+    hb.geometry = g;
+  }
 
   // ───────────── render loop ─────────────
 
@@ -1244,7 +1577,7 @@ export class World3DEngine {
         d.o += (d.t - d.o) * k * 0.6;
         const e = d.o * d.o * (3 - 2 * d.o);
         for (const p of rig.dp) p.piv.rotation.y = p.s * e * 1.9;
-        rig.light.intensity = 7 + (this.cabs[rig.c]?.glow ?? 0) * 40;
+        rig.light.intensity = RIG_LIGHT + (this.cabs[rig.c]?.glow ?? 0) * 18;
         const front = cam.position.z > L.cab[rig.c].z; // CIOC labels only on the face the camera sees
         rig.iocs.forEach((o, kk) => {
           o.label.visible = o.labelOn && isRear(L, kk) !== front;
@@ -1262,14 +1595,25 @@ export class World3DEngine {
         gsum += cb.glow;
       }
       const g = gsum / Math.max(1, this.cabs.length);
-      this.bloom.strength = 0.8 + g * 0.5;
-      (this.jb.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.15 + g * 2.5;
-      this.jbLight.intensity = g * 30;
+      this.bloom.strength = BLOOM + g * 0.45;
+      const jbm = this.jb.material as THREE.MeshStandardMaterial;
+      jbm.emissiveIntensity = 0.04 + g * 1.6;
+      this.jbLight.intensity = g * 22;
+      // the junction box belongs to the room view and the dive; inside a cabinet it would hang behind the CHARMs
+      this.jbA += (this.jbT - this.jbA) * k;
+      this.jb.visible = this.jbA > 0.01;
+      jbm.opacity = this.jbA;
+      this.jb.traverse((o) => {
+        const mm = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (mm && mm !== jbm) mm.opacity = this.jbA * (o instanceof THREE.LineSegments ? 0.7 : 1);
+      });
       this.trailA += (this.trailT - this.trailA) * Math.min(1, dt * 2.5);
       if (this.trails) {
         this.trails.setAlpha(this.trailA);
         this.trails.uT.value = this.diveT < 0 ? 0 : el - this.diveT;
       }
+      if (this.hov && this.rigs.some((r) => r.iocs.some((o) => Math.abs(o.t - o.s) > 0.001))) this.placeHover();
+      if (this.flights.length) this.fly(el);
       const pulsing = this.pulse0 >= 0 && el - this.pulse0 < this.pulseDur;
       if (this.pulse0 >= 0 && !pulsing) (this.pulse0 = -1), (this.colourDirty = true);
       if (this.colourDirty || glowMoving || pulsing) this.paint(k, pulsing);
@@ -1286,9 +1630,27 @@ export class World3DEngine {
     if (this.firstFrameMs == null && this.data) this.firstFrameMs = Math.round(performance.now() - this.t0);
   };
 
+  /** animateMove flights: lift, arc, settle (ease in-out, a short overshoot-free landing). */
+  private fly(el: number) {
+    const fa = this.flyers.instanceMatrix.array as Float32Array;
+    const p = new THREE.Vector3();
+    let done = true;
+    this.flights.forEach((f, j) => {
+      const u = Math.min(1, Math.max(0, (el - f.t0) / f.dur));
+      if (u < 1) done = false;
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      p.lerpVectors(f.from, f.to, e);
+      p.y += Math.sin(Math.PI * e) * f.lift;
+      p.z += Math.sin(Math.PI * e) * 0.18 * f.out; // swing out of the cabinet face, not through the CHARMs
+      writeT(fa, j, p.x, p.y, p.z, true);
+    });
+    this.flyers.instanceMatrix.needsUpdate = true;
+    if (done) this.flightDone?.();
+  }
+
   /** Recompute instance colours (only called while something is changing). Converged → the dirty flag clears. */
   private paint(k: number, pulsing: boolean) {
-    const L = this.L!, d = this.data!;
+    const L = this.L!;
     const ca = this.charms.instanceColor!.array as Float32Array;
     const ha = this.hatch.instanceColor!.array as Float32Array;
     const { tgt, cur } = this;
@@ -1298,7 +1660,7 @@ export class World3DEngine {
     const pc = this.pulseCol;
     let moving = false;
     for (let i = 0; i < L.N; i++) {
-      const kind = d.kind[i];
+      const kind = this.kind[i];
       if (kind === NONE) continue;
       const dv = tgt[i] - cur[i];
       if (dv > 0.002 || dv < -0.002) moving = true;
@@ -1311,7 +1673,7 @@ export class World3DEngine {
       } else {
         const cc = IOC[kind], glow = this.cabs[(i / per) | 0].glow;
         // Field / alarm glow above the bloom threshold; wired spares stay dim (below it) — the hatch shows they are spare.
-        const f = (wp >= 0 ? 0.45 + glow * 0.6 : 1.5 + glow * 1.3 + (i === sel ? 1.2 : 0)) * a;
+        const f = (wp >= 0 ? 0.45 + glow * 0.6 : 1.5 + glow * 1.3 + (i === sel ? 1.2 : 0)) * a * IOGAIN[kind];
         (r = cc.r * f), (g = cc.g * f), (b = cc.b * f);
       }
       if (pp > 0 && this.pulseMask[i]) {
@@ -1340,6 +1702,17 @@ function writeT(a: Float32Array, i: number, x: number, y: number, z: number, sho
   a[o + 4] = 0; a[o + 5] = s; a[o + 6] = 0; a[o + 7] = 0;
   a[o + 8] = 0; a[o + 9] = 0; a[o + 10] = s; a[o + 11] = 0;
   a[o + 12] = x; a[o + 13] = y; a[o + 14] = z; a[o + 15] = 1;
+}
+
+/** A box outline made of 12 thin bars (instanceable, unlike LineSegments) — the changed-CHARM frame. */
+function frameGeometry(w: number, h: number, d: number, t: number) {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const sy of [-1, 1]) for (const sz of [-1, 1]) parts.push(new THREE.BoxGeometry(w + t, t, t).translate(0, (sy * h) / 2, (sz * d) / 2));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(new THREE.BoxGeometry(t, h + t, t).translate((sx * w) / 2, 0, (sz * d) / 2));
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) parts.push(new THREE.BoxGeometry(t, t, d + t).translate((sx * w) / 2, (sy * h) / 2, 0));
+  const g = mergeGeometries(parts)!;
+  parts.forEach((x) => x.dispose());
+  return g;
 }
 
 function edgePositions(g: THREE.BufferGeometry) {
