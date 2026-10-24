@@ -10,6 +10,7 @@ import {
   previewRequestOf, useRuleCatalogue, useRuleListing, useRulePreview, useRuleVersions, useSaveRule, useUndoRule,
   type Pending, type RuleEdit, type RuleView,
 } from "@/rules/api";
+import { Builder } from "@/rules/Builder";
 import { Impact } from "@/rules/Impact";
 import { RuleCard, type Draft } from "@/rules/RuleCard";
 import { diffParams } from "@/rules/fields";
@@ -47,7 +48,7 @@ export default function Rules() {
   const [del, setDel] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [saveErr, setSaveErr] = useState<string | null>(null);
-  const fresh: string | null = null;
+  const [fresh, setFresh] = useState<string | null>(null);
 
   const rules = listing.data?.rules ?? [];
   const enforced = rules.filter((r) => r.mode === "enforced").length;
@@ -161,6 +162,7 @@ export default function Rules() {
         </div>
 
         <aside className="min-h-0 space-y-4 overflow-y-auto border-t border-border bg-surface/30 p-4 xl:border-l xl:border-t-0" aria-label="Add a rule and history">
+          <Builder onAdded={(id) => (setFresh(id), setTimeout(() => setFresh(null), 1500))} />
           <Versions />
         </aside>
       </div>
