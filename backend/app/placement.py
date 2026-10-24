@@ -68,7 +68,7 @@ def _step(svc: Service, st: ProjectState, prev: RunOutput, moves: dict[str, Pos]
     """The oracle: pin `moves` on top of `prev`, re-run, verify. Never raises on rule trouble (only on programming errors)."""
     rev = st.project.revision
     notes = notes or {c: "moved by the engineer in the What-if Sandbox (all hard rules re-checked)" for c in moves}
-    out, _ = revise(_active_mdb(st), prev, st.ruleset, st.settings, from_rev=rev, to_rev=rev, rev_no=_rev_no(st),
+    out, _ = revise(_active_mdb(svc, st), prev, st.ruleset, st.settings, from_rev=rev, to_rev=rev, rev_no=_rev_no(st),
                     moves=moves, manual_notes=notes, table=_active_table(svc, st))
     rep = verify_rows(out.rows, out.signals, st.ruleset, st.settings, out.tqs)
     landed, why = True, ""

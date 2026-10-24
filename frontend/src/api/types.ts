@@ -698,7 +698,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Revision */
+        /**
+         * Upload Revision
+         * @description Adds the next revision (B, then C …) pinned against the previous one. `rev` replaces an existing letter and drops the later ones.
+         */
         post: operations["upload_revision_api_projects__pid__revisions_post"];
         delete?: never;
         options?: never;
@@ -2454,7 +2457,7 @@ export interface components {
             block_id?: string | null;
             /**
              * Charm
-             * @default SE6103
+             * @default -
              */
             charm: string;
             /**
@@ -2464,7 +2467,7 @@ export interface components {
             charm_desc: string;
             /**
              * Tb
-             * @default SE4501
+             * @default -
              */
             tb: string;
             /**
@@ -4221,7 +4224,10 @@ export interface operations {
     };
     upload_revision_api_projects__pid__revisions_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Letter to (re)place, e.g. C. Default: the next revision in the chain */
+                rev?: string | null;
+            };
             header?: never;
             path: {
                 pid: string;
@@ -4256,7 +4262,10 @@ export interface operations {
     };
     gauntlet_api_projects__pid__revisions_gauntlet_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Revision to build (default B, from Rev A); C builds on B … */
+                rev?: string | null;
+            };
             header?: never;
             path: {
                 pid: string;

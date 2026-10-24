@@ -32,6 +32,19 @@ from xio.writer import write_allocation_safe, write_table
 from engine.failsafe import sys_tq
 from engine.tqs import TQBook
 
+LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def rev_no(letter: str, base: str = "00") -> str:
+    """Revision number written to the sheet: the project's revision number (`settings.revision`, Rev A) plus the letter's
+    position — "00" → B is "01", C is "02"; "R05" → B is "R06". A non-numeric base falls back to the position."""
+    n = LETTERS.index(letter)
+    m = re.fullmatch(r"(\D*)(\d+)", str(base).strip())
+    if not m:
+        return f"{n:02d}"
+    return f"{m.group(1)}{int(m.group(2)) + n:0{len(m.group(2))}d}"
+
+
 ROOT = Path(__file__).resolve().parents[2]
 DEMO_MDB = ROOT / "data" / "Sample_IO_MDB_VIT_v2_1.xlsx"
 DEMO_ID = "demo"
@@ -114,9 +127,10 @@ class Service:
         if st.current is None:
             with st.lock:
                 if st.current is None:
-                    if self.store.get(pid, "revision") == "B" and self.store.get_file(pid, "mdb_b"):
-                        from app.revisions import activate_b
-                        activate_b(self, st, record=False)
+                    rev = self.store.get(pid, "revision")
+                    if rev and rev != "A" and rev in self.revs(st):
+                        from app.revisions import activate
+                        activate(self, st, rev, record=False)
                     else:
                         self.recompute(st, record=False)
         return st
@@ -125,10 +139,11 @@ class Service:
     def table(self, st: ProjectState, which: str = "active") -> RawTable | None:
         """The MDB of Rev A ("a"), Rev B ("b") or the active revision, with the project's data patches applied. None when
         the file cannot be read — callers pass that on, and `run` turns the read error into a SYS-read TQ."""
+        revs = self.revs(st)
         if which == "active":
-            which = "b" if st.project.revision == "B" and st.extra.get("mdb_b") else "a"
-        data = st.extra.get("mdb_b") if which == "b" else st.mdb
-        name = st.extra.get("mdb_b_name", "RevB.xlsx") if which == "b" else st.mdb_name
+            which = st.project.revision.lower() if st.project.revision in revs else "a"
+        letter = which.upper()
+        data, name = (revs[letter]["data"], revs[letter]["name"]) if letter in revs else (st.mdb, st.mdb_name)
         if not data:
             return None
         cache = st.extra.setdefault("_raw_tables", {})
@@ -141,6 +156,50 @@ class Service:
                 return None
         return apply_patches(raw, self.store.get(st.project.id, "data_patches", {}) or {}, st.overrides or None)
 
+    def revs(self, st: ProjectState) -> dict[str, dict]:
+        """Revisions after A in chain order: {letter: {"data": bytes, "name": str}} (loaded from the store once)."""
+        revs = st.extra.get("revs")
+        if revs is None:
+            pid = st.project.id
+            letters = self.store.get(pid, "rev_letters")
+            if letters is None:      # a project stored before revision chains: at most a single Rev B
+                letters = ["B"] if self.store.get_file(pid, "mdb_b") else []
+            revs = {}
+            for letter in sorted(letters, key=LETTERS.index):
+                data = self.store.get_file(pid, f"mdb_{letter.lower()}")
+                if data:
+                    revs[letter] = {"data": data, "name": self.store.get(pid, f"mdb_{letter.lower()}_name", f"Rev{letter}.xlsx")}
+            st.extra["revs"] = revs
+        return revs
+
+    # ───────────── TQ pins: what stayed in place when a TQ was applied ─────────────
+    def tq_pins(self, st: ProjectState, letter: str | None = None) -> dict[str, list]:
+        """{cable: [ns, cabinet seq, cioc local, bp, ch, size]} of the revision `letter` (default: the active one)."""
+        return (self.store.get(st.project.id, "tq_pins", {}) or {}).get(letter or st.project.revision, {})
+
+    def set_tq_pins(self, st: ProjectState, pins: dict[str, list], letter: str | None = None) -> None:
+        letter = letter or st.project.revision
+        allp = self.store.get(st.project.id, "tq_pins", {}) or {}
+        allp = {**allp, letter: pins}
+        self.store.put(st.project.id, "tq_pins", {k: v for k, v in allp.items() if v})
+        st.extra.pop("chain_cache", None)
+
+    def pins_hash(self, st: ProjectState) -> str:
+        return hashlib.sha256(json.dumps(self.store.get(st.project.id, "tq_pins", {}) or {}, sort_keys=True).encode()).hexdigest()[:12]
+
+    def apply_tq_pins(self, st: ProjectState, out: RunOutput, letter: str, rs: RuleSet | None = None,
+                      settings: ProjectSettings | None = None) -> RunOutput:
+        """Rev A style replay of the TQ pins: re-run with `out`'s layout frozen except the pinned cables. Silent — no Change Type,
+        no remark: to the sheet it is an ordinary allocation (the pins only decide where cables sit)."""
+        pins = self.tq_pins(st, letter)
+        if not pins:
+            return out
+        from engine.revise import rerun_pinned
+        pinned = rerun_pinned(st.mdb, out, {c: tuple(p) for c, p in pins.items()}, rs or st.ruleset, settings or st.settings,
+                              st.overrides or None, st.mdb_name, self.table(st, "a"))
+        pinned.optimiser = out.optimiser
+        return pinned
+
     def patch_hash(self, st: ProjectState) -> str:
         return patches_hash(self.store.get(st.project.id, "data_patches", {}) or {})
 
@@ -148,6 +207,7 @@ class Service:
     def recompute(self, st: ProjectState, record: bool = True, kind: str = "allocate") -> Computed:
         t0 = time.perf_counter()
         out = run(st.mdb, st.ruleset, st.settings, st.overrides or None, filename=st.mdb_name, table=self.table(st, "a"))
+        out = self.apply_tq_pins(st, out, "A")
         from app.sandbox import apply_sandbox
         out = apply_sandbox(self, st, out)
         comp = self.certify(st, out, t0)
@@ -304,12 +364,14 @@ class Service:
             self.store.put_file(pid, "mdb_a", "mdb", hashlib.sha256(data).hexdigest(), data, ts)
             self.store.put(pid, "mdb_name", filename)
             self.store.put(pid, "overrides", {})
-            for key in ("sandbox_moves", "undo", "redo", "tq_ids", "tq_decisions", "data_patches", "manual_overrides", "placement_draft"):
+            for key in ("sandbox_moves", "undo", "redo", "tq_ids", "tq_decisions", "tq_pins", "data_patches", "manual_overrides", "placement_draft"):
                 self.store.put(pid, key, [] if key in ("undo", "redo") else None if key == "placement_draft" else {})
             st.mdb, st.mdb_name, st.overrides = data, filename, {}
             st.project.mdb_file, st.project.revision, st.project.revisions = filename, "A", ["A"]
             st.extra.clear()
-            self.store.del_file(pid, "mdb_b")
+            for letter in self.store.get(pid, "rev_letters", None) or ["B"]:
+                self.store.del_file(pid, f"mdb_{letter.lower()}")
+            self.store.put(pid, "rev_letters", [])
             self.store.put(pid, "revision", None)
             self.touch(st)
             comp = self.recompute(st, kind="allocate")
@@ -351,13 +413,13 @@ class Service:
     def preview(self, st: ProjectState, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None) -> Computed:
         """What the project WOULD look like under another rule set / settings: the very same pipeline as a real change, on a
         detached copy of the state — nothing is stored, no run is recorded, no TQ id is reserved, `st.current` is untouched."""
-        extra = {k: st.extra[k] for k in ("mdb_b", "mdb_b_name", "recompute_hook") if k in st.extra}
+        extra = {k: st.extra[k] for k in ("revs", "recompute_hook") if k in st.extra}
         clone = ProjectState(project=st.project.model_copy(), ruleset=ruleset or st.ruleset, settings=settings or st.settings,
                              overrides=st.overrides, mdb=st.mdb, mdb_name=st.mdb_name, current=None, extra=extra, lock=st.lock)
         with st.lock, self.no_persist():
-            if clone.project.revision == "B" and extra.get("recompute_hook"):
-                from app.revisions import _compute_b
-                return _compute_b(self, clone, record=False)
+            if clone.project.revision != "A" and extra.get("recompute_hook"):
+                from app.revisions import compute_active
+                return compute_active(self, clone, record=False)
             return self.recompute(clone, record=False)
 
     def put_rules(self, pid: str, rs: RuleSet, why: str = "rule set edited", tq_id: str | None = None,

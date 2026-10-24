@@ -354,15 +354,16 @@ def placement_commit(pid: str, req: PlacementCommitRequest | None = None):
 # ───────────── revisions ─────────────
 
 @app.post("/api/projects/{pid}/revisions", response_model=RevisionImpact)
-async def upload_revision(pid: str, file: UploadFile = File(...)):
+async def upload_revision(pid: str, file: UploadFile = File(...), rev: str | None = Query(None, description="Letter to (re)place, e.g. C. Default: the next revision in the chain")):
+    """Adds the next revision (B, then C …) pinned against the previous one. `rev` replaces an existing letter and drops the later ones."""
     from app.revisions import apply_revision
-    return apply_revision(svc, pid, await _read(file), file.filename or "RevB.xlsx")
+    return apply_revision(svc, pid, await _read(file), file.filename or "Rev.xlsx", rev=rev)
 
 
 @app.post("/api/projects/{pid}/revisions/gauntlet", response_model=RevisionImpact)
-def gauntlet(pid: str):
+def gauntlet(pid: str, rev: str | None = Query(None, description="Revision to build (default B, from Rev A); C builds on B …")):
     from app.revisions import run_gauntlet
-    return run_gauntlet(svc, pid)
+    return run_gauntlet(svc, pid, rev)
 
 
 @app.get("/api/projects/{pid}/revisions/impact", response_model=RevisionImpact | None)

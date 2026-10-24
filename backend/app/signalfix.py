@@ -18,9 +18,9 @@ from xio.reader import mapping_dict
 
 def _quiet(svc: Service, st: ProjectState):
     """Recompute the active revision WITHOUT writing a run record (previews and refusals must leave no trace)."""
-    if st.project.revision == "B" and st.extra.get("recompute_hook"):
-        from app.revisions import _compute_b
-        return _compute_b(svc, st, record=False)
+    if st.project.revision != "A" and st.extra.get("recompute_hook"):
+        from app.revisions import compute_active
+        return compute_active(svc, st, record=False)
     return svc.recompute(st, record=False)
 
 
@@ -68,7 +68,7 @@ def _run(svc: Service, pid: str, tag: str, row: int | None, mutate, *, preview: 
             st.current = comp0
             return res
         svc.stable_ids(pid, comp1.out.tqs)            # now the ids are real: keep them
-        svc.record_run(st, comp1, "revision" if st.project.revision == "B" else "allocate")
+        svc.record_run(st, comp1, "revision" if st.project.revision != "A" else "allocate")
         _push(svc, pid, {"kind": "patches", "before": old, "after": new, "label": label[:120]})
         ts = now()
         svc.store.append("decisions", pid, ts, DecisionEntry(

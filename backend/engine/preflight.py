@@ -16,6 +16,21 @@ from engine.tqs import TQBook
 STANDARD_SIZES = (1, 2, 6, 12, 24, 36, 48)
 
 
+def _free_pairs(signals: list[Signal], cable: str, size: int | None, taken: set[int] | None = None) -> list[int]:
+    """Pairs of `cable` that no live signal uses (1..size), lowest first — what a missing / wrong pair can be corrected to."""
+    used = {s.pair for s in signals if s.live and s.cable == cable and s.pair} | (taken or set())
+    top = size or max(used | {0})
+    return [p for p in range(1, top + 1) if p not in used]
+
+
+def _pair_fix(s: Signal, free: list[int]) -> list[dict]:
+    """A data-patch fix option: set this row's pair to the lowest free pair of its cable (the engineer confirms by applying)."""
+    if not free:
+        return []
+    return [{"label": f"Set the pair of {s.tag} (row {s.row}) to {free[0]} — free on cable {s.cable}",
+             "data_patch": {"tag": s.tag, "row": s.row, "fields": {"pair": str(free[0])}}}]
+
+
 def _rows(sigs: list[Signal]) -> list[int]:
     return [s.row for s in sigs]
 
@@ -43,7 +58,9 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
             t = book.add("data", "Duplicate tag across files" if across else "Duplicate tag", "high",
                          f"Tag {s.tag} appears twice (rows {f.row} and {s.row}){where}. Row {f.row} is kept as the signal, row {s.row} is quarantined.",
                          rows=[f.row, s.row], tags=[s.tag], field="Tag",
-                         fixes=[{"label": f"Delete row {s.row}"}, {"label": f"Rename the tag on row {s.row}"}])
+                         fixes=[{"label": f"Delete row {s.row}",
+                                 "data_patch": {"tag": s.tag, "row": s.row, "fields": {"status": settings.deleted_statuses[0]}}},
+                                {"label": f"Rename the tag on row {s.row}"}])
             book.quarantine_signal(s, f"duplicate of row {f.row}", t)
         else:
             first[s.tag_key] = s
@@ -84,7 +101,8 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                          (f"{s.tag} (row {s.row}) on cable {s.cable} has no pair number — quarantined. "
                           "Fix: add the pair in the MDB; everything else unchanged."), rows=[s.row], tags=[s.tag], field="Pair",
                          rules=[rules.rid("cable_contiguous") or "r-cable"],
-                         fixes=[{"label": "Correct the pair number in the MDB" if unreadable else "Add the pair number in the MDB"}])
+                         fixes=[*_pair_fix(s, _free_pairs(signals, s.cable, s.cable_size)),
+                                {"label": "Correct the pair number in the MDB" if unreadable else "Add the pair number in the MDB"}])
             book.quarantine_signal(s, "unreadable pair" if unreadable else "missing pair", t)
 
     # 4 ── cable-level consistency (cabinet alarms on real cables are checked too)
@@ -154,7 +172,8 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
             t = book.add("data", "Pair exceeds cable size", "high",
                          f"Cable {cable} is {size}-pair but {', '.join(f'{s.tag} uses pair {s.pair}' for s in over)} — quarantined. "
                          "Fix: correct the pair or the cable spec; everything else unchanged.",
-                         rows=_rows(over), tags=[s.tag for s in over], field="Pair", rules=[rules.rid("capacity") or "r-capacity"])
+                         rows=_rows(over), tags=[s.tag for s in over], field="Pair", rules=[rules.rid("capacity") or "r-capacity"],
+                         fixes=_over_fixes(signals, cable, size, over))
             for s in over:
                 book.quarantine_signal(s, f"pair {s.pair} > cable size {size}", t)
 
@@ -168,7 +187,9 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
                              f"{cable} pair {s.pair} is used by {f.tag} (row {f.row}) and {s.tag} (row {s.row}). "
                              f"Row {f.row} is kept as the signal, row {s.row} is quarantined.", rows=[f.row, s.row], tags=[f.tag, s.tag],
                              field="Pair", rules=[rules.rid("capacity") or "r-capacity"],
-                             fixes=[{"label": f"Give {s.tag} a free pair"}, {"label": f"Delete row {s.row}"}])
+                             fixes=[*(_pair_fix(s, _free_pairs(signals, cable, size)) or [{"label": f"Give {s.tag} a free pair"}]),
+                                    {"label": f"Delete row {s.row}",
+                                     "data_patch": {"tag": s.tag, "row": s.row, "fields": {"status": settings.deleted_statuses[0]}}}])
                 book.quarantine_signal(s, f"duplicate of {cable} pair {s.pair}", t)
             else:
                 seen[s.pair] = s  # type: ignore[index]
@@ -298,3 +319,16 @@ def _unknown_primary_codes(rule, signals: list[Signal], book: TQBook) -> None:
              + [{"label": f"Confirm {v!r} as neutral",
                  "rule_patch": {"rule_id": rule.id, "op": "list_add", "path": "neutral", "value": v}} for v in vals[:3]],
              unchanged="Allocation proceeds; these signals are neutral.")
+
+
+def _over_fixes(signals: list[Signal], cable: str, size: int, over: list[Signal]) -> list[dict]:
+    """One data-patch option per over-sized pair (up to 3), each to a different free pair of the cable."""
+    out: list[dict] = []
+    taken: set[int] = set()
+    for s in over[:3]:
+        free = _free_pairs([x for x in signals if x not in over], cable, size, taken)
+        fix = _pair_fix(s, free)
+        if fix:
+            taken.add(free[0])
+            out += fix
+    return out

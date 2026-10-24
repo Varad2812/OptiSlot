@@ -35,19 +35,43 @@ def baseline_from(out: RunOutput) -> Baseline:
                     live=len(live))
 
 
+def pin_positions(base: Baseline, prev: RunOutput, positions: dict[str, tuple]) -> None:
+    """Override the baseline's cable positions: {cable: (ns, cabinet seq, cioc local, bp, ch[, size])}. A cable the engine could
+    not place (or one that is new in this revision) takes its pin from the given position — hard rules still decide."""
+    for cable, (ns, seq, local, bp, ch, *rest) in positions.items():
+        ns = tuple(ns)                                  # a stored pin comes back from JSON with a list
+        if cable in base.blocks:
+            base.blocks[cable] = (ns, seq, local, bp, ch, base.blocks[cable][5])
+            continue
+        b = next((x for x in prev.alloc.blocks if x.cable == cable), None)
+        size = b.size if b is not None else (rest[0] if rest else None)
+        if size is not None:
+            base.blocks[cable] = (ns, seq, local, bp, ch, size)
+
+
+def block_positions(out: RunOutput) -> dict[str, tuple]:
+    """{cable: (ns, cabinet seq, cioc local, bp, ch, size)} of every placed block — what a pin set is made of."""
+    return {b.cable: (b.cab.ns, b.cab.seq, b.cioc, b.bp, b.ch, b.size) for b in out.alloc.blocks
+            if b.cab is not None and b.bp is not None and b.ch is not None and b.cioc is not None}
+
+
+def rerun_pinned(src, prev: RunOutput, positions: dict[str, tuple], ruleset: RuleSet | None = None,
+                 settings: ProjectSettings | None = None, overrides=None, filename: str | None = None, table=None) -> RunOutput:
+    """The same inputs run again with `prev`'s layout frozen (plus `positions` overriding some cables), WITHOUT revision
+    annotations: for a plain (Rev A style) re-allocation that must not shuffle anything that did not have to move."""
+    base = baseline_from(prev)
+    pin_positions(base, prev, positions)
+    settings = (settings or prev.settings).model_copy(update={"cpsat_enabled": False})
+    return run(src, ruleset or prev.rules.rs, settings, overrides, filename, table=table, baseline=base)
+
+
 def revise(src: bytes, prev: RunOutput, ruleset: RuleSet | None = None, settings: ProjectSettings | None = None,
            filename: str | None = None, from_rev: str = "A", to_rev: str = "B", rev_no: str = "01",
            overrides=None, table=None, moves: dict[str, tuple] | None = None,
            manual_notes: "dict[str, str] | set[str] | None" = None) -> tuple[RunOutput, RevisionImpact]:
-    """moves: {cable: (ns, cabinet seq, cioc local, bp, ch)} — engineer-requested positions (What-if Sandbox)."""
+    """moves: {cable: (ns, cabinet seq, cioc local, bp, ch[, size])} — engineer-requested positions (What-if Sandbox, TQ pins)."""
     base = baseline_from(prev)
-    for cable, (ns, seq, local, bp, ch) in (moves or {}).items():
-        if cable in base.blocks:
-            base.blocks[cable] = (ns, seq, local, bp, ch, base.blocks[cable][5])
-        else:  # a cable the engine could not place: the engineer's position becomes its pin (hard rules still decide)
-            b = next((x for x in prev.alloc.blocks if x.cable == cable), None)
-            if b is not None:
-                base.blocks[cable] = (ns, seq, local, bp, ch, b.size)
+    pin_positions(base, prev, moves or {})
     settings = (settings or prev.settings).model_copy(update={"cpsat_enabled": False})
     prev_sig = {s.tag_key: s for s in prev.signals if s.live and not s.quarantined}
 

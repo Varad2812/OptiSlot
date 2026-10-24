@@ -2183,6 +2183,7 @@
   "/api/projects/{pid}/revisions": {
    "post": {
     "summary": "Upload Revision",
+    "description": "Adds the next revision (B, then C \u2026) pinned against the previous one. `rev` replaces an existing letter and drops the later ones.",
     "operationId": "upload_revision_api_projects__pid__revisions_post",
     "parameters": [
      {
@@ -2193,6 +2194,24 @@
        "type": "string",
        "title": "Pid"
       }
+     },
+     {
+      "name": "rev",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Letter to (re)place, e.g. C. Default: the next revision in the chain",
+       "title": "Rev"
+      },
+      "description": "Letter to (re)place, e.g. C. Default: the next revision in the chain"
      }
     ],
     "requestBody": {
@@ -2242,6 +2261,24 @@
        "type": "string",
        "title": "Pid"
       }
+     },
+     {
+      "name": "rev",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Revision to build (default B, from Rev A); C builds on B \u2026",
+       "title": "Rev"
+      },
+      "description": "Revision to build (default B, from Rev A); C builds on B \u2026"
      }
     ],
     "responses": {
@@ -6498,7 +6535,7 @@
      "charm": {
       "type": "string",
       "title": "Charm",
-      "default": "SE6103"
+      "default": "-"
      },
      "charm_desc": {
       "type": "string",
@@ -6508,7 +6545,7 @@
      "tb": {
       "type": "string",
       "title": "Tb",
-      "default": "SE4501"
+      "default": "-"
      },
      "tb_desc": {
       "type": "string",

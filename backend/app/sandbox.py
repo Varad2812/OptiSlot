@@ -12,7 +12,7 @@ from typing import Any
 from app.schemas import (
     AllocationResult, Move, ProjectSettings, RuleSet, SlotDiff, TQ, WhatIfRequest, WhatIfResult,
 )
-from app.service import ProjectState, Service, now, tq_signature
+from app.service import ProjectState, Service, now, rev_no, tq_signature
 from engine.allocate import Block
 from engine.pipeline import RunOutput, run
 from engine.revise import revise
@@ -270,8 +270,9 @@ def _diff(prev: RunOutput, new: RunOutput) -> list[SlotDiff]:
 
 # ───────────────────────────── the sandbox ─────────────────────────────
 
-def _active_mdb(st: ProjectState) -> bytes:
-    return st.extra.get("mdb_b") if st.project.revision == "B" and st.extra.get("mdb_b") else st.mdb  # type: ignore[return-value]
+def _active_mdb(svc: Service, st: ProjectState) -> bytes:
+    revs = svc.revs(st)
+    return revs[st.project.revision]["data"] if st.project.revision in revs else st.mdb
 
 
 def _active_table(svc: Service, st: ProjectState):
@@ -280,7 +281,7 @@ def _active_table(svc: Service, st: ProjectState):
 
 
 def _rev_no(st: ProjectState) -> str:
-    return "01" if st.project.revision == "B" else st.settings.revision
+    return rev_no(st.project.revision, st.settings.revision)
 
 
 def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput, rs: RuleSet | None = None,
@@ -297,7 +298,7 @@ def apply_sandbox(svc: Service, st: ProjectState, out: RunOutput, rs: RuleSet | 
     rev = st.project.revision
     stored = svc.store.get(st.project.id, "manual_overrides", {}) or {}      # remarks written by /placement/commit
     notes = {c: stored.get(c, "moved by the engineer in the What-if Sandbox (all hard rules re-checked)") for c in ok}
-    out2, _ = revise(_active_mdb(st), out, rs or st.ruleset, settings or st.settings, from_rev=rev, to_rev=rev,
+    out2, _ = revise(_active_mdb(svc, st), out, rs or st.ruleset, settings or st.settings, from_rev=rev, to_rev=rev,
                      rev_no=_rev_no(st), moves=ok, manual_notes=notes, table=_active_table(svc, st))
     out2.optimiser = out.optimiser
     return out2
@@ -317,7 +318,7 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
         moves[res[0]] = res[1]
     rev = st.project.revision
     if moves:
-        out, _ = revise(_active_mdb(st), comp.out, rs, ps, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves,
+        out, _ = revise(_active_mdb(svc, st), comp.out, rs, ps, from_rev=rev, to_rev=rev, rev_no=_rev_no(st), moves=moves,
                         table=_active_table(svc, st))
         for cable, (_, seq, local, bp, ch) in moves.items():
             b = next((x for x in out.alloc.blocks if x.cable == cable), None)
@@ -325,11 +326,12 @@ def whatif(svc: Service, pid: str, req: WhatIfRequest) -> WhatIfResult:
                 return WhatIfResult(allowed=False, blocked_reason=f"{cable} could not be placed there: "
                                     f"{(b.move_reason if b else None) or 'a hard rule rejected the position'}",
                                     kpis=comp.kpis, report=comp.report, moves=0, diff=[])
-    elif rev == "B":
-        from app.revisions import _rev_a
-        out, _ = revise(st.extra["mdb_b"], _rev_a(svc, st), rs, ps, table=svc.table(st, "b"))
+    elif rev != "A":
+        from app.revisions import chain_output
+        out = chain_output(svc, st, rs, ps)
     else:
         out = run(st.mdb, rs, ps, st.overrides or None, filename=st.mdb_name, table=svc.table(st, "a"))
+        out = svc.apply_tq_pins(st, out, "A", rs, ps)
         out = apply_sandbox(svc, st, out, rs, ps)   # committed moves stay in the preview, so the diff shows only this change
     rep = verify_rows(out.rows, out.signals, rs, ps, out.tqs)
     diff = _diff(comp.out, out)
@@ -443,6 +445,33 @@ def _decide(svc: Service, pid: str, tq: TQ, status: str, decision: str) -> None:
     svc.store.put(pid, "tq_decisions", d)
 
 
+def repin(svc: Service, st: ProjectState, before: RunOutput) -> int:
+    """Revision-style re-allocation after a TQ fix: every cable that `before` had placed stays where it was.
+
+    The fix was just applied and `st.current` is the from-scratch result under it. Any cable whose position differs from
+    `before` is pinned back (stored per revision, replayed silently by every later recompute — so a restart or a re-allocate
+    reproduces the same layout) and the project is recomputed once. Hard rules still win: a pin that now breaks one is
+    dropped by the engine, with the reason. Returns the number of cables pinned back."""
+    from engine.revise import block_positions
+    now_pos, was = block_positions(st.current.out), block_positions(before)         # type: ignore[union-attr]
+    back = {c: list(p) for c, p in was.items() if c in now_pos and now_pos[c][:5] != p[:5]}
+    if not back:
+        return 0
+    svc.set_tq_pins(st, {**svc.tq_pins(st), **back})
+    svc.recompute_active(st)
+    return len(back)
+
+
+def _data_patch_target(tq: TQ, dp: dict) -> tuple[str, int | None, dict[str, str]]:
+    fields = dp.get("fields") or ({dp["field"]: dp["value"]} if dp.get("field") and dp.get("value") not in (None, "") else None)
+    if not fields:
+        raise ValueError(f"{tq.id}: this fix needs a value — correct the signal in the Workbench (POST /signals/{{tag}}/patch)")
+    tag = dp.get("tag") or (tq.tags[0] if tq.tags else None)
+    if not tag:
+        raise ValueError(f"{tq.id}: the data patch names no signal")
+    return tag, dp.get("row") or (tq.rows[0] if len(tq.rows) == 1 else None), {k: str(v) for k, v in fields.items()}
+
+
 def apply_tq(svc: Service, pid: str, tq_id: str, option: int = 0) -> AllocationResult:
     st, tq = _find_tq(svc, pid, tq_id)
     if not tq.fix_options:
@@ -451,19 +480,41 @@ def apply_tq(svc: Service, pid: str, tq_id: str, option: int = 0) -> AllocationR
         raise ValueError(f"{tq_id} has {len(tq.fix_options)} fix option(s)")
     fix = tq.fix_options[option]
     with st.lock:
+        before = st.current.out if st.current else None
         if fix.rule_patch:
             rs = patch_ruleset(st.ruleset, fix.rule_patch)
             _decide(svc, pid, tq, "applied", fix.label)
-            before = st.current.out if st.current else None
             svc.put_rules(pid, rs, f"{tq.id}: {fix.label}", tq_id=tq.id, patch=fix.rule_patch)
-            diff = _diff(before, st.current.out) if before and st.current else []
-            moved = sum(1 for d in diff if d.change == "moved")
-            hw = sum(1 for d in diff if d.change == "hardware")
-            svc.activity(pid, "tq", f"Applied {tq.id} ({fix.label}) → {hw} hardware change(s), {moved} move(s), "
-                                    f"{st.current.report.violations} violations")  # type: ignore[union-attr]
-            res = svc.result(st)
-            return res
-        return close_tq(svc, pid, tq_id, fix.label)
+        elif fix.data_patch:
+            from app.signalfix import patch_signal
+            from app.schemas import SignalPatchRequest
+            tag, row, fields = _data_patch_target(tq, fix.data_patch)
+            decisions = svc.store.get(pid, "tq_decisions", {}) or {}
+            _decide(svc, pid, tq, "applied", fix.label)
+            try:
+                res = patch_signal(svc, pid, tag, SignalPatchRequest(fields=fields, row=row, who="TQ Apply",
+                                                                      reason=f"{tq.id}: {fix.label}"))
+            except Exception:
+                svc.store.put(pid, "tq_decisions", decisions)
+                raise
+            if not res.applied:
+                svc.store.put(pid, "tq_decisions", decisions)       # the TQ stays open: nothing was stored
+                raise ValueError(f"{tq.id}: not applied — " + " ".join(res.messages))
+            ts = now()
+            from app.schemas import DecisionEntry
+            svc.store.append("decisions", pid, ts, DecisionEntry(ts=ts, who="TQ Apply", why=f"{tq.id}: {fix.label}", tq_id=tq.id,
+                                                                  patch={"data_patch": fix.data_patch}).model_dump())
+        else:
+            return close_tq(svc, pid, tq_id, fix.label)
+        pinned = repin(svc, st, before) if before is not None else 0
+        diff = _diff(before, st.current.out) if before and st.current else []           # type: ignore[union-attr]
+        moved = sum(1 for d in diff if d.change == "moved")
+        hw = sum(1 for d in diff if d.change == "hardware")
+        added = sum(1 for d in diff if d.change == "added")
+        svc.activity(pid, "tq", f"Applied {tq.id} ({fix.label}) → {hw} hardware change(s), {added} added, {moved} move(s)"
+                                f"{f', {pinned} cable(s) kept in place' if pinned else ''}, "
+                                f"{st.current.report.violations} violations")  # type: ignore[union-attr]
+        return svc.result(st)
 
 
 def close_tq(svc: Service, pid: str, tq_id: str, decision: str) -> AllocationResult:
