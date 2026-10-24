@@ -106,7 +106,11 @@ def render(c, seen: dict) -> str:
 
 def main():
     if not DB.exists():
-        sys.exit(f"No database at {DB}. Start the app first (make demo).")
+        if ONCE:
+            sys.exit(f"No database at {DB}. Start the app first (make demo).")
+        print(f"Waiting for the app to create {DB} …")
+        while not DB.exists():
+            time.sleep(1)
     seen: dict = {}
     c = conn()
     if ONCE:
