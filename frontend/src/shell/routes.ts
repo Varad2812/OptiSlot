@@ -21,7 +21,7 @@ export const SCREENS: Screen[] = [
   { path: "/proof", title: "Proof Center", icon: ShieldCheck, group: "story", blurb: "An independent verifier re-reads the output. A tampered copy fails." },
   { path: "/revisions", title: "Revision Center", icon: GitCompareArrows, group: "story", blurb: "Rev B moves only what changed — and every move has a reason.", phase: "U3" },
   { path: "/import", title: "Import & Mapping", icon: FileUp, group: "work", blurb: "Any IO MDB, zero code: columns auto-mapped, bad rows quarantined." },
-  { path: "/rules", title: "Rules Studio", icon: SlidersHorizontal, group: "work", blurb: "Rules are data — edit them live or describe them in plain English.", phase: "U4" },
+  { path: "/rules", title: "Rules Studio", icon: SlidersHorizontal, group: "work", blurb: "Rules are data — edit them live; every change is previewed, re-verified and versioned." },
   { path: "/tqs", title: "TQ Center", icon: MessageSquareWarning, group: "work", blurb: "Every open question names the clash and offers a fix." },
   { path: "/grid", title: "Allocation Grid", icon: Table2, group: "work", blurb: "The 76-column IO Assignment, exactly as exported." },
   { path: "/export", title: "Export", icon: Download, group: "work", blurb: "Five real files, written end-to-end into the template." },

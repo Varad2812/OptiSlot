@@ -12,10 +12,11 @@ import Proof from "./Proof";
 import TqCenter from "./TqCenter";
 import Revisions from "./Revisions";
 import Room from "./Room";
+import Rules from "./Rules";
 import ScreenPreview from "./ScreenPreview";
 import Workbench from "./Workbench";
 
-const ELEMENTS: Record<string, JSX.Element> = { "/": <MissionControl />, "/room": <Room />, "/explorer": <Explorer />, "/lab": <Workbench />, "/proof": <Proof />, "/revisions": <Revisions />, "/import": <Import />, "/tqs": <TqCenter />, "/export": <Export />, "/grid": <Grid /> };
+const ELEMENTS: Record<string, JSX.Element> = { "/": <MissionControl />, "/room": <Room />, "/explorer": <Explorer />, "/lab": <Workbench />, "/proof": <Proof />, "/revisions": <Revisions />, "/import": <Import />, "/rules": <Rules />, "/tqs": <TqCenter />, "/export": <Export />, "/grid": <Grid /> };
 
 // Route table = CLAUDE.md §10.2 sidebar (src/shell/routes.ts). scripts/shots.mjs captures the same paths.
 export function AppRoutes() {
