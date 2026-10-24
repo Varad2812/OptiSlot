@@ -128,6 +128,60 @@ Commit.
 ```
 ---
 
+## ▶ 3D Marshalling Room (window 2, from ~07:30) — spec: CLAUDE.md §10.7
+Base: our approved prototype at `frontend/legacy3d/3d_prototype.html` (vanilla three.js). Port it; don't redesign it. T1 only, one prompt per fresh session.
+
+### 3D-0 · Port the prototype as an engine + real data (≈ 1 h)
+**Model: Opus 5.5 · high** · plan mode
+```
+Read CLAUDE.md §10 and §10.7 fully, and study frontend/legacy3d/3d_prototype.html line by line — it is
+the approved look. Don't touch backend/; commit with explicit paths only.
+1. npm-install pinned three@0.160.x and camera-controls@2.8.x (no CDN, no React Three Fiber).
+2. Port the prototype into src/world3d/engine.ts (class World3DEngine, the imperative API in §10.7)
+   + src/world3d/World3D.tsx (React wrapper + HTML overlay in our design system). Keep its visuals,
+   transitions, Bloom, doors, explode, fade registry and Dive trails.
+3. Apply §10.7 "Changes the port MUST make" items 1, 2, 3 and 7: real allocation data + settings-driven
+   counts and layout; remove the fake Value readings; the scale work (instancing, focus ±1 detail,
+   colour updates only on change); offline.
+4. Show World3D in Cabinet Explorer behind a "3D / 2D" toggle (default 3D).
+5. Measure FPS on the sample and stress10k (headless swiftshader — indicative) + time to first frame;
+   capture frames at L0, L1 and mid-Dive.
+Report the numbers + frames and STOP. Commit "3d: engine port".
+Done when: it looks like the prototype but on real data, works offline, ≥ 55 fps on the sample and
+≥ 30 at 10k.
+```
+Send Claude (in chat) the report + frames before continuing.
+
+### 3D-A · Navigation, levels, fallback, integration (≈ 1.5 h)
+**Model: Opus 5.5 · high**
+```
+Continue from "3d: engine port" per CLAUDE.md §10.7 items 4, 5 and 6: ←/→ sibling nav, F rear rotate,
+hover highlight, / search → flyToSlot; level labels via CSS2DRenderer (focused level only); L4 →
+the app Inspector with "Why here?"; filter chips dim non-matching CHARMs; A/B rings; the WebGL/FPS
+fallback to 2.5D. Make World3D the default in Cabinet Explorer, the Mission Control plant strip and
+the Workbench "show in cabinet" view. Implement CLAUDE.md §10.8: a new /room page that is the landing
+page after Import→Allocate→Dive; door-open → CIOC → baseplate → CHARM; hover cards with a "Try changes"
+button deep-linking into the Workbench with the signal preselected; the [Before | Now] toggle + Compare
+mode + changes list driven by the Workbench's apply/preview (animateMove); "Show in 3D" on every
+table row; restyle other pages' header/legend if they clash with the 3D page. Visual QA: 2 rounds with frames at every level and
+mid-transition. Commit.
+Done when: Room → CHARM → back is smooth with no popping/overlap/blank frames; the fallback works; FPS
+targets are held.
+```
+
+### 3D-B · Motion moments + Cinematic Tour (≈ 1.5 h)
+**Model: Opus 5.5 · high**
+```
+Implement §10.7 "Motion moments" 1–6 on the engine API and wire them in: the Dive → Import's Allocate;
+Verify scan + Tamper → Proof Center; check/apply animations → Workbench + Try-out; the Rev B diff →
+Revision Center; a "Cinematic Tour" button in the top bar. All skippable, Calm = cuts + fades, and
+?demo=1 seek hooks for Playwright. Visual QA: 2 rounds with frames. Commit after every 2 moments.
+Done when: every moment plays smoothly on the sample with real data, and the Tour runs end to end
+without input.
+```
+
+---
+
 ## How to use this book
 
 **Before hour 0**

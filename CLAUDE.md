@@ -322,6 +322,74 @@ Rules: durations 150–400 ms for UI and ≤ 4 s for the hero sequences; ease `[
 3. **Open and look at the PNGs.** Critique them for emptiness, alignment, contrast, density, consistency, truncation and mid-animation glitches, then fix.
 4. Repeat until clean. Also check performance: the dev-tools FPS stays ~60 during the glide on the sample and stays usable at 10k signals.
 
+### 10.7 3D World — "Marshalling Room" (vanilla three.js engine, ported from our prototype)
+**Reference: `frontend/legacy3d/3d_prototype.html`.** This is the look and feel the team approved: the room, steel cabinets with glass doors that swing open, 4 CIOC frames (2 front / 2 rear, orbit to see the rear), baseplates that spread apart ("explode") on entry, instanced CHARMs with emissive IO colours, a cable-bundle tube, levels L0–L4 with breadcrumb and Esc, selective fading of siblings, camera-controls `fitToBox`/`rotateTo` transitions (smoothTime 0.6), UnrealBloom, and the Upload Dive with shader light trails from a junction box. **Port it closely; do not redesign it.**
+
+**Architecture**
+- `src/world3d/engine.ts`: a plain TypeScript class `World3DEngine` holding the prototype's logic (renderer, scene, CameraControls, EffectComposer, fade registry, `retarget`/`focus`, the tick loop). It exposes an imperative API:
+  - `setData(allocation)`, `goTo(level, {cab, cioc, bp, ch})`, `flyToSlot(id)`, `setFilter(fn)`
+  - `playDive()`, `playVerifyScan()`, `pulse(ids, colour)`, `animateMove(fromIds, toIds)`, `playRevDiff(diff)`, `playTour()`
+  - `on('select' | 'level' | 'hover', cb)`, `dispose()`
+  All animation methods return Promises.
+- `src/world3d/World3D.tsx`: a React wrapper that mounts the engine in `useEffect`, feeds it data from TanStack Query, and renders the HTML overlay (breadcrumb, header plate, legend, filters, Inspector hook) with the existing design system.
+- **Packages (npm, pinned, no CDN):** `three@0.160.x` (the prototype's version) incl. `three/examples/jsm` for EffectComposer, RenderPass, UnrealBloomPass, OutputPass and CSS2DRenderer, plus `camera-controls@2.8.x`. No React Three Fiber; this deliberately replaces the earlier R3F plan.
+- Labels: `CSS2DRenderer` (DOM labels use the already-bundled Inter / JetBrains Mono, so they work offline); show them only for the focused level.
+
+**Changes the port MUST make to the prototype**
+1. **Real data, not random:**
+   - type/status/IO come from the allocation;
+   - counts (cabinets, CIOCs/cabinet, BPs/CIOC, channels/BP) come from Project Settings — no `C=3, K=4…` constants, and no hard-coded `CX` positions;
+   - CHARM states: Field = IO colour (DO-iso distinct), Wired Spare = the IO colour dimmed + hatched look, Spare Slot = dark, Cabinet Alarm = pink;
+   - A/B family = a thin ring on the CIOC frame (solid A / dashed B).
+2. **Remove the fake "Value" readings** (mA / % / ON-OFF). We are not a live DCS. The CHARM panel shows allocation data instead: tag, IO, CHARM, TB, cable/pair, status, address. Clicking opens the app's Inspector with "Why here?".
+3. **Scale** (the prototype has ~150 meshes per cabinet, which is too many draw calls at 46 cabinets):
+   - instance the baseplates and posts; full detail only for the focused cabinet ±1;
+   - other cabinets = a simplified shell + instanced CHARM points;
+   - update instance colours only when the fade/selection state changes, not every frame;
+   - cabinets lay out in rows, with the camera path adapting.
+   - Target ≥ 55 fps on the sample, ≥ 30 fps at 10k.
+4. **Navigation additions:**
+   - ←/→ moves to the previous/next sibling at the current level;
+   - `F` rotates 180° to the rear (orbit-drag also works);
+   - hover highlight; `/` search flies to a tag.
+5. **Level detail:**
+   - L1: CIOC labels + a fill bar;
+   - L2: baseplate labels (`013-CBP-6`);
+   - L3: the cable label on the bundle and per-CHARM tags;
+   - L4: a close-up + Inspector.
+6. **Fallback:** if WebGL isn't available, or FPS stays < 30 for 3 s (bloom off first, then fall back), switch to the existing 2.5D `<CabinetWorld>`. Keep a "2D" toggle.
+7. **Offline:** no CDN imports, no remote HDRs, no remote fonts.
+
+**Motion moments** (built on the engine; each skippable; Calm = cuts + fades)
+1. **Upload Dive**: keep the prototype's sequence and trails, but trails go to the baseplates that actually received cables, in allocation order; end at L1 of the first cabinet; ≤ 8 s.
+2. **Verify scan**: a thin emissive plane sweeps through the open cabinet; checks tick in the HTML overlay.
+3. **Tamper caught**: `flyToSlot` + a red pulse ×3.
+4. **Workbench / Try-out**: check → target outline green / red + shake; apply → the CHARM lifts, flies an arc and settles (a whole cable flies as a group); siblings pulse once.
+5. **Rev B diff**: unchanged parts still; deleted sink and fade; added drop in; modified flip colour; moved arc.
+6. **Cinematic Tour**: a scripted 60–90 s journey (Dive → CIOC → baseplate → Verify → Rev B → Room); any input stops it.
+
+### 10.8 3D as the hero page ("Marshalling Room") — product flow (added at finale)
+- **Landing after upload:** Import → Allocate → Dive → lands on the **3D Marshalling Room page** (`/room`), not a table. It is its own page in the nav ("3D Room"), first after Mission Control. The 2D Cabinet Explorer remains as the fallback/secondary view.
+- **Hierarchy in real-life order:** L0 Room (all cabinets) → click cabinet: **door swings open** → L1 Cabinet shows the 4 CIOC frames (front 2 / rear 2, F rotates to rear) → zoom CIOC: baseplates explode apart (L2) → baseplate: 12 CHARMs (L3) → CHARM (L4). Each level is its own 3D scene; transitions are camera-controls fly-ins, siblings fade.
+- **Hover card on any level** (CSS2D/DOM): for a CHARM: tag, IO type, CHARM no., TB, cable/pair, status, "Why here?"; for higher levels: counts, fill %, IS/NON-IS and A/B mix. Every card has a **"Try changes"** button → navigates to the Try-out Lab / Signal Workbench with that signal (or the slot) preselected and focused.
+- **Live change view with Before / Now:** a persistent segmented control **[Before | Now]** (+ "Compare" split/ghost mode) on the 3D page and in the Workbench. Any applied or previewed move in the Workbench is reflected in 3D immediately (animateMove: ghost at old slot, glow at new slot, changed CHARMs outlined). "Before" = the allocation at the last pinned/committed revision or before the session's edits; "Now" = current. A changes list (N moves) sits beside it with click-to-fly.
+- **Cohesion:** all other pages use the same tokens, header plate, legend and IO colours as the 3D page, and every table row/slot has "Show in 3D" (flyToSlot). No page may look like a different product.
+
+### 10.9 Approved reference UI — `frontend/legacy3d/reference_ui.html` (team-approved look & flow)
+The team built a static mock (fake data, no backend) in one HTML file and approved how it looks and flows. **Open it in a browser and match it; improve it with real data, never regress its density or feel.** It overrides any earlier layout guess in §10.5 where they differ.
+- **Shell:** left rail 216 px with logo tile + "Allocate. Prove. Revise." + numbered nav (01 Import, 02 Allocate, 03 3D Room, 04 Workbench, 05 Rules, 06 Proof, 07 Revisions, 08 Export) + a status footer; 56 px top bar with project name/sub-line, **Rev A | Rev B segmented switch**, and scoreboard tiles on the right. Page transition: fade + 12 px slide-up, 0.45 s.
+- **Nav order is the story:** Import → Allocate (progress + per-cabinet fill cards, solver phases) → **3D Room** (landing after Allocate) → Workbench → Rules → Proof → Revisions → Export. Mission Control and TQ Center and Grid stay (secondary: under a "More" group or the command palette) but must use the same shell.
+- **3D Room page:** full-bleed three.js host with HUD: title plate "MARSHALLING ROOM", breadcrumb, tag search ("Go to tag"), zoom ±, "← Esc", "▶ Upload Dive", legend, hint line, info card on hover, a "How it works" card; a side card **"Changes · Rev A → Now"** and a **Before | Now** toggle. Hover tooltip + labels per level (see §10.8, plus the **Try changes** button).
+- **Import page:** drop zone, column-mapping table with confidence chips, pre-flight checklist card with Allocate button beside it, 10-row preview below.
+- **Workbench:** filter bar (tag text, IO type, status) + count; table (Tag, IO, Cable/Pair, Cabinet, CIOC, Baseplate, CHARM, Status chip, Reason) with a right-hand side card for the selected signal (move-to + verdict + what changes). Status chips: allocated (green), warning (amber), unallocated (grey), quarantined (red).
+- **Rules Studio:** rule cards with toggle switch, id chip (R-01…), parameter input with unit, enforced/advisory; right-hand **Add custom rule** builder (name, IO-type condition, constraint, parameter, severity). Header line "N rules · M enforced · every change re-runs the verifier".
+- **Proof:** two-column grid of the verifier checks with tick state, a sweep animation on Re-verify, run-certificate card with sha256, **Re-verify** and **Tamper test** buttons, coverage card.
+- **Revisions:** 4 stat cards with count-up (Stability %, Moved, Unchanged, New/Removed) + diff table (Tag, IO, Rev A → Rev B, Cause).
+- **Export:** cards (icon, name, filename, size, Download).
+- **Visual vocabulary to reuse exactly:** the CSS variables in that file (they equal §10.1), `.card` hover glow, gradient primary button, outlined chips, mono for IDs/numbers, 12 px uppercase 0.1em section labels, soft violet glow on active nav.
+- **Hard truthfulness rules when porting:** no invented data. The mock's numbers (1,284 signals, 22 checks list wording, solver "v2.4.1", seed, power/heat/fieldbus rules, DXF/PDF/FHX exports, SIL column, "Unit 400 / PX-2291") are placeholders. Show only what the backend returns: the real verifier checks (C01…C22), the real 5 export files, real rules from the ruleset, real project name. Do not ship a rule or export that doesn't exist.
+- **Improve over the mock:** real data everywhere; virtualised tables; keyboard nav; empty/error/loading states; light theme parity; undo for Workbench moves; every row has "Show in 3D"; Workbench lists ALL signals incl. unallocated/quarantined with plain-English reasons from the engine.
+
 ## 11. Engineering rules
 - Engine and verifier = pure functions with pytest. Regression test: sample MDB → 0 violations, every live tag allocated or TQ'd, full grid. Also report % address agreement with the reference (informative only).
 - Hypothesis tests: the capacity property; random cable mixes → allocator + verifier never disagree; random junk rows → never an exception.
