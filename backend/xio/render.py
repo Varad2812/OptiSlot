@@ -45,6 +45,12 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules,
         if s.live and not s.quarantined:
             domain_rep.setdefault(s.domain, s)
 
+    cab_rep: dict[str, Signal] = {}      # a spare slot reads its cabinet's own earliest signal (a domain can mix units and spellings)
+    for sl in slots:
+        src = by_row.get(sl.source_row) if sl.source_row else None
+        if src is not None and sl.status in ("Field", "Cabinet Alarm") and (sl.cabinet not in cab_rep or src.row < cab_rep[sl.cabinet].row):
+            cab_rep[sl.cabinet] = src
+
     rows: list[dict[str, str]] = []
     for i, sl in enumerate(slots, start=1):
         try:
@@ -60,7 +66,7 @@ def render_rows(slots: list[Slot], signals: list[Signal], rules: Rules,
                     if c in spare_inherit and c in r:
                         r[c] = _field_value(src, f)
             else:
-                rep = domain_rep.get(sl.domain)
+                rep = cab_rep.get(sl.cabinet) or domain_rep.get(sl.domain)
                 if rep:
                     for c, f in colmap.items():
                         if c in slot_inherit and c in r:

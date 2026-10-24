@@ -44,3 +44,20 @@ def test_semicolon_csv_with_title_rows_above_the_header_is_read():
     out = run(data, filename="io.csv")
     assert out.kpis.allocated == 12 and not [t for t in out.tqs if t.category.startswith("SYS-")]
     assert verified(out).verdict == "PASS"
+
+
+def test_spare_slots_take_their_cabinets_unit_not_the_domains_first_signal():
+    from app.schemas import ProjectSettings
+    rows = []
+    for c in range(1, 31):                                       # 30 cables of 12 pairs → two cabinets in one domain
+        for p in range(1, 13):
+            r = row(f"U{c:02d}-{p:02d}", "AI", f"CB-{c:02d}", p, 12)
+            r["WBS"] = "320" if c <= 15 else "500"           # the domain mixes units; the second cabinet only has unit 500
+            rows.append(r)
+    out = run(None, settings=ProjectSettings(cpsat_enabled=False), table=table(rows))
+    cabs = {r["Electronic/ Marshalling Cabinet"] for r in out.rows if r["Tag Status"] == "Field"}
+    assert len(cabs) == 2
+    rep = verified(out)
+    assert rep.verdict == "PASS", [(c.id, v.message) for c in rep.checks for v in c.violations][:3]
+    second = sorted(cabs)[1]
+    assert {r["Unit"] for r in out.rows if r["Electronic/ Marshalling Cabinet"] == second and r["Tag Status"] == "Spare Slot"} == {"500"}
