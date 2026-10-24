@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.cabledomain import cable_homes
+from app.cabledomain import cable_homes, lands_on_cable
 from app.schemas import ProjectSettings, Signal
 from engine.hardware import default_hw, listed_hw, resolve, signal_ctx
 from engine.normalise import blank
@@ -111,7 +111,7 @@ def preflight(signals: list[Signal], rules: Rules, settings: ProjectSettings, bo
     homes = cable_homes(signals, rules.params("naming_pattern").get("derive", {}), settings)
     cables: dict[str, list[Signal]] = defaultdict(list)
     for s in signals:
-        if s.live and not s.quarantined and (s.kind == "field" or (s.cable and s.cable_size and s.pair)):
+        if s.live and not s.quarantined and lands_on_cable(s):
             cables[s.cable].append(s)
     for cable, sigs in list(cables.items()):
         kinds = {s.kind for s in sigs}

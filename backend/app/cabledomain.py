@@ -39,6 +39,13 @@ class CableHome:
     conflicting: tuple[int, ...]    # MDB rows that resolved to a DIFFERENT domain — they are pulled into this home
 
 
+def lands_on_cable(s: Signal) -> bool:
+    """True when a row occupies a pair of a physical cable. A cabinet alarm with no cable size or pair (internal wiring,
+    or an equipment-matched alarm that carries a cable label) lands in its own cabinet's alarm baseplate and is not
+    part of any cable block, so it takes no part in 'a cable lands together'."""
+    return s.kind == "field" or bool(s.cable and s.cable_size and s.pair)
+
+
 def domain_of(s: Signal, settings: ProjectSettings) -> str:
     """The controller-domain key of one row (the project's `domain_keys` columns joined)."""
     return "|".join(getattr(s, k, "") if hasattr(s, k) else s.extra.get(k, "") for k in settings.domain_keys) or "ALL"
@@ -58,7 +65,7 @@ def cable_homes(signals: Iterable[Signal], derive_spec: dict, settings: ProjectS
     with a bad pair still tells us where its cable lives, and the answer must not depend on later placement."""
     by_cable: dict[str, list[tuple[Signal, RowHome]]] = defaultdict(list)
     for s in sorted(signals, key=lambda x: x.row):
-        if s.live and s.cable:
+        if s.live and s.cable and lands_on_cable(s):
             by_cable[s.cable].append((s, row_home(s, derive_spec, settings)))
     out: dict[str, CableHome] = {}
     for cable, rows in by_cable.items():
