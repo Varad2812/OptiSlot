@@ -99,7 +99,7 @@ def _optional_in_schema(*names: str):
 
 
 class ColumnMapping(Model):
-    model_config = ConfigDict(extra="forbid", json_schema_extra=_optional_in_schema("needs_confirmation"))
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_optional_in_schema("needs_confirmation", "inferred_from_values"))
 
     field: str
     label: str
@@ -108,6 +108,7 @@ class ColumnMapping(Model):
     required: bool = False
     overridden: bool = False
     needs_confirmation: bool = False   # fuzzy guess under 70% confidence, or a required field with no column — the user must confirm
+    inferred_from_values: bool = False  # no header matched: the column was proposed from what its VALUES look like (never confident)
 
 
 class ImportSummary(Model):

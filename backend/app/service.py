@@ -26,7 +26,7 @@ from verify.certificate import certify, ruleset_hash
 from verify.checks import verify_rows
 from verify.xlsx import read_bom, verify_xlsx
 from xio.patches import apply_patches, patches_hash
-from xio.reader import SOURCE_COL, RawTable, auto_map, merge_tables, read_table
+from xio.reader import SOURCE_COL, RawTable, map_table, merge_tables, read_table
 from xio.reports import capacity_bom, revision_impact, rule_check_report, tq_register
 from xio.writer import write_allocation_safe, write_table
 from engine.failsafe import sys_tq
@@ -403,7 +403,7 @@ class Service:
     def set_mapping(self, pid: str, mapping: list[ColumnMapping]) -> ImportSummary:
         st = self.get(pid)
         with st.lock:
-            auto = {m.field: m.source for m in auto_map(read_table(st.mdb).headers)}
+            auto = {m.field: m.source for m in map_table(read_table(st.mdb))}
             st.overrides = {m.field: m.source for m in mapping if m.source != auto.get(m.field)}
             self.store.put(pid, "overrides", st.overrides)
             self.recompute(st)

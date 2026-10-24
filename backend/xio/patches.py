@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 
-from xio.reader import FIELDS, RawTable, auto_map, mapping_dict
+from xio.reader import FIELDS, RawTable, map_table, mapping_dict
 
 ALIASES = {
     "io": "io_type", "iotype": "io_type", "io_type_name": "io_type", "i_o_type": "io_type",
@@ -47,7 +47,7 @@ def apply_patches(table: RawTable, patches: dict[str, dict[str, str]], overrides
     validates that when the patch is made)."""
     if not patches:
         return table
-    mapping = mapping_dict(auto_map(table.headers, overrides))
+    mapping = mapping_dict(map_table(table, overrides))
     tag_col = mapping.get("tag")
     if not tag_col:
         return table

@@ -1215,6 +1215,8 @@ export interface components {
             overridden: boolean;
             /** Needs Confirmation */
             needs_confirmation?: boolean;
+            /** Inferred From Values */
+            inferred_from_values?: boolean;
         };
         /** DataPatch */
         DataPatch: {

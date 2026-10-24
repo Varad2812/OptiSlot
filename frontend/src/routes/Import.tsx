@@ -307,7 +307,9 @@ function MappingTable({ fresh, calm }: { fresh: number; calm: boolean }) {
                       {m.overridden ? (
                         <span className="rounded-chip bg-brand/15 px-1.5 py-0.5 text-[11px] text-brand">manual</span>
                       ) : m.source ? (
-                        <span className={cn("tnum text-[11.5px]", m.confidence >= 0.9 ? "text-ok" : "text-warn")}>{Math.round(m.confidence * 100)}%</span>
+                        <span className={cn("tnum text-[11.5px]", m.confidence >= 0.9 ? "text-ok" : "text-warn")} title={m.inferred_from_values ? "No header matched — proposed from what the column's values look like. Confirm it." : undefined}>
+                          {Math.round(m.confidence * 100)}%{m.inferred_from_values && <span className="ml-1 text-[10.5px]">from values</span>}
+                        </span>
                       ) : (
                         <span className="text-[11.5px] text-muted-foreground">{m.required ? "missing" : "optional"}</span>
                       )}

@@ -3467,6 +3467,10 @@
      "needs_confirmation": {
       "type": "boolean",
       "title": "Needs Confirmation"
+     },
+     "inferred_from_values": {
+      "type": "boolean",
+      "title": "Inferred From Values"
      }
     },
     "additionalProperties": false,

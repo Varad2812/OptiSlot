@@ -15,7 +15,7 @@ from engine.normalise import normalise
 from engine.preflight import preflight
 from engine.rules import Rules, load_ruleset
 from engine.tqs import TQBook
-from xio.reader import RawTable, auto_map, mapping_dict, read_table, unmapped_mapping
+from xio.reader import RawTable, map_table, mapping_dict, read_table, unmapped_mapping
 from xio.render import render_rows
 
 
@@ -70,7 +70,7 @@ def run(src: str | Path | bytes, ruleset: RuleSet | None = None, settings: Proje
                                                           severity="critical"))
     t1 = time.perf_counter()
     try:
-        mapping = auto_map(table.headers, overrides)
+        mapping = map_table(table, overrides)
     except Exception as e:
         mapping = unmapped_mapping()
         early.append(lambda b, e=e: sys_tq(b, "map", "Column mapping failed — no column could be mapped automatically. Map the "
@@ -149,6 +149,15 @@ def _attempt(table: RawTable, mapping: list[ColumnMapping], rules: Rules, settin
         book.add("project", "Required column missing", "critical",
                  f"Required column(s) not found: {', '.join(missing)}. Map them on the Import page — rows without them cannot be allocated.",
                  fixes=[{"label": "Map the column on the Import page"}], unchanged="Nothing allocated from the affected rows.")
+    guessed = [m for m in mapping if m.inferred_from_values and m.source]
+    if guessed:    # ONE project-level TQ: the columns were guessed from their values, a person has to confirm them
+        book.add("project", "Column mapping inferred", "low",
+                 "No header matched, so the column(s) were proposed from their values: "
+                 + "; ".join(f"{m.label} ← '{m.source}' ({round(m.confidence * 100)}%)" for m in guessed)
+                 + ". Confirm or change them on the Import page.",
+                 field=", ".join(m.label for m in guessed), confidence="candidate",
+                 fixes=[{"label": "Confirm or override the mapping on the Import page"}],
+                 unchanged="Allocation proceeds with the proposed columns.", key="mapping-inferred")
     signals, exceptions = _prepare(table, mapping, rules, settings, book, extra_tqs)
     for key, f in excluded.items():
         quarantine_all(book, signals, None if key == "*" else key, f.stage, f.cause, f"Allocation ({f.stage})")
