@@ -21,8 +21,8 @@ import { useUi } from "@/store/ui";
 import { ALLOCATE_LANDING_ROUTE } from "@/world/actions";
 
 const NONE = "__none__";
-const ACCEPT = ".xlsx,.xlsm,.csv";
-const isMdb = (f: File) => /\.(xlsx|xlsm|csv)$/i.test(f.name);
+export const MDB_ACCEPT = ".xlsx,.xlsm,.csv";
+export const isMdb = (f: File) => /\.(xlsx|xlsm|csv)$/i.test(f.name);
 const CONFIRM_BELOW = 0.8;
 // Optional future API fields: the file's raw header list, and a per-field needs_confirmation flag. Absent → derived as before.
 type MapExtra = { needs_confirmation?: boolean };
@@ -41,6 +41,15 @@ export default function Import() {
   const drag = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [fresh, setFresh] = useState(0); // bumps on every import → replays the chip stagger
+
+  // A file handed over by the launch page (Import MDB / drop anywhere): read it as if it was dropped here.
+  useEffect(() => {
+    const f = useUi.getState().pendingMdb;
+    if (!f) return;
+    useUi.getState().setPendingMdb(null);
+    void take([f]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function take(files: FileList | File[] | null | undefined) {
     const list = Array.from(files ?? []);
@@ -100,7 +109,7 @@ export default function Import() {
           </Button>
         </header>
 
-        <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden data-testid="mdb-input" onChange={(e) => (void take(e.target.files), (e.target.value = ""))} />
+        <input ref={fileRef} type="file" accept={MDB_ACCEPT} multiple hidden data-testid="mdb-input" onChange={(e) => (void take(e.target.files), (e.target.value = ""))} />
 
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 xl:col-span-8 [&>section]:h-full">

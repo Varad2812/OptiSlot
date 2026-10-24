@@ -77,6 +77,7 @@ interface UiState {
   arriveFrom: "plant" | null; // one-shot: the Explorer opens with a Plant → cabinet camera dive (Mission Control click)
   injectPending: boolean;   // the top-bar "Inject Rev B" button asks the Revision Center to run the gauntlet
   view3d: boolean;          // Cabinet Explorer: the 3D Marshalling Room (default) or the 2.5D World
+  pendingMdb: File | null;  // a file dropped / picked on the launch page, read by Import & Mapping when it mounts
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setMotion: (m: Motion) => void;
@@ -92,6 +93,7 @@ interface UiState {
   setArrive: (a: "plant" | null) => void;
   requestInject: (v?: boolean) => void;
   setView3d: (v: boolean) => void;
+  setPendingMdb: (f: File | null) => void;
 }
 
 export const useUi = create<UiState>((set, get) => ({
@@ -110,6 +112,7 @@ export const useUi = create<UiState>((set, get) => ({
   arriveFrom: null,
   injectPending: false,
   view3d: read(VIEW_KEY) !== "2d",
+  pendingMdb: null,
   setTheme: (theme) => {
     applyTheme(theme);
     set({ theme });
@@ -137,6 +140,7 @@ export const useUi = create<UiState>((set, get) => ({
     write(VIEW_KEY, view3d ? "3d" : "2d");
     set({ view3d });
   },
+  setPendingMdb: (pendingMdb) => set({ pendingMdb }),
 }));
 
 applyTheme(useUi.getState().theme);

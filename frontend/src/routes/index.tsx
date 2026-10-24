@@ -6,6 +6,7 @@ import { SCREENS } from "@/shell/routes";
 import Explorer from "./Explorer";
 import Export from "./Export";
 import Grid from "./Grid";
+import Hero from "./Hero";
 import Import from "./Import";
 import MissionControl from "./MissionControl";
 import Proof from "./Proof";
@@ -16,14 +17,15 @@ import Rules from "./Rules";
 import ScreenPreview from "./ScreenPreview";
 import Workbench from "./Workbench";
 
-const ELEMENTS: Record<string, JSX.Element> = { "/": <MissionControl />, "/room": <Room />, "/explorer": <Explorer />, "/lab": <Workbench />, "/proof": <Proof />, "/revisions": <Revisions />, "/import": <Import />, "/rules": <Rules />, "/tqs": <TqCenter />, "/export": <Export />, "/grid": <Grid /> };
+const ELEMENTS: Record<string, JSX.Element> = { "/mission": <MissionControl />, "/room": <Room />, "/explorer": <Explorer />, "/lab": <Workbench />, "/proof": <Proof />, "/revisions": <Revisions />, "/import": <Import />, "/rules": <Rules />, "/tqs": <TqCenter />, "/export": <Export />, "/grid": <Grid /> };
 
 // Route table = CLAUDE.md §10.2 sidebar (src/shell/routes.ts). scripts/shots.mjs captures the same paths.
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<Hero />} />
       <Route element={<AppShell />}>
-        {SCREENS.map((s) => (
+        {SCREENS.filter((s) => !s.bare).map((s) => (
           <Route key={s.path} path={s.path} element={ELEMENTS[s.path] ?? <ScreenPreview />} />
         ))}
         <Route path="*" element={<ScreenPreview />} />

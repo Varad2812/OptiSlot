@@ -99,3 +99,7 @@
 .shake { animation: shake-x 0.32s ease-out; }
 
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+
+/* Launch page: the primary Import MDB button breathes a violet halo (held still under Calm / reduced motion). */
+@keyframes hero-pulse { 50% { box-shadow: 0 8px 60px rgb(var(--brand) / 0.8), 0 0 0 6px rgb(var(--brand) / 0.13); } }
+.hero-pulse { animation: hero-pulse 2.6s ease-in-out infinite; }

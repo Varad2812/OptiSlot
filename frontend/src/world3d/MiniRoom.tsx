@@ -18,26 +18,31 @@ interface Props {
   onPick: (cab: number) => void;
   /** WebGL missing, or still under 30 fps with bloom off → the page shows its 2D strip instead. */
   onFail: () => void;
+  /** Launch-page background: keep orbiting, image shifted right by this fraction, up to `cabinets` cabinets. */
+  orbit?: boolean;
+  offsetX?: number;
+  labels?: boolean;
+  cabinets?: number;
 }
 
 /**
  * Mission Control's live room: World3DEngine in its low-cost `mini` mode — slow side-to-side drift, no camera input, hover outlines a
  * cabinet, click hands the cabinet index to the page. Bloom goes first when the frame rate drops, the 2D strip second.
  */
-export default function MiniRoom({ model, dims, hot, onHot, onPick, onFail }: Props) {
+export default function MiniRoom({ model, dims, hot, onHot, onPick, onFail, orbit, offsetX, labels, cabinets = MINI_CABINETS }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const eng = useRef<World3DEngine | null>(null);
   const [ready, setReady] = useState(false);
   const cb = useRef({ onHot, onPick, onFail });
   cb.current = { onHot, onPick, onFail };
-  const shown = useMemo<WorldModel>(() => ({ ...model, cabinets: model.cabinets.slice(0, MINI_CABINETS) }), [model]);
+  const shown = useMemo<WorldModel>(() => ({ ...model, cabinets: model.cabinets.slice(0, cabinets) }), [model, cabinets]);
   const data = useMemo(() => world3dData(shown, dims), [shown, dims]);
 
   useEffect(() => {
     if (!host.current) return;
     let e: World3DEngine;
     try {
-      e = new World3DEngine(host.current, { calm: isCalm, mini: { onPick: (c) => cb.current.onPick(c) } });
+      e = new World3DEngine(host.current, { calm: isCalm, mini: { onPick: (c) => cb.current.onPick(c), orbit, offsetX, labels } });
     } catch {
       cb.current.onFail();
       return;

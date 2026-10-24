@@ -12,7 +12,7 @@ import { PlantStrip } from "@/world/PlantStrip";
 
 /** Real-data previews for the screens later prompts build in full (U2–U4). Styled and full — never blank. */
 const LAYOUTS: Record<string, () => ReactNode> = {
-  "/": () => (
+  "/mission": () => (
     <>
       <div className="col-span-12"><PlantStrip /></div>
       <div className="col-span-12 xl:col-span-7"><SparesPanel delay={0.04} /></div>

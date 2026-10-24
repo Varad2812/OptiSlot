@@ -23,7 +23,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const outDir = path.join(root, "shots");
 
 // Keep in sync with SCREENS in src/shell/routes.ts.
-const ROUTES = ["/", "/room", "/explorer", "/lab", "/proof", "/revisions", "/import", "/rules", "/tqs", "/grid", "/export"];
+const ROUTES = ["/", "/mission", "/room", "/explorer", "/lab", "/proof", "/revisions", "/import", "/rules", "/tqs", "/grid", "/export"];
 const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }];
 const THEMES = ["dark", "light"];
 const FRAMES = [0, 0.25, 0.5, 0.75, 1];
@@ -36,7 +36,7 @@ const onlyWb = !!process.env.SHOTS_WB_ONLY;
 const gpu = !!process.env.SHOTS_GPU;
 const swift = process.env.SHOTS_SWIFT !== "0"; // SHOTS_SWIFT=0 with SHOTS_GPU=1: only the real-GPU 3D run
 const route3d = process.env.SHOTS_3D_ROUTE || "/room";
-const slug = (r) => (r === "/" ? "mission-control" : r.slice(1).replace(/\//g, "-"));
+const slug = (r) => (r === "/" ? "home" : r === "/mission" ? "mission-control" : r.slice(1).replace(/\//g, "-"));
 const pct = (p) => String(Math.round(p * 100)).padStart(3, "0");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -310,7 +310,7 @@ try {
       const ctx = await context("dark", VIEWPORTS[0]);
       const page = await ctx.newPage();
       watch(page, "mission dive");
-      await page.goto(`${base}/?project=demo`, { waitUntil: "networkidle" });
+      await page.goto(`${base}/mission?project=demo`, { waitUntil: "networkidle" });
       await settle(page, 1400);
       const box = await page.locator("[data-testid=plant-strip]").boundingBox();
       await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
@@ -346,7 +346,7 @@ try {
       await settle(page);
       const nav = Date.now() - t0;
       perf.push({ project: "stress10k", glide: fps, gridNavMs: nav });
-      for (const route of ["/", "/proof"]) {
+      for (const route of ["/mission", "/proof"]) {
         const t1 = Date.now();
         await page.goto(`${base}${route}?project=stress10k`, { waitUntil: "networkidle" });
         await settle(page, 1200);

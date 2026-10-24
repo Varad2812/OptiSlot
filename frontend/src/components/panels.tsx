@@ -232,7 +232,7 @@ export function ActivityPanel({ delay, kinds, to, limit = 8, columns = 1 }: { de
             return (
               <li key={i} className="relative">
                 <span className={cn("absolute left-[3.5px] w-px bg-border", first ? "top-[15px]" : "top-0", last ? "h-[15px]" : "bottom-0")} />
-                <Link to={KIND_TO[e.kind] ?? "/"} className="relative flex gap-3 rounded-chip py-1.5 pl-5 pr-1.5 text-[12.5px] transition-colors hover:bg-raised/70">
+                <Link to={KIND_TO[e.kind] ?? "/mission"} className="relative flex gap-3 rounded-chip py-1.5 pl-5 pr-1.5 text-[12.5px] transition-colors hover:bg-raised/70">
                   <span className={cn("absolute left-0 top-[11px] size-2 rounded-full ring-2 ring-surface", KIND_DOT[e.kind] ?? "bg-muted-foreground")} />
                   <span className="w-10 shrink-0 font-mono text-[11px] leading-[18px] text-muted-foreground">{e.ts.slice(11, 16)}</span>
                   <span className="min-w-0 flex-1 leading-[18px]"><span className="mr-1.5 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">{e.kind}</span>{e.text}</span>

@@ -1,5 +1,5 @@
 import { Clapperboard, Command, FlaskConical, Moon, Sun, WifiOff, Wind } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useProject, useProjects } from "@/api/hooks";
 import { Button } from "@/components/ui/button";
@@ -33,10 +33,10 @@ export function TopBar() {
   return (
     <header className="relative z-30 flex h-14 items-center gap-4 border-b border-border bg-surface/70 px-4 backdrop-blur-md">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2" title="Home — the launch page">
           <Logo className="size-6" />
           <span className="text-[15px] font-semibold tracking-tight">OptiSlot</span>
-        </div>
+        </Link>
         <span className="h-5 w-px bg-border" />
         <Select value={projectId} onValueChange={setProject}>
           <SelectTrigger className="h-8 w-[165px] border-transparent bg-transparent px-2 text-[13px] hover:bg-raised" aria-label="Project">

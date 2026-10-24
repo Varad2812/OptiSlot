@@ -1,5 +1,5 @@
 import {
-  Box, Boxes, Download, FileUp, FlaskConical, GitCompareArrows, LayoutDashboard, MessageSquareWarning, ShieldCheck,
+  Box, Boxes, Download, FileUp, FlaskConical, GitCompareArrows, House, LayoutDashboard, MessageSquareWarning, ShieldCheck,
   SlidersHorizontal, Table2, type LucideIcon,
 } from "lucide-react";
 
@@ -10,11 +10,14 @@ export interface Screen {
   group: "story" | "work";
   blurb: string;
   phase?: "U2" | "U3" | "U4"; // later prompt that builds the full screen (dev-only chip)
+  /** Full-bleed page outside the app shell (the launch page). */
+  bare?: boolean;
 }
 
 // CLAUDE.md §10.2 sidebar, in order. scripts/shots.mjs captures the same paths.
 export const SCREENS: Screen[] = [
-  { path: "/", title: "Mission Control", icon: LayoutDashboard, group: "story", blurb: "The whole project at a glance — every tile is live data." },
+  { path: "/", title: "Home", icon: House, group: "story", bare: true, blurb: "Allocate. Prove. Revise. — the launch page over the live marshalling room." },
+  { path: "/mission", title: "Mission Control", icon: LayoutDashboard, group: "story", blurb: "The whole project at a glance — every tile is live data." },
   { path: "/room", title: "3D Room", icon: Box, group: "story", blurb: "The marshalling room in 3D: dive Room → cabinet → CIOC → baseplate → CHARM, and see every change land." },
   { path: "/explorer", title: "Cabinet Explorer", icon: Boxes, group: "story", blurb: "Walk the marshalling room: every slot of every cabinet, and why it is there." },
   { path: "/lab", title: "Signal Workbench", icon: FlaskConical, group: "story", blurb: "Every signal, why it sits where it does — and a checked, undoable way to move it." },
