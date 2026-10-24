@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 from typing import Callable
 
 log = logging.getLogger("optislot.warmup")
@@ -43,11 +46,21 @@ def warm_solver() -> float:
     return time.perf_counter() - t0
 
 
+def precompile() -> None:
+    """Compile and cache ortools' bytecode in a CHILD process. Compiling inside the server holds the GIL for seconds at a time
+    and starves the event loop (measured: the server took 11.7 s to answer its first request); a child process cannot."""
+    subprocess.run([sys.executable, "-m", "app.warmup"], cwd=Path(__file__).resolve().parents[1], check=False,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+
+
 def start_background(after: Callable[[], object] | None = None) -> threading.Thread:
-    """Warm the solver on a daemon thread, then call `after` (e.g. allocate the demo project). Never raises, never blocks."""
+    """Warm the solver on a daemon thread, then call `after` (e.g. allocate the demo project). Never raises, never blocks. The bytecode
+    compile runs in a child process (see precompile) so it cannot hold the GIL against the server."""
     def work() -> None:
         try:
-            log.info("CP-SAT warm-up finished in %.1f s", warm_solver())
+            t0 = time.perf_counter()
+            precompile()                      # the slow part, off this process; the import below is then ~0.3 s
+            log.info("CP-SAT warm-up finished in %.1f s", warm_solver() + time.perf_counter() - t0)
         except Exception as e:  # noqa: BLE001  (warm-up is an optimisation: greedy still works without it)
             log.warning("CP-SAT warm-up failed: %s: %s", type(e).__name__, e)
         if after is not None:
