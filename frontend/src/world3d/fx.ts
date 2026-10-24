@@ -80,7 +80,7 @@ export function buildArcTrails(curves: THREE.Curve<THREE.Vector3>[], colours: TH
       uniforms: { uH: { value: 0 }, uA: { value: 0 }, uC: { value: colours[j] } },
     });
     mats.push(m);
-    const mesh = new THREE.Mesh(new THREE.TubeGeometry(cv, 48, 0.006, 5), m);
+    const mesh = new THREE.Mesh(new THREE.TubeGeometry(cv, 48, 0.011, 6), m);
     mesh.frustumCulled = false;
     mesh.raycast = () => {};
     group.add(mesh);

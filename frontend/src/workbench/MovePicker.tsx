@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
+import { moveKey, publish } from "@/motion/bus";
 
-import { shortSlot, useApplyMove, usePlacementCheck, type PlacementAlternative, type PlacementApplyResult, type PlacementCheck, type SignalRow } from "./api";
+import { shortSlot, tagKey, useApplyMove, usePlacementCheck, type PlacementAlternative, type PlacementApplyResult, type PlacementCheck, type SignalRow } from "./api";
 import { CheckPanel } from "./CheckPanel";
 
 export interface Target {
@@ -84,6 +85,10 @@ export function MovePicker({ sig, a, model, overlay, hint, channels, onPickTag, 
   const result = !checking ? (refused ?? check.data ?? null) : null;
 
   useEffect(() => setRefused(null), [targetId]);
+  // a refused verdict shakes the target slot in the 3D Room (live in another window, or when the Room opens next)
+  useEffect(() => {
+    if (result?.verdict === "refused" && result.to_slot) publish({ kind: "refused", slot: result.to_slot, tag: sig.tag });
+  }, [result?.verdict, result?.to_slot]); // eslint-disable-line react-hooks/exhaustive-deps
   // the verdict can land below the fold of the side panel: bring it (and Apply) into view
   useEffect(() => {
     if (result) resRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -125,8 +130,13 @@ export function MovePicker({ sig, a, model, overlay, hint, channels, onPickTag, 
             toast.success(`Moved ${sig.tag.replace(/\s+/g, " ")}`, {
               description: `${shortSlot(res.check.from_slot)} → ${shortSlot(res.check.to_slot)} · ${res.report?.violations ?? 0} violations · ${n} move${n === 1 ? "" : "s"} in the sandbox`,
             });
+            // the 3D Room flies it in (arc, ghost at the old slot, glow at the new one) — camera follows there
+            const mine = new Set([tagKey(sig.tag), ...(res.check.swap ? [tagKey(res.check.swap.with_tag)] : [])]);
+            const keys = (res.state.changes?.moves ?? []).filter((m) => mine.has(tagKey(m.tag))).map(moveKey);
+            if (keys.length) publish({ kind: "move", keys, tag: sig.tag });
             onApplied(res);
           } else {
+            if (res.check.to_slot) publish({ kind: "refused", slot: res.check.to_slot, tag: sig.tag });
             // a refusal, not an error: show the reasons, shake once
             setRefused(res.check);
             setShake(true);

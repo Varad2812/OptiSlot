@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
+import { moveKey, subscribe, takePending, type MotionEvent } from "@/motion/bus";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { EASE } from "@/motion/shared";
 import { useUi } from "@/store/ui";
@@ -44,8 +45,6 @@ export default function Room() {
   return view3d ? <Room3D a={a} p={p} /> : <ExplorerInner a={a} p={p} />;
 }
 
-const moveKey = (m: PlacementMove) => `${m.tag}|${m.from_slot}|${m.to_slot}`;
-
 function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   const dims = useMemo(() => dimsOf(a, p), [a, p]);
   const model = useMemo(() => worldModel(a, dims), [a, dims]);
@@ -55,7 +54,17 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
   const [mode, setMode] = useState<Mode>(qs.get("mode") === "before" ? "before" : "now"); // "Show in 3D · Before" from the Workbench
   const [panel, setPanel] = useState(true);
   const eng = useRef<World3DEngine | null>(null);
-  const onEngine = useCallback((e: World3DEngine | null) => (eng.current = e), []);
+  // the World3D chunk loads lazily: a hand-off that arrives first waits for the engine
+  const [engWait] = useState(() => {
+    let res!: (e: World3DEngine) => void;
+    return { p: new Promise<World3DEngine>((r) => (res = r)), res };
+  });
+  const onEngine = useCallback((e: World3DEngine | null) => ((eng.current = e), e && engWait.res(e)), [engWait]);
+  const engine = useCallback(async () => {
+    const e = eng.current ?? (await engWait.p);
+    await e.whenReady;
+    return e;
+  }, [engWait]);
   const pid = useProjectId();
   const qc = useQueryClient();
   const changes = usePlacementChanges();
@@ -73,17 +82,39 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
     return { slots: ch.slots_now ?? [], outline: [...new Set([...to, ...hw])], ghosts: from.filter((id) => !toSet.has(id)) };
   }, [ch, mode, nMoves, nHw]);
 
-  // A move applied in the Workbench (new in the change set) flies in: camera to where it lands, then animateMove.
+  // What the Workbench just did (motion bus): applied in this window right before opening the Room → plays on arrival;
+  // from another window → plays live. A move comes in through the change set; a refused target shakes.
+  const [arrivalEv] = useState(takePending);
+  const arrival = useRef(arrivalEv);
+  const refuse = useCallback(async (slot: string) => void (await engine()).playRefuse(slot, { follow: true }), [engine]);
+  const onBus = useCallback((ev: MotionEvent) => {
+    if (ev.kind === "move") void qc.invalidateQueries({ queryKey: ["placement-changes", pid] });
+    else if (ev.kind === "refused") void refuse(ev.slot);
+  }, [qc, pid, refuse]);
+  useEffect(() => subscribe(onBus), [onBus]);
+  useEffect(() => {
+    const a = arrival.current;
+    if (a?.kind === "refused") void refuse(a.slot);
+  }, [refuse]);
+
+  // A move applied in the Workbench (new in the change set) flies in, the camera following it.
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!ch) return;
-    const keys = new Set((ch.moves ?? []).map(moveKey));
-    const prev = seen.current;
+    const moves = ch.moves ?? [];
+    const keys = new Set(moves.map(moveKey));
+    let prev = seen.current;
+    if (!prev) {
+      // first look: everything is old news, except the moves the Workbench handed over on the way here
+      const a = arrival.current;
+      const handed = new Set(a?.kind === "move" ? a.keys : []);
+      prev = new Set([...keys].filter((k) => !handed.has(k)));
+    }
     seen.current = keys;
-    if (!prev || mode !== "now") return;
-    const fresh = (ch.moves ?? []).filter((m) => !prev.has(moveKey(m)) && m.from_slot && m.to_slot);
-    if (fresh.length) void playMoves(fresh, model, eng.current);
-  }, [ch, mode, model]);
+    if (mode !== "now") return;
+    const fresh = moves.filter((m) => !prev.has(moveKey(m)) && m.from_slot && m.to_slot);
+    if (fresh.length) void engine().then((e) => e.animateMove(fresh.map((m) => m.from_slot!), fresh.map((m) => m.to_slot!), { follow: true }));
+  }, [ch, mode, engine]);
 
   const flyTo = (m: PlacementMove) => {
     const id = mode === "now" ? (m.to_slot ?? m.from_slot) : (m.from_slot ?? m.to_slot);
@@ -97,8 +128,9 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       refresh: () => qc.invalidateQueries({ queryKey: ["placement-changes", pid] }),
       mode: (m: Mode) => setMode(m),
       moves: () => nMoves,
+      bus: (ev: MotionEvent) => onBus(ev), // what a Workbench in another window would send
     });
-  }, [qc, pid, nMoves]);
+  }, [qc, pid, nMoves, onBus]);
 
   const loading = <Skeleton className="h-full w-full" />;
   const hud = (
@@ -141,21 +173,6 @@ function Room3D({ a, p }: { a: AllocationResult; p: Project | undefined }) {
       </AnimatePresence>
     </div>
   );
-}
-
-async function playMoves(moves: PlacementMove[], model: WorldModel, e: World3DEngine | null) {
-  if (!e) return;
-  const from = moves.map((m) => m.from_slot!), to = moves.map((m) => m.to_slot!);
-  const dst = model.bySlotId.get(to[0]), src = model.bySlotId.get(from[0]);
-  if (dst) {
-    const cab = model.cabIndexByName.get(dst.cabinet) ?? 0;
-    const sameCab = src?.cabinet === dst.cabinet;
-    const sameCioc = sameCab && src?.cioc_local === dst.cioc_local;
-    // frame both ends: the CIOC when the move stays inside one, else the cabinet (else the destination's cabinet)
-    await e.goTo(sameCioc ? 2 : 1, { cab, cioc: dst.cioc_local, face: dst.side === "R" ? "R" : "F" });
-    await new Promise((r) => window.setTimeout(r, 900));
-  }
-  await e.animateMove(from, to);
 }
 
 function BeforeNow({ mode, onMode, count }: { mode: Mode; onMode: (m: Mode) => void; count: number }) {

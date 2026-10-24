@@ -98,6 +98,38 @@ try {
     }
     await ctx.close();
   }
+
+  // ───── 2. refused + applied move: the Workbench in one window, the 3D Room in another (motion bus, camera follows) ─────
+  if (want.has("move") || want.has("refuse")) {
+    await api("/placement/reset");
+    const { ctx, page: room } = await open("/room");
+    const wb = await ctx.newPage();
+    wb.on("pageerror", (e) => problems.push(`/lab: ${e.message}`));
+    await wb.goto(`${base}/lab?demo=1&project=demo&tag=${encodeURIComponent("320-XYV  -42170")}`, { waitUntil: "networkidle" });
+    await sleep(900);
+    // a target the rules refuse (the same pick as the Workbench shots pass)
+    await wb.locator('[data-testid="pick-cabinet"]').selectOption({ index: 1 });
+    await wb.locator('[data-testid="pick-ch"]').nth(2).click();
+    await wb.locator('[data-testid="check-panel"][data-verdict="refused"]').waitFor({ timeout: 30_000 }).catch(() => problems.push("refuse: the Workbench check was not refused"));
+    await room.bringToFront();
+    const seen = (m) => room.waitForFunction((x) => window.__optislot.world3d.moment() === x, m, { timeout: 30_000, polling: 50 });
+    if (want.has("refuse")) {
+      await seen("refuse").then(() => frames(room, "refuse"), () => problems.push("refuse: the Room did not shake the target"));
+    }
+    if (want.has("move")) {
+      await wb.bringToFront();
+      await wb.locator('[data-testid="alt-chip"]').first().click();
+      await wb.locator('[data-testid="check-panel"][data-verdict="allowed"]').waitFor({ timeout: 30_000 }).catch(() => problems.push("move: alternative not allowed"));
+      await wb.locator('[data-testid="apply-move"]').click();
+      await room.bringToFront();
+      await seen("move").then(() => frames(room, "move", { live: 0 }), () => problems.push("move: the Room did not fly the move in"));
+      await sleep(600);
+      await room.screenshot({ path: path.join(out, "move__after.png") });
+      n++;
+    }
+    await api("/placement/reset");
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }

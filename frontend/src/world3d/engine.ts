@@ -235,6 +235,9 @@ export class World3DEngine {
   private lastCalls = 0;
   private lastTris = 0;
   private listeners = new Map<keyof EventMap, Set<(e: never) => void>>();
+  private readyRes: () => void = nop;
+  /** Resolves after the first frame with data is on screen (moments queued before that wait for it). */
+  readonly whenReady = new Promise<void>((r) => (this.readyRes = r));
   private disposed = false;
 
   // room (static, resized per layout)
@@ -839,9 +842,10 @@ export class World3DEngine {
         const arr = fa.instanceMatrix.array as Float32Array;
         let shown = 0;
         curves.forEach((cv, j) => {
-          const u = us[j], live = p >= win[j][0] - 0.01 && u < 1;
-          cv.getPoint(easeInOut(u), P);
+          const u = us[j], live = p >= win[j][0] - 0.01 && u < 1, e = easeInOut(u);
+          cv.getPoint(e, P);
           writeT(arr, j, P.x, P.y, P.z, live);
+          if (live) for (const o of [0, 5, 10]) arr[j * 16 + o] = 1 + 0.9 * Math.sin(Math.PI * e); // swells mid-air: readable at cabinet scale
           if (live) shown++;
         });
         fa.count = n;
@@ -2237,7 +2241,7 @@ export class World3DEngine {
     this.lastCalls = this.renderer.info.render.calls;
     this.lastTris = this.renderer.info.render.triangles;
     this.css.render(this.scene, cam);
-    if (this.firstFrameMs == null && this.data) this.firstFrameMs = Math.round(performance.now() - this.t0);
+    if (this.firstFrameMs == null && this.data) (this.firstFrameMs = Math.round(performance.now() - this.t0)), this.readyRes();
     if (mo && this.moment === mo) {
       if (!mo.shown) (mo.shown = true), this.emit("moment", { name: mo.name, phase: "frame" });
       if (!mo.held && mo.p >= 1) this.endMoment();
