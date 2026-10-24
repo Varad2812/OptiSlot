@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>OptiSlot — Allocate. Prove. Revise.</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/","camera-controls":"https://cdn.jsdelivr.net/npm/camera-controls@2.8.5/dist/camera-controls.module.js"}}</script>
+<style>
+:root{color-scheme:dark;--bg:#0A0D13;--p1:#10141D;--p2:#151A25;--p3:#1B2130;--ln:#232A3A;--tx:#E6EAF2;--mu:#8791A7;--v:#7C5CFF;--c:#22D3EE;--ok:#34D399;--wa:#FBBF24;--er:#F87171;
+--AI:#4F8CFF;--AO:#A78BFA;--DI:#34D399;--DO:#FBBF24;--DOI:#F87171;--AL:#F472B6;
+--sans:Inter,system-ui,-apple-system,Segoe UI,sans-serif;--mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--tx);font:13px/1.45 var(--sans);height:100vh;display:grid;grid-template-columns:216px 1fr;grid-template-rows:56px 1fr;overflow:hidden}
+.mono{font-family:var(--mono)}svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#rail{grid-row:1/3;background:var(--p1);border-right:1px solid var(--ln);padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+.logo{display:flex;gap:10px;align-items:center;margin:0 6px 4px;font-weight:700;font-size:16px;letter-spacing:-.2px}
+.logo i{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--v),var(--c));display:grid;place-items:center;box-shadow:0 0 18px #7c5cff66}
+.tag{font-size:10px;color:var(--mu);margin:0 6px 14px;letter-spacing:.14em;text-transform:uppercase}
+.nav{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--mu);cursor:pointer;position:relative;transition:.2s;border:1px solid transparent}
+.nav b{font:600 10px var(--mono);width:18px;color:#5b6479}.nav:hover{color:var(--tx);background:var(--p2);box-shadow:0 0 14px #7c5cff22}
+.nav.on{color:#fff;background:linear-gradient(90deg,#7c5cff33,#7c5cff0d);border-color:#7c5cff55}.nav.on:before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--v);box-shadow:0 0 10px var(--v)}
+.rfoot{margin-top:auto;padding:10px;border:1px solid var(--ln);border-radius:10px;background:var(--p2);font-size:11px;color:var(--mu)}
+#top{display:flex;align-items:center;gap:18px;padding:0 20px;border-bottom:1px solid var(--ln);background:var(--p1)}
+.proj{font-weight:600}.proj small{display:block;color:var(--mu);font-weight:400;font-size:11px}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--ln);border-radius:9px;padding:2px}
+.seg button{background:none;border:0;color:var(--mu);padding:5px 12px;border-radius:7px;cursor:pointer;font:600 12px var(--sans);transition:.2s}.seg button.on{background:var(--v);color:#fff;box-shadow:0 0 12px #7c5cff77}
+.score{margin-left:auto;display:flex;gap:10px}.sc{padding:5px 14px;border:1px solid var(--ln);border-radius:10px;background:var(--p2);min-width:104px}
+.sc small{display:block;font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}.sc b{font:600 17px var(--mono)}
+main{overflow:auto;padding:22px 26px;position:relative}.page{display:none}.page.on{display:block;animation:in .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+h1{font-size:20px;letter-spacing:-.3px;margin-bottom:2px}.sub{color:var(--mu);margin-bottom:18px}
+.card{background:var(--p1);border:1px solid var(--ln);border-radius:14px;padding:16px;transition:.25s}.card:hover{border-color:#7c5cff55;box-shadow:0 0 24px #7c5cff18}
+.card h3{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--mu);margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.g2{display:grid;grid-template-columns:1.5fr 1fr;gap:16px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.mt{margin-top:16px}
+.btn{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--ln);background:var(--p3);color:var(--tx);padding:8px 14px;border-radius:9px;cursor:pointer;font:600 12px var(--sans);transition:.2s}.btn:hover{border-color:var(--v);box-shadow:0 0 16px #7c5cff55;transform:translateY(-1px)}
+.btn.pri{background:linear-gradient(135deg,var(--v),#5b8cff);border:0;color:#fff;box-shadow:0 4px 20px #7c5cff55}.btn.dng:hover{border-color:var(--er);box-shadow:0 0 16px #f8717155}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font:600 11px var(--sans);border:1px solid;white-space:nowrap}
+.ok{color:var(--ok);background:#34d3991a;border-color:#34d39944}.wa{color:var(--wa);background:#fbbf241a;border-color:#fbbf2444}.er{color:var(--er);background:#f871711a;border-color:#f8717144}.nu{color:var(--mu);background:#8791a71a;border-color:#8791a744}.vi{color:#b3a1ff;background:#7c5cff1f;border-color:#7c5cff55}
+.t{width:100%;border-collapse:collapse}.t th{position:sticky;top:0;background:var(--p2);text-align:left;font:600 10px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--mu);padding:8px 10px;border-bottom:1px solid var(--ln)}
+.t td{padding:6px 10px;border-bottom:1px solid #1a2030;font-size:12px;white-space:nowrap}.t tr{transition:.15s}.t tbody tr:hover{background:#7c5cff14}.t tr.sel{background:#7c5cff26}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.drop{border:2px dashed #7c5cff77;border-radius:16px;padding:34px;text-align:center;background:radial-gradient(ellipse at top,#7c5cff1f,transparent 70%);transition:.3s;cursor:pointer}.drop:hover{border-color:var(--c);box-shadow:0 0 34px #22d3ee33;transform:scale(1.005)}
+.drop svg{width:38px;height:38px;color:var(--v)}.drop h2{margin:8px 0 2px}
+.scroll{max-height:380px;overflow:auto;border:1px solid var(--ln);border-radius:10px}
+.bar{height:7px;border-radius:9px;background:var(--bg);overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--v),var(--c));width:0;transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.row{display:flex;align-items:center;gap:10px}.sp{margin-left:auto}input,select{background:var(--bg);border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:7px 10px;font:12px var(--sans);outline:0;transition:.2s}input:focus,select:focus{border-color:var(--v);box-shadow:0 0 0 3px #7c5cff33}
+.sw{width:34px;height:19px;border-radius:99px;background:#2a3246;position:relative;cursor:pointer;transition:.25s;flex:none}.sw:after{content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:.25s}.sw.on{background:var(--v);box-shadow:0 0 12px #7c5cff88}.sw.on:after{left:17px}
+.rule{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--ln);border-radius:11px;background:var(--p2);margin-bottom:8px;transition:.2s}.rule:hover{border-color:#7c5cff66}.rule small{color:var(--mu);display:block}
+.rule input{width:70px;font-family:var(--mono);text-align:right}
+.room{height:340px;border-radius:14px;border:1px solid var(--ln);background:radial-gradient(ellipse at 50% 110%,#7c5cff33,transparent 60%),linear-gradient(#0d111a,#07090e);position:relative;overflow:hidden;transition:.3s}
+.room:before{content:"";position:absolute;inset:auto -20% -30% -20%;height:70%;background:repeating-linear-gradient(90deg,#22d3ee14 0 1px,transparent 1px 48px),repeating-linear-gradient(0deg,#22d3ee14 0 1px,transparent 1px 36px);transform:perspective(500px) rotateX(62deg)}
+.cab{cursor:pointer;transition:.25s}.cab:hover{filter:drop-shadow(0 0 12px #22d3ee)}
+.info{position:absolute;right:16px;top:16px;width:230px;background:#10141df0;border:1px solid #7c5cff77;border-radius:12px;padding:12px;backdrop-filter:blur(8px);box-shadow:0 0 30px #7c5cff44}
+.crumb{display:flex;gap:8px;align-items:center;margin-bottom:12px;color:var(--mu);font-size:12px}.crumb span{padding:3px 9px;border-radius:7px;background:var(--p2);border:1px solid var(--ln);cursor:pointer}.crumb span:last-child{color:#fff;border-color:var(--v)}
+.verdict{padding:12px;border-radius:10px;margin-top:10px;animation:in .3s}.verdict.ok{border:1px solid #34d39966}.verdict.er{border:1px solid #f8717166}.verdict b{display:block;font-size:13px;margin-bottom:4px}
+.chk{display:flex;gap:10px;align-items:center;padding:8px 12px;border-radius:9px;background:var(--p2);border:1px solid var(--ln);font-size:12px;transition:.3s}.chk .tk{width:20px;height:20px;border-radius:50%;background:#34d3991f;color:var(--ok);display:grid;place-items:center;transition:.3s}.chk .tk svg{width:12px;height:12px;stroke-width:3}
+.chk.bad{border-color:#f8717188;background:#f871711a}.chk.bad .tk{background:#f871711f;color:var(--er)}.chk.scan{border-color:var(--c);box-shadow:0 0 14px #22d3ee55}.chk.pend .tk{background:#8791a722;color:var(--mu)}
+.sweep{position:absolute;left:0;right:0;height:70px;background:linear-gradient(transparent,#22d3ee33,transparent);border-bottom:2px solid var(--c);pointer-events:none;opacity:0}.sweep.go{animation:sw 2.2s ease-in-out}@keyframes sw{0%{top:0;opacity:1}95%{opacity:1}100%{top:100%;opacity:0}}
+.cert{font:11px var(--mono);word-break:break-all;color:var(--c);background:var(--bg);border:1px solid var(--ln);padding:10px;border-radius:9px}
+.file{display:flex;gap:14px;align-items:center}.file .ic{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;background:#7c5cff22;color:#b3a1ff}
+.big{font:700 30px var(--mono)}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#2a3246;border-radius:9px}
+.leg{display:flex;gap:14px;font-size:11px;color:var(--mu);flex-wrap:wrap}
+
+.r3grid{display:grid;grid-template-columns:1fr 270px;gap:16px;align-items:start}
+.r3host{position:relative;height:max(480px,calc(100vh - 190px));border-radius:14px;border:1px solid var(--ln);overflow:hidden;background:#0A0D13}
+.r3host canvas{position:absolute;inset:0;display:block;touch-action:none}
+.r3host:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55))}
+.r3load{position:absolute;inset:0;display:grid;place-items:center;color:var(--mu)}
+.r3hud{position:absolute;z-index:2}.r3hud>*{pointer-events:auto}
+.r3tl{left:14px;top:12px;pointer-events:none}.r3tl>*{pointer-events:auto}
+.r3title{font-size:12px;letter-spacing:.18em;font-weight:600;margin-bottom:5px}.r3title b{color:var(--v)}
+#r3crumbs span{color:var(--mu);cursor:pointer}#r3crumbs span:hover{color:var(--tx)}#r3crumbs span.cur{color:var(--tx);cursor:default}#r3crumbs i{color:#3a4256;font-style:normal;margin:0 6px}
+.r3tr{right:12px;top:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}
+.r3tr .btn{padding:7px 11px;background:#141822b3;backdrop-filter:blur(8px)}.r3tr .btn.pri{background:linear-gradient(135deg,var(--v),#5b8cff)}
+#r3q{width:150px;background:#141822b3;backdrop-filter:blur(8px)}#r3q.bad{border-color:var(--er);animation:sh .3s}@keyframes sh{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.r3lg{left:14px;bottom:12px;display:flex;gap:12px;color:var(--mu);font-size:11px}.r3lg span:before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--c);box-shadow:0 0 8px var(--c)}
+.r3hint{right:14px;bottom:12px;color:var(--mu);font-size:11px;pointer-events:none}
+.r3info{right:12px;top:58px;width:230px;padding:13px;border-radius:12px;background:#0e121bd1;border:1px solid #7c5cff77;backdrop-filter:blur(12px);box-shadow:0 0 30px #7c5cff33;opacity:0;transform:translateX(14px);transition:.4s;pointer-events:none}
+.r3info.on{opacity:1;transform:none;pointer-events:auto}.r3info h2{font-size:14px;margin-bottom:1px}.r3info .tg{color:var(--mu);font:11px var(--mono);margin-bottom:10px}
+.r3info dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin-bottom:12px}.r3info dt{color:var(--mu)}.r3info dd{text-align:right;font-family:var(--mono);font-size:12px}
+.r3about{left:14px;top:62px;width:250px;padding:12px 14px;border-radius:12px;background:#0e121bd1;border:1px solid var(--ln);backdrop-filter:blur(12px);opacity:0;pointer-events:none;transition:.4s}.r3about.on{opacity:1;pointer-events:auto}.r3about p{color:var(--mu);margin-top:5px;font-size:12px}
+.r3host .lb,#r3tip{position:absolute;left:0;top:0;z-index:1;pointer-events:none;font-size:10px;letter-spacing:.14em;white-space:nowrap;padding:2px 9px;border:1px solid #3a3470;border-radius:99px;background:#0e121ba6;opacity:0;transition:opacity .3s}
+#r3tip{z-index:3;letter-spacing:.04em;transition:opacity .15s}
+@media(max-width:1000px){.r3grid{grid-template-columns:1fr}}
+</style></head><body>
+<aside id="rail"></aside>
+<header id="top">
+ <div class="proj">Unit 400 · Polymerisation<small>Project PX-2291 · DeltaV v14.3 · CHARM I/O</small></div>
+ <div class="seg" id="rev"><button class="on" data-r="A">Rev A</button><button data-r="B">Rev B</button></div>
+ <div class="score" id="score"></div>
+</header>
+<main id="main"></main>
+
+<script>
+const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
+const I={imp:'<path d="M12 3v12m0 0-4-4m4 4 4-4M4 17v3h16v-3"/>',alloc:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/>',room:'<path d="m12 3 9 5v8l-9 5-9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/>',wb:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>',rules:'<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',proof:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',rev:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',exp:'<path d="M12 15V3m0 0L8 7m4-4 4 4M4 17v3h16v-3"/>',chk:'<path d="m5 12 5 5 9-10"/>',file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',play:'<path d="m6 4 14 8-14 8z"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>'};
+const ic=n=>`<svg viewBox="0 0 24 24">${I[n]}</svg>`;
+const COL={AI:'--AI',AO:'--AO',DI:'--DI',DO:'--DO','DO-ISO':'--DOI',ALM:'--AL'};
+const tp=t=>`<span class="chip" style="color:var(${COL[t]});border-color:var(${COL[t]})55;background:var(${COL[t]})18">${t}</span>`;
+const st=s=>({allocated:'ok',warning:'wa',unallocated:'nu',quarantined:'er'}[s]);
+const stc=s=>`<span class="chip ${st(s)}">● ${s}</span>`;
+const pages=[['import','Import','imp'],['allocate','Allocate','alloc'],['room','3D Room','room'],['bench','Workbench','wb'],['rules','Rules','rules'],['proof','Proof','proof'],['revs','Revisions','rev'],['export','Export','exp']];
+$('#rail').innerHTML=`<div class="logo"><i>${ic('alloc').replace('<svg','<svg style="color:#fff"')}</i>OptiSlot</div><div class="tag">Allocate. Prove. Revise.</div>`+pages.map((p,i)=>`<div class="nav" data-p="${p[0]}"><b>0${i+1}</b>${ic(p[2])}${p[1]}</div>`).join('')+`<div class="rfoot"><div class="row"><span class="dot" style="background:var(--ok);box-shadow:0 0 8px var(--ok)"></span>Solver online</div><div class="mono" style="margin-top:4px">v2.4.1 · seed 7C5C</div></div>`;
+const tps=['AI','AI','DI','DO','AO','DI','DO-ISO','ALM','AI','DI'],cabs=['CAB-01','CAB-02','CAB-03 (Iso)','CAB-04'],stt=['allocated','allocated','allocated','allocated','allocated','warning','allocated','unallocated','allocated','quarantined'];
+const pre=['FT','TT','PT','LT','XV','HS','ZSC','FV','PDT','AT'];
+const S=Array.from({length:25},(_,i)=>{const t=tps[i%10],s=stt[(i*7)%10];const un=s=='unallocated'||s=='quarantined';return{tag:`${pre[i%10]}-${1001+i*3}`,t,cable:`C${12+(i>>2)}/P${(i%8)+1}`,cab:un?'—':(t=='DO-ISO'?cabs[2]:cabs[i%2==0?0:(i%3==0?3:1)]),cioc:un?'—':`CIOC-${(i%2)+1}`,bp:un?'—':`BP-${(i>>3)+1}`,ch:un?'—':`C${(i%12)+1}`,s,why:{allocated:'Segregation & spare policy satisfied',warning:'Cabinet at 91% — spare margin below 20%',unallocated:'No compatible CHARM free in zone',quarantined:'Missing range data (4–20 mA span)'}[s]}});
+const P={};
+P.import=`<h1>Import</h1><div class="sub">Drop an IO list. OptiSlot maps, validates and pre-flights it before a single signal is placed.</div>
+<div class="drop">${ic('imp')}<h2>Drop IO list here</h2><div class="sub" style="margin:0">.xlsx · .csv · .xls — or <u>browse</u> · Loaded: <span class="mono">U400_IOList_RevC.xlsx</span> (412 KB)</div></div>
+<div class="g2 mt"><div class="card"><h3>Column mapping</h3><table class="t"><thead><tr><th>Source column</th><th>→ Field</th><th>Sample</th><th>Confidence</th></tr></thead><tbody id="map"></tbody></table></div>
+<div class="card"><h3>Pre-flight summary</h3><div id="pre"></div><button class="btn pri mt" style="width:100%;justify-content:center" onclick="go('allocate');runAlloc()">${ic('play')}Allocate</button></div></div>
+<div class="card mt"><h3>Preview · first 10 rows of 1,284</h3><div class="scroll" style="max-height:300px"><table class="t"><thead><tr><th>#</th><th>Tag</th><th>Description</th><th>Type</th><th>Range</th><th>Cable</th><th>Zone</th></tr></thead><tbody id="prev"></tbody></table></div></div>`;
+P.allocate=`<h1>Allocate</h1><div class="sub">Deterministic solver · seed 7C5C · segregation, spares and loading rules applied.</div>
+<div class="card"><div class="row"><div><div class="big" id="pct">0%</div><div class="sub" style="margin:0" id="phase">Idle</div></div><button class="btn pri sp" onclick="runAlloc()">${ic('play')}Run allocation</button></div><div class="bar mt"><i id="pbar"></i></div></div>
+<div class="g4 mt" id="cabs"></div>`;
+P.room=`<div class="row" style="margin-bottom:12px"><div><h1>3D Room</h1><div class="sub" style="margin:0">Click to dive Room → Cabinet → CIOC → Baseplate → CHARM. Drag to orbit, scroll to dolly.</div></div><div class="seg sp" id="ba"><button>Before</button><button class="on">Now</button></div></div>
+<div class="r3grid"><div class="r3host" id="r3"><div class="r3load mono">Loading 3D engine…</div>
+<div class="r3hud r3tl"><div class="r3title">MARSHALLING <b>ROOM</b></div><div id="r3crumbs"></div></div>
+<div class="r3hud r3tr"><input id="r3q" placeholder="Go to tag e.g. 2-3-5-7" autocomplete="off" spellcheck="false"><button class="btn" id="r3a" title="How it works">ⓘ</button><button class="btn" id="r3zi">+</button><button class="btn" id="r3zo">−</button><button class="btn" id="r3back">← Esc</button><button class="btn pri" id="r3dive">▶ Upload Dive</button></div>
+<div class="r3hud r3lg" id="r3lg"></div><div class="r3hud r3hint">Click to zoom in · drag to orbit · scroll to dolly</div>
+<div class="r3hud r3info on" id="r3info"></div>
+<div class="r3hud r3about on" id="r3about"><b style="color:var(--v);letter-spacing:.1em">HOW IT WORKS</b><p>3 cabinets → 4 CIOCs → 8 baseplates → 12 CHARMs = 1,152 modules, one instanced mesh. Hover previews, click zooms, Esc goes back. Try the <b>Before / Now</b> toggle to see what Rev B changed.</p></div>
+<div id="r3labels"></div><div id="r3tip"></div></div>
+<div class="card"><h3>Changes · Rev A → Now</h3><div id="chg"></div></div></div>`;
+P.bench=`<h1>Signal Workbench</h1><div class="sub">Every placement is explainable. Select a signal to try a move.</div>
+<div class="row" style="margin-bottom:12px"><input id="q" placeholder="Filter tag…" style="width:200px"><select id="ft"><option>All IO</option>${Object.keys(COL).map(k=>`<option>${k}</option>`)}</select><select id="fs"><option>All status</option><option>allocated</option><option>warning</option><option>unallocated</option><option>quarantined</option></select><span class="sp mono" style="color:var(--mu)" id="cnt"></span></div>
+<div class="g2" style="grid-template-columns:2.2fr 1fr"><div class="scroll" style="max-height:520px"><table class="t"><thead><tr><th>Tag</th><th>IO</th><th>Cable/Pair</th><th>Cabinet</th><th>CIOC</th><th>Baseplate</th><th>CHARM</th><th>Status</th><th>Reason</th></tr></thead><tbody id="sb"></tbody></table></div>
+<div class="card" id="side"></div></div>`;
+const R=[['Segregate isolated DO from non-isolated','Isolated outputs only in isolated cabinets','Margin',1,'',1],['Spare capacity per cabinet','Reserve free CHARMs for future change','%',20,'%',1],['Max CIOC loading','CHARMs per CIOC controller','n',96,'',1],['Intrinsic-safe separation','IS signals never share baseplate with non-IS','—',0,'',1],['Redundant pair split','Redundant devices on different CIOCs','—',0,'',1],['Alarm group co-location','Alarm signals within the same zone','m',15,'m',0],['Analog/Digital mixing','Disallow AI/DI on a shared baseplate','—',0,'',0],['Heat load per cabinet','Cap dissipated power','W',650,'W',1]];
+P.rules=`<h1>Rules Studio</h1><div class="sub">8 rules · 6 enforced · every change re-runs the verifier.</div><div class="g2" style="grid-template-columns:1.6fr 1fr"><div id="rl"></div>
+<div class="card" style="align-self:start"><h3>Add custom rule</h3><div style="display:grid;gap:10px"><input placeholder="Rule name"><select><option>If IO type is…</option>${Object.keys(COL).map(k=>`<option>${k}</option>`)}</select><select><option>Then must be in…</option><option>Same cabinet as</option><option>Different CIOC from</option><option>Zone</option></select><input placeholder="Parameter (e.g. 15 m)"><select><option>Severity: Blocking</option><option>Severity: Warning</option></select><button class="btn pri" onclick="this.textContent='✓ Rule staged';setTimeout(()=>this.textContent='Add rule',1500)">Add rule</button></div></div></div>`;
+const CH=['No signal in an occupied CHARM slot','Every signal has exactly one CHARM','CHARM type matches IO type','Isolated DO in isolated cabinet','CIOC loading ≤ 96 CHARMs','Baseplate has ≤ 12 slots used','Spare capacity ≥ 20% (cabinets)','Redundant pairs split across CIOCs','IS/non-IS segregation','Cable pairs not split across cabinets','Power budget per cabinet','Heat dissipation ≤ 650 W','Tag uniqueness','Range data present (analog)','Alarm co-location ≤ 15 m','Marshalling terminal continuity','Segment/fieldbus cap respected','Signal count conserved (1,284)','No orphan CHARMs','Rev A↔B delta reconciled','Deterministic replay matches','Input hash matches certificate'];
+P.proof=`<h1>Proof</h1><div class="sub">22 independent checks. If any fail, the certificate refuses to issue.</div>
+<div class="g2" style="grid-template-columns:1.6fr 1fr"><div class="card" style="position:relative;overflow:hidden" id="pc"><div class="sweep" id="sw"></div><h3>Verifier checks <span class="chip ok sp" id="pass">22 / 22 pass</span></h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="chks"></div></div>
+<div><div class="card"><h3>Run certificate</h3><div class="row" style="margin-bottom:10px"><span class="chip ok" id="cst">${ic('chk')} VERIFIED</span><span class="mono sp" style="color:var(--mu)">2026-10-24 09:41 UTC</span></div><div class="cert" id="hash">sha256:9f2c7a1be04d5c83a61f0e7b2d94c8e15a37f60b4c92d1e8f3a05b7c61d8e4a2</div>
+<div class="row mt"><button class="btn pri" id="rv">${ic('proof')}Re-verify</button><button class="btn dng" id="tm">${ic('x')}Tamper test</button></div></div>
+<div class="card mt"><h3>Coverage</h3><div class="mono" style="line-height:2">Signals checked <b class="sp">1,284</b><br>Constraints evaluated <b>48,912</b><br>Replay time <b>1.8 s</b></div></div></div></div>`;
+P.revs=`<h1>Revisions</h1><div class="sub">Rev A → Rev B · IO list update C→D (+37 signals, −12).</div>
+<div class="g4"><div class="card"><h3>Stability</h3><div class="big" style="color:var(--ok)"><span data-count="97.4" data-d="1">0</span>%</div></div><div class="card"><h3>Moved</h3><div class="big" style="color:var(--wa)" data-count="34">0</div></div><div class="card"><h3>Unchanged</h3><div class="big" data-count="1250">0</div></div><div class="card"><h3>New / Removed</h3><div class="big"><span style="color:var(--c)" data-count="37">0</span><span style="color:var(--mu)"> / </span><span style="color:var(--er)" data-count="12">0</span></div></div></div>
+<div class="card mt"><h3>Diff · moved signals</h3><div class="scroll" style="max-height:340px"><table class="t"><thead><tr><th>Tag</th><th>IO</th><th>Rev A</th><th></th><th>Rev B</th><th>Cause</th></tr></thead><tbody id="df"></tbody></table></div></div>`;
+const F=[['Allocation report','U400_alloc_RevB.pdf','PDF · 2.1 MB'],['Marshalling schedule','U400_marshalling.xlsx','XLSX · 640 KB'],['DeltaV import (.fhx)','U400_charms.fhx','FHX · 3.8 MB'],['Proof certificate','U400_certificate.json','JSON · 12 KB'],['Revision diff','U400_diff_A_B.csv','CSV · 48 KB'],['Cabinet layouts','U400_cabinets.dxf','DXF · 5.2 MB']];
+P.export=`<h1>Export</h1><div class="sub">Artifacts bound to certificate 9f2c…e4a2.</div><div class="g3">${F.map(f=>`<div class="card file"><div class="ic">${ic('file')}</div><div><b>${f[0]}</b><div class="mono" style="color:var(--mu);font-size:11px">${f[1]}</div><div style="color:var(--mu);font-size:11px">${f[2]}</div></div><button class="btn sp" onclick="dl(this)">${ic('exp')}Download</button></div>`).join('')}</div>`;
+$('#main').innerHTML=pages.map(p=>`<section class="page" id="pg-${p[0]}">${P[p[0]]}</section>`).join('');
+$('#map').innerHTML=[['TAG_NO','Tag','FT-1001',98],['SIG_TYPE','IO type','AI',96],['DESC','Description','Feed flow',92],['LRV/URV','Range','0–150 t/h',88],['CBL','Cable / Pair','C12/P3',94],['AREA','Zone','Z-04',81],['SIL','Safety class','SIL2',63]].map(r=>`<tr><td class="mono">${r[0]}</td><td>${r[1]}</td><td class="mono" style="color:var(--mu)">${r[2]}</td><td><span class="chip ${r[3]>85?'ok':r[3]>70?'wa':'er'}">${r[3]}%</span></td></tr>`).join('');
+$('#pre').innerHTML=[['ok','1,284 signals parsed'],['ok','0 duplicate tags'],['wa','9 analog signals missing range'],['wa','3 tags with unmapped SIL'],['ok','Cable pairs consistent']].map(r=>`<div class="row" style="padding:7px 0;border-bottom:1px solid var(--ln)"><span class="chip ${r[0]}">${r[0]=='ok'?'✓':'!'}</span>${r[1]}</div>`).join('');
+$('#prev').innerHTML=S.slice(0,10).map((s,i)=>`<tr><td class="mono" style="color:var(--mu)">${i+1}</td><td class="mono">${s.tag}</td><td>${['Feed flow','Reactor temp','Loop pressure','Tank level','Isolation valve','Start/stop','Limit switch','Control valve','Diff. pressure','Analyser'][i]}</td><td>${tp(s.t)}</td><td class="mono">${s.t[0]=='A'?'4–20 mA':'24 VDC'}</td><td class="mono">${s.cable}</td><td class="mono">Z-0${i%5+1}</td></tr>`).join('');
+$('#cabs').innerHTML=cabs.map((c,i)=>{const u=[91,74,58,82][i];return`<div class="card"><div class="row"><b>${c}</b><span class="chip ${u>90?'wa':'ok'} sp">${u}%</span></div><div class="bar mt"><i data-w="${u}"></i></div><div class="mono" style="color:var(--mu);margin-top:8px;font-size:11px">${Math.round(u*.96)}/96 CHARMs · 2 CIOC</div></div>`}).join('');
+$('#rl').innerHTML=R.map((r,i)=>`<div class="rule"><div class="sw ${r[5]?'on':''}" onclick="this.classList.toggle('on')"></div><div><b>${r[0]}</b><small>${r[1]}</small></div><span class="chip vi">R-0${i+1}</span>${r[2]=='—'?'<span class="chip nu">no param</span>':`<div class="row"><input value="${r[3]}">${r[4]}</div>`}</div>`).join('');
+$('#chks').innerHTML=CH.map(c=>`<div class="chk"><div class="tk">${ic('chk')}</div>${c}</div>`).join('');
+$('#df').innerHTML=S.slice(0,9).map((s,i)=>`<tr><td class="mono">${s.tag}</td><td>${tp(s.t)}</td><td class="mono" style="color:var(--mu)">CAB-0${i%3+1}/BP-1/C${i+2}</td><td style="color:var(--v)">→</td><td class="mono">CAB-0${i%3+2}/BP-2/C${i+1}</td><td><span class="chip vi">${['Spare policy','New cable','Heat cap'][i%3]}</span></td></tr>`).join('');
+$('#chg').innerHTML=[['moved','FT-1001','CAB-01/C3 → CAB-02/C1'],['moved','XV-1022','CAB-03/C7 → CAB-03/C9'],['new','LT-1076','→ CAB-04/BP-2/C5'],['moved','PT-1034','CAB-02/C2 → CAB-01/C8'],['removed','HS-1040','CAB-01/C11 freed']].map(c=>`<div style="padding:8px 0;border-bottom:1px solid var(--ln)"><span class="chip ${c[0]=='moved'?'wa':c[0]=='new'?'ok':'er'}">${c[0]}</span> <b class="mono">${c[1]}</b><div class="mono" style="color:var(--mu);font-size:11px;margin-top:3px">${c[2]}</div></div>`).join('');
+$$('#ba button').forEach(b=>b.onclick=()=>{$$('#ba button').forEach(x=>x.classList.remove('on'));b.classList.add('on');window.R3&&R3.before(b.textContent=='Before')});
+let sel=0;
+function table(){const q=$('#q').value.toLowerCase(),a=$('#ft').value,b=$('#fs').value;const rows=S.map((s,i)=>[s,i]).filter(([s])=>s.tag.toLowerCase().includes(q)&&(a=='All IO'||s.t==a)&&(b=='All status'||s.s==b));$('#cnt').textContent=rows.length+' / 25 shown';
+$('#sb').innerHTML=rows.map(([s,i])=>`<tr class="${i==sel?'sel':''}" data-i="${i}" style="cursor:pointer"><td class="mono"><b>${s.tag}</b></td><td>${tp(s.t)}</td><td class="mono">${s.cable}</td><td class="mono">${s.cab}</td><td class="mono">${s.cioc}</td><td class="mono">${s.bp}</td><td class="mono">${s.ch}</td><td>${stc(s.s)}</td><td style="color:var(--mu)">${s.why}</td></tr>`).join('');$$('#sb tr').forEach(r=>r.onclick=()=>{sel=+r.dataset.i;table();side()})}
+function side(){const s=S[sel];$('#side').innerHTML=`<h3>Selected signal</h3><div class="row"><b class="mono" style="font-size:16px">${s.tag}</b>${tp(s.t)}<span class="sp">${stc(s.s)}</span></div><div class="mono" style="color:var(--mu);margin:8px 0 14px;font-size:11px">${s.cab} / ${s.cioc} / ${s.bp} / ${s.ch}</div><h3>Move to…</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select id="m1">${cabs.map(c=>`<option>${c}</option>`)}</select><select id="m2"><option>CIOC-1</option><option>CIOC-2</option></select><select id="m3"><option>BP-1</option><option>BP-2</option><option>BP-3</option></select><select id="m4">${Array.from({length:12},(_,i)=>`<option>C${i+1}</option>`)}</select></div><div id="vd"></div>`;$$('#side select').forEach(e=>e.onchange=verdict);verdict()}
+function verdict(){const s=S[sel],c=$('#m1').value,sl=$('#m4').value;let why=[],ok=true;
+if(s.t=='DO-ISO'&&!c.includes('Iso')){ok=false;why.push('Isolated outputs may only live in the isolated cabinet (R-01).')}
+if(s.t!='DO-ISO'&&c.includes('Iso')){ok=false;why.push('Isolated cabinet is reserved for isolated DO.')}
+if(c=='CAB-01'&&s.cab!='CAB-01'){ok=false;why.push('CAB-01 is at 91% — moving in would breach the 20% spare policy (R-02).')}
+if(sl=='C5'&&ok){ok=false;why.push('CHARM slot C5 is occupied by XV-1022.')}
+$('#vd').innerHTML=ok?`<div class="verdict ok"><b style="color:var(--ok)">✓ ALLOWED</b>All 22 checks still pass. Spare capacity stays ≥ 20%.<div class="mono" style="margin-top:8px;font-size:11px;color:var(--mu)">What changes:<br>• ${s.tag}: ${s.cab} → ${c}<br>• ${c} load +1 CHARM<br>• Stability 100% → 99.9%</div><button class="btn pri mt" onclick="this.textContent='Applied ✓'">Apply move</button></div>`:`<div class="verdict er"><b style="color:var(--er)">✕ REFUSED</b>${why.join('<br>')}<div class="mono" style="margin-top:8px;font-size:11px;color:var(--mu)">Nothing changes. Try a different target.</div></div>`}
+['q','ft','fs'].forEach(i=>$('#'+i).oninput=table);table();side();
+function verify(bad){const cs=$$('.chk'),sw=$('#sw');cs.forEach(c=>{c.className='chk pend'});sw.classList.remove('go');void sw.offsetWidth;sw.classList.add('go');$('#cst').className='chip nu';$('#cst').textContent='Scanning…';
+cs.forEach((c,i)=>setTimeout(()=>{c.className='chk scan';setTimeout(()=>{const f=bad&&i==12;c.className='chk'+(f?' bad':'');c.querySelector('.tk').innerHTML=f?ic('x'):ic('chk');if(i==21){$('#pass').className='chip sp '+(bad?'er':'ok');$('#pass').textContent=bad?'21 / 22 pass':'22 / 22 pass';$('#cst').className='chip '+(bad?'er':'ok');$('#cst').textContent=bad?'✕ CERTIFICATE REVOKED':'✓ VERIFIED';$('#hash').textContent='sha256:'+(bad?'0000 TAMPERED — hash mismatch at tag uniqueness':'9f2c7a1be04d5c83a61f0e7b2d94c8e15a37f60b4c92d1e8f3a05b7c61d8e4a2')}},120)},i*95))}
+$('#rv').onclick=()=>verify(false);$('#tm').onclick=()=>verify(true);
+function dl(b){b.innerHTML='Preparing…';setTimeout(()=>b.innerHTML=ic('chk')+'Downloaded',900)}
+function runAlloc(){let p=0;const t=setInterval(()=>{p+=3+Math.random()*4;if(p>=100){p=100;clearInterval(t)}$('#pct').textContent=Math.floor(p)+'%';$('#pbar').style.width=p+'%';$('#phase').textContent=p<30?'Parsing & grouping cables…':p<65?'Solving placement…':p<100?'Verifying 22 checks…':'Done · 1,284 signals placed';},60)}
+function count(el){const to=+el.dataset.count,d=+el.dataset.d||0;let s=performance.now();(function f(n){const k=Math.min((n-s)/900,1);el.textContent=(to*(1-Math.pow(1-k,3))).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});if(k<1)requestAnimationFrame(f)})(s)}
+$('#score').innerHTML=[['Allocated',1284,'',0],['Cabinets',4,'',0],['Violations',0,'',0],['Stability',97.4,'%',1]].map(x=>`<div class="sc"><small>${x[0]}</small><b style="${x[0]=='Violations'?'color:var(--ok)':''}"><span data-count="${x[1]}" data-d="${x[3]}">0</span>${x[2]}</b></div>`).join('');
+function go(p){$$('.page').forEach(e=>e.classList.toggle('on',e.id=='pg-'+p));$$('.nav').forEach(e=>e.classList.toggle('on',e.dataset.p==p));$('#main').scrollTop=0;
+$$('#pg-'+p+' [data-count]').forEach(count);$$('#pg-'+p+' [data-w]').forEach(e=>{e.style.width=0;setTimeout(()=>e.style.width=e.dataset.w+'%',60)});if(p=='proof')verify(false);if(window.R3)R3.on(p=='room')}
+$$('.nav').forEach(n=>n.onclick=()=>go(n.dataset.p));
+$$('#rev button').forEach(b=>b.onclick=()=>{$$('#rev button').forEach(x=>x.classList.remove('on'));b.classList.add('on')});
+$$('#score [data-count]').forEach(count);go('import');
+</script><script type="module">
+const host=document.getElementById('r3');
+try{
+const THREE=await import('three');
+const CameraControls=(await import('camera-controls')).default;
+const {EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js');
+const {RenderPass}=await import('three/addons/postprocessing/RenderPass.js');
+const {UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js');
+const {OutputPass}=await import('three/addons/postprocessing/OutputPass.js');
+const {RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js');
+CameraControls.install({THREE:{Vector2:THREE.Vector2,Vector3:THREE.Vector3,Vector4:THREE.Vector4,Quaternion:THREE.Quaternion,Matrix4:THREE.Matrix4,Spherical:THREE.Spherical,Box3:THREE.Box3,Sphere:THREE.Sphere,Raycaster:THREE.Raycaster}});
+const $g=id=>document.getElementById(id);
+host.querySelector('.r3load')?.remove();
+const W=()=>Math.max(host.clientWidth,2),H=()=>Math.max(host.clientHeight,2);
+const C=3,K=4,B=8,M=12,N=C*K*B*M,CX=[-4.6,0,4.6],ACC=0x7C5CFF;
+const IO=[{n:'AI',c:0x4F8CFF},{n:'AO',c:0xA78BFA},{n:'DI',c:0x34D399},{n:'DO',c:0xFBBF24},{n:'DO-ISO',c:0xF87171}];
+const IOC=IO.map(o=>new THREE.Color(o.c)),hex=c=>'#'+c.toString(16).padStart(6,'0');
+$g('r3lg').innerHTML=IO.map(o=>`<span style="--c:${hex(o.c)}">${o.n}</span>`).join('');
+let seed=11;const rnd=()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const type=new Int8Array(N),val=new Float32Array(N),chg=new Uint8Array(N);
+for(let i=0;i<N;i++){type[i]=rnd()<.2?(rnd()*5|0):-1;val[i]=rnd();chg[i]=type[i]>=0&&((i*2654435761>>>0)%11===0)?1:0}
+const idx=(c,k,b,m)=>((c*K+k)*B+b)*M+m;
+const ixOf=k=>(k&1)?.72:-.72,zOf=k=>k<2?.38:-.38,bpY=(s,b)=>1.6+(b-3.5)*(.34+.3*s);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(W(),H());host.prepend(renderer.domElement);const cv=renderer.domElement;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0A0D13);scene.fog=new THREE.FogExp2(0x0A0D13,.014);
+const cam=new THREE.PerspectiveCamera(40,W()/H(),.05,200);
+const rt=new THREE.WebGLRenderTarget(W(),H(),{type:THREE.HalfFloatType,samples:4});
+const composer=new EffectComposer(renderer,rt);composer.addPass(new RenderPass(scene,cam));
+const bloom=new UnrealBloomPass(new THREE.Vector2(W(),H()),.8,.7,.8);composer.addPass(bloom);composer.addPass(new OutputPass());
+const ctrl=new CameraControls(cam,cv);let lastInput=0,fovT=40,el=0,running=false;
+ctrl.addEventListener('controlstart',()=>lastInput=el);
+ctrl.smoothTime=.6;ctrl.draggingSmoothTime=.12;ctrl.minDistance=.35;ctrl.maxDistance=60;ctrl.maxPolarAngle=1.55;ctrl.mouseButtons.right=CameraControls.ACTION.TRUCK;
+ctrl.setLookAt(0,7.5,23,0,1.4,0,false);
+const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(new RoomEnvironment(),.04).texture;
+scene.add(new THREE.HemisphereLight(0x8899cc,0x10131a,.9));
+const dl=new THREE.DirectionalLight(0xbfc8ff,1.2);dl.position.set(6,12,10);scene.add(dl);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x0c1019,roughness:.32,metalness:.65}));floor.rotation.x=-Math.PI/2;scene.add(floor);
+const grid=new THREE.GridHelper(60,60,ACC,0x1b2231);grid.position.y=.003;grid.material.transparent=true;grid.material.opacity=.55;scene.add(grid);
+const wall=new THREE.Mesh(new THREE.PlaneGeometry(60,20),new THREE.MeshStandardMaterial({color:0x0d1119,roughness:.9}));wall.position.set(0,10,-7.2);scene.add(wall);
+const jb=new THREE.Mesh(new THREE.BoxGeometry(1.8,1.2,.5),new THREE.MeshStandardMaterial({color:0x1a1f2b,emissive:ACC,emissiveIntensity:.15,metalness:.6,roughness:.4}));jb.position.set(0,5.2,-6.9);scene.add(jb);
+const jbLight=new THREE.PointLight(ACC,0,14);jbLight.position.set(0,5.2,-6);scene.add(jbLight);
+const reg=[],pick=[],doors=[],cabs=[],iocs=[],nop=()=>{};
+const reg1=(m,base,c,k,b,L)=>{m.transparent=true;m.opacity=base;reg.push({m,base,c,k,b,L,cur:1,t:1});return m};
+const poolMat=(()=>{const cx=document.createElement('canvas');cx.width=cx.height=128;const g2=cx.getContext('2d'),gr=g2.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(124,92,255,.55)');gr.addColorStop(1,'rgba(124,92,255,0)');g2.fillStyle=gr;g2.fillRect(0,0,128,128);return new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cx),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})})();
+for(let c=0;c<C;c++){
+ const g=new THREE.Group();g.position.x=CX[c];scene.add(g);
+ const add=(geo,m,x,y,z)=>{const o=new THREE.Mesh(geo,reg1(m,1,c,-1,-1,1));o.position.set(x,y,z);o.userData={c};g.add(o);pick.push(o);return o};
+ const steel=()=>new THREE.MeshStandardMaterial({color:0x4d5666,metalness:.7,roughness:.45});
+ for(const sx of[-1,1])for(const sz of[-1,1])add(new THREE.BoxGeometry(.1,3.3,.1),steel(),sx*1.5,1.65,sz*.9);
+ for(const sz of[-1,1])add(new THREE.BoxGeometry(3.1,.08,.08),steel(),0,3.3,sz*.9);
+ for(const sx of[-1,1]){add(new THREE.BoxGeometry(.08,.08,1.8),steel(),sx*1.5,3.3,0);add(new THREE.BoxGeometry(.03,3.2,1.8),new THREE.MeshStandardMaterial({color:0x232a37,metalness:.5,roughness:.6}),sx*1.5,1.6,0)}
+ add(new THREE.BoxGeometry(3.1,.1,1.9),steel(),0,.05,0);
+ const dp=[];
+ for(const face of[1,-1])for(const side of[-1,1]){
+  const piv=new THREE.Group();piv.position.set(side*1.5,1.65,face*.9);g.add(piv);
+  const gl=new THREE.Mesh(new THREE.BoxGeometry(1.46,3.2,.03),reg1(new THREE.MeshPhysicalMaterial({color:0x9fb4d0,roughness:.05,depthWrite:false}),.16,c,-1,-1,1));
+  gl.position.x=-side*.75;gl.userData={c};piv.add(gl);pick.push(gl);
+  const ed=new THREE.LineSegments(new THREE.EdgesGeometry(gl.geometry),reg1(new THREE.LineBasicMaterial({color:ACC}),.85,c,-1,-1,1));ed.raycast=nop;gl.add(ed);
+  dp.push({piv,s:face*side});
+ }
+ doors.push({dp,o:0,t:0});
+ const pl=new THREE.PointLight(0xaabbff,7,9);pl.position.set(CX[c],2.2,0);scene.add(pl);cabs.push({light:pl,glow:0,gt:0});
+ const pool=new THREE.Mesh(new THREE.PlaneGeometry(6.5,4.2),poolMat);pool.rotation.x=-Math.PI/2;pool.position.set(CX[c],.012,0);scene.add(pool);
+ iocs.push([]);
+ for(let k=0;k<K;k++){
+  const ix=ixOf(k),z=zOf(k);
+  const frame=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.42,3.1,.5)),reg1(new THREE.LineBasicMaterial({color:ACC}),.4,c,k,-1,2));frame.position.set(ix,1.6,z);frame.raycast=nop;g.add(frame);
+  const vol=new THREE.Mesh(new THREE.BoxGeometry(1.42,3.1,.5),new THREE.MeshBasicMaterial());vol.visible=false;vol.position.copy(frame.position);vol.userData={c,k};g.add(vol);pick.push(vol);
+  const bps=[];
+  for(let b=0;b<B;b++){const bp=new THREE.Mesh(new THREE.BoxGeometry(1.2,.12,.3),reg1(new THREE.MeshStandardMaterial({color:0x2c3442,metalness:.6,roughness:.5}),1,c,k,b,3));bp.userData={c,k,b};g.add(bp);pick.push(bp);bps.push(bp)}
+  iocs[c].push({frame,vol,bps,s:0,t:0});
+ }
+}
+const inst=new THREE.InstancedMesh(new THREE.BoxGeometry(.082,.15,.2),new THREE.MeshBasicMaterial({toneMapped:false}),N);
+inst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(N*3),3);inst.instanceColor.setUsage(THREE.DynamicDrawUsage);inst.frustumCulled=false;scene.add(inst);pick.push(inst);
+const dm=new THREE.Object3D();
+function updIoc(c,k){const o=iocs[c][k],ix=ixOf(k),z=zOf(k);
+ for(let b=0;b<B;b++){const y=bpY(o.s,b);o.bps[b].position.set(ix,y,z);for(let m=0;m<M;m++){dm.position.set(CX[c]+ix+(m-5.5)*.098,y+.13,z);dm.updateMatrix();inst.setMatrixAt(idx(c,k,b,m),dm.matrix)}}
+ o.frame.scale.y=o.vol.scale.y=(B*(.34+.3*o.s)+.3)/3.1;inst.instanceMatrix.needsUpdate=true}
+for(let c=0;c<C;c++)for(let k=0;k<K;k++)updIoc(c,k);
+const bundle=new THREE.Group(),bMats=[];
+for(let j=0;j<7;j++){const x=(j-3)*.15,ex=(j-3)*.17;
+ const cu=new THREE.CatmullRomCurve3([[x*.3,3.4,-.1],[x*.5,2.1,-.28],[x*.9,.8,-.24],[ex,.1,-.17]].map(p=>new THREE.Vector3(...p)));
+ const mt=new THREE.MeshStandardMaterial({color:j%3==0?0x3a2f6b:0x1c2029,roughness:.5,metalness:.3,transparent:true,opacity:0,emissive:j%3==0?ACC:0,emissiveIntensity:.5});
+ bMats.push(mt);bundle.add(new THREE.Mesh(new THREE.TubeGeometry(cu,40,.03,8),mt))}
+bundle.visible=false;scene.add(bundle);let bCur=0,bT=0;
+scene.traverse(o=>{const m=o.material;if(m&&m.isMeshStandardMaterial)m.envMapIntensity=.35});
+const labelsEl=$g('r3labels'),labels=[],tmpV=new THREE.Vector3();
+let level=0,sc=-1,sk=-1,sb=-1,sm=-1,busy=false,before=false;
+function addLabel(t,pos,show){const d=document.createElement('div');d.className='lb';d.textContent=t;labelsEl.appendChild(d);labels.push({el:d,pos,show})}
+for(let c=0;c<C;c++){addLabel('CABINET '+(c+1),new THREE.Vector3(CX[c],3.9,0),()=>level==0||(level==1&&sc==c));
+ for(let k=0;k<K;k++){addLabel('CIOC '+(k+1)+(k<2?' · FRONT':' · REAR'),new THREE.Vector3(CX[c]+ixOf(k),3.55,zOf(k)),()=>level==1&&sc==c);
+  for(let b=0;b<B;b++)addLabel('BP '+(b+1),new THREE.Vector3(CX[c]+ixOf(k)+.85,bpY(1,b),zOf(k)),()=>level==2&&sc==c&&sk==k)}}
+const tgt=new Float32Array(N).fill(1),cur=new Float32Array(N).fill(1);
+function T(c,k,b,m,L){if(level==0)return 1;if(c!==sc)return .07;if(L==1)return level>1?.12:1;if(level<2)return 1;if(k!==sk)return .08;if(L==2)return level>2?.15:1;if(level<3)return 1;if(b!==sb)return .1;if(L==3)return level>3?.15:1;if(level<4)return 1;return m!==sm?.25:1}
+function retarget(){for(const r of reg)r.t=T(r.c,r.k,r.b,0,r.L);
+ for(let i=0;i<N;i++){const m=i%M,b=(i/M|0)%B,k=(i/(M*B)|0)%K,c=i/(M*B*K)|0;tgt[i]=T(c,k,b,m,4)}
+ for(let c=0;c<C;c++){doors[c].t=(level>=1&&c===sc)?1:0;for(let k=0;k<K;k++)iocs[c][k].t=(level>=2&&c===sc&&k===sk)?1:0}
+ bT=level>=3?1:0;if(level>=3){bundle.position.set(CX[sc]+ixOf(sk),bpY(1,sb),zOf(sk));bundle.visible=true}}
+const ray=new THREE.Raycaster(),nd=new THREE.Vector2();
+function hitAt(e){const r=cv.getBoundingClientRect();nd.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(nd,cam);const n=Math.min(level+1,4);
+ for(const h of ray.intersectObjects(pick,false)){let i;
+  if(h.object===inst){const id=h.instanceId;i={c:id/(M*B*K)|0,k:(id/(M*B)|0)%K,b:(id/M|0)%B,m:id%M}}else{const u=h.object.userData;i={c:u.c,k:u.k??-1,b:u.b??-1,m:-1}}
+  if(level>=1&&i.c!==sc)continue;if(level>=2&&i.k!==sk)continue;if(level>=3&&i.b!==sb)continue;
+  if(n>=2&&i.k<0)continue;if(n>=3&&i.b<0)continue;if(n>=4&&i.m<0)continue;return i}}
+const bx=(x,y,z,w,h,d)=>new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x,y,z),new THREE.Vector3(w,h,d));
+function focus(){if(level==0){ctrl.setLookAt(0,7.5,23,0,1.4,0,true);return}
+ let box,az=0,pol=1.4,pad=.25;
+ if(level==1){box=bx(CX[sc],1.7,0,3.4,3.6,2);az=.35;pol=1.3}
+ else{const x=CX[sc]+ixOf(sk),z=zOf(sk);az=(sk>=2?Math.PI:0)+(sk&1?-.12:.12);
+  if(level==2){box=bx(x,1.6,z,1.5,5.4,.6);pol=1.45}else if(level==3){box=bx(x,bpY(1,sb)+.5,z,1.5,1.5,.8)}else{box=bx(x+(sm-5.5)*.098,bpY(1,sb)+.13,z,.12,.17,.22);pad=.9;pol=1.35}}
+ const c0=ctrl.azimuthAngle;az+=Math.PI*2*Math.round((c0-az)/(Math.PI*2));ctrl.rotateTo(az,pol,true);ctrl.fitToBox(box,true,{paddingLeft:pad,paddingRight:pad,paddingTop:pad,paddingBottom:pad})}
+function setSel(l,c=-1,k=-1,b=-1,m=-1){$g('r3about').classList.remove('on');lastInput=el;level=l;sc=c;sk=k;sb=b;sm=m;retarget();focus();ui()}
+const goTo=l=>{if(l>=level)return;setSel(l,l>=1?sc:-1,l>=2?sk:-1,l>=3?sb:-1,-1)};
+const infoEl=$g('r3info'),crumbs=$g('r3crumbs');
+function ui(){
+ const p=['Room'];if(level>=1)p.push('Cabinet '+(sc+1));if(level>=2)p.push('CIOC '+(sk+1)+(sk<2?' (front)':' (rear)'));if(level>=3)p.push('Baseplate '+(sb+1));if(level>=4)p.push('CHARM '+(sm+1));
+ crumbs.innerHTML=p.map((t,i)=>`<span class="${i==level?'cur':''}" data-l="${i}">${t}</span>`).join('<i>›</i>');
+ $g('r3back').style.visibility=level?'visible':'hidden';
+ let lo=0,n=N;if(level==1){lo=idx(sc,0,0,0);n=K*B*M}else if(level==2){lo=idx(sc,sk,0,0);n=B*M}else if(level==3){lo=idx(sc,sk,sb,0);n=M}
+ const cnt=[0,0,0,0,0];let lit=0;for(let i=lo;i<lo+(level==4?0:n);i++)if(type[i]>=0){lit++;cnt[type[i]]++}
+ const btn='<button class="btn pri" style="width:100%;justify-content:center" onclick="go(\'bench\')">Try changes</button>';
+ if(level==4){const i=idx(sc,sk,sb,sm),t=type[i],v=val[i],col=t>=0?hex(IO[t].c):'#8791A7';
+  const rd=t<0?'—':t==0?(v*100).toFixed(1)+' %':t==1?(v*20).toFixed(2)+' mA':(v>.5?'ON':'OFF');
+  infoEl.innerHTML=`<h2>CHARM ${sm+1}</h2><div class="tg">C${sc+1}-IOC${sk+1}-BP${sb+1}-CH${sm+1}</div><dl><dt>Type</dt><dd><span class="chip" style="color:${col};border-color:${col}66">${t>=0?IO[t].n:'Spare'}</span></dd><dt>Status</dt><dd>${t>=0?'Active':'Unassigned'}</dd><dt>Value</dt><dd>${rd}</dd><dt>Rev</dt><dd>${chg[i]?'changed in B':'unchanged'}</dd></dl>${btn}`;
+ }else{const nm=['Room','Cabinet '+(sc+1),'CIOC '+(sk+1),'Baseplate '+(sb+1)][level];
+  infoEl.innerHTML=`<h2>${nm}</h2><div class="tg">${n} CHARM slots</div><dl><dt>Lit</dt><dd>${lit}</dd><dt>Spare</dt><dd>${n-lit}</dd><dt>Fill</dt><dd>${(lit/n*100).toFixed(0)}%</dd></dl><div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px">${IO.map((o,j)=>`<span class="chip" style="color:${hex(o.c)};border-color:${hex(o.c)}55">${o.n} ${cnt[j]}</span>`).join('')}</div>${btn}`}
+ infoEl.classList.add('on')}
+crumbs.onclick=e=>{const l=e.target.dataset.l;if(l!==undefined&&!busy)goTo(+l)};
+$g('r3back').onclick=()=>{if(!busy)goTo(level-1)};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&running&&!busy&&level)goTo(level-1)});
+let pd=null;cv.addEventListener('pointerdown',e=>pd={x:e.clientX,y:e.clientY,t:performance.now()});
+cv.addEventListener('pointerup',e=>{if(!pd||busy)return;const mv=Math.hypot(e.clientX-pd.x,e.clientY-pd.y),dt=performance.now()-pd.t;pd=null;if(mv>5||dt>500)return;const h=hitAt(e);if(!h)return;
+ if(level==0)setSel(1,h.c);else if(level==1)setSel(2,sc,h.k);else if(level==2)setSel(3,sc,sk,h.b);else setSel(4,sc,sk,sb,h.m)});
+let lastHv=0;const tip=$g('r3tip');
+cv.addEventListener('pointermove',e=>{const n=performance.now();if(n-lastHv<90||e.buttons)return;lastHv=n;const h=busy?null:hitAt(e);cv.style.cursor=h?'pointer':'default';
+ if(!h){tip.style.opacity=0;return}
+ let t='Cabinet '+(h.c+1);if(level>=1&&h.k>=0)t+=' · CIOC '+(h.k+1);if(level>=2&&h.b>=0)t+=' · BP '+(h.b+1);
+ if(level>=3&&h.m>=0){const ty=type[idx(h.c,h.k,h.b,h.m)];t+=' · CH '+(h.m+1)+' · '+(ty>=0?IO[ty].n:'spare')}
+ const r=host.getBoundingClientRect();tip.textContent=t;tip.style.opacity=1;tip.style.transform=`translate(${e.clientX-r.left+14}px,${e.clientY-r.top+14}px)`});
+cv.addEventListener('pointerleave',()=>tip.style.opacity=0);
+const trails=[],tU={uT:{value:0}},jPos=new THREE.Vector3(0,5.2,-6.6);
+const vs='varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
+const fs='uniform float uT,uD,uA,uS;uniform vec3 uC;varying vec2 vUv;void main(){float on=smoothstep(uD,uD+.3,uT);float p=fract((uT-uD)*.4+uS);float d=p-vUv.x;float a=(d>0.&&d<.3)?pow(1.-d/.3,2.):0.;gl_FragColor=vec4(uC*(a*3.+.12),(a+.05)*uA*on);}';
+for(let c=0;c<C;c++)for(let k=0;k<K;k++)for(const b of[1,3,5,7]){const x=CX[c]+ixOf(k),z=zOf(k),y=bpY(0,b);
+ const pts=[jPos,new THREE.Vector3(x*.4,6.2,-4.2),new THREE.Vector3(x,4.8,z*1.4-.4),new THREE.Vector3(x+(rnd()-.5)*.6,y+.6,z),new THREE.Vector3(x+(rnd()-.5)*.8,y+.12,z)];
+ const mt=new THREE.ShaderMaterial({vertexShader:vs,fragmentShader:fs,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uT:tU.uT,uD:{value:c*1.1+k*.15+b*.03},uA:{value:0},uS:{value:rnd()},uC:{value:new THREE.Color(IO[(c+k+b)%5].c).lerp(new THREE.Color(ACC),.4)}}});
+ const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),64,.018,4),mt);m.visible=false;m.frustumCulled=false;scene.add(m);trails.push(m)}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));let diveT=-1,trailA=0,trailT=0;const diveBtn=$g('r3dive');
+async function dive(){if(busy)return;busy=true;diveBtn.disabled=true;level=0;sc=sk=sb=sm=-1;retarget();ui();
+ trails.forEach(t=>t.visible=true);trailA=0;trailT=0;diveT=el;cam.fov=80;cam.updateProjectionMatrix();fovT=40;ctrl.setLookAt(0,5,56,0,2,0,false);await sleep(80);
+ ctrl.smoothTime=1.4;ctrl.setLookAt(0,4.5,19,0,1.8,0,true);trailT=1;for(let c=0;c<C;c++)setTimeout(()=>cabs[c].gt=1,2200+c*1000);
+ await sleep(3000);ctrl.setLookAt(-5.5,3,12.5,-2,1.8,0,true);await sleep(3200);ctrl.setLookAt(5.5,3.5,12.5,2,1.8,0,true);await sleep(3200);ctrl.setLookAt(0,1.6,9.5,0,1.7,0,true);
+ await sleep(2800);ctrl.setLookAt(0,7,22,0,1.4,0,true);await sleep(2200);trailT=0;cabs.forEach(c=>c.gt=0);
+ await sleep(1500);trails.forEach(t=>t.visible=false);ctrl.smoothTime=.6;busy=false;diveBtn.disabled=false;diveT=-1}
+diveBtn.onclick=dive;ui();
+const flash=n=>{n.classList.add('bad');setTimeout(()=>n.classList.remove('bad'),500)};
+$g('r3q').addEventListener('keydown',e=>{if(e.key!=='Enter'||busy)return;const n=(e.target.value.match(/\d+/g)||[]).map(Number),lim=[C,K,B,M];
+ if(!n.length||n.length>4||n.some((v,i)=>v<1||v>lim[i]))return flash(e.target);e.target.blur();setSel(n.length,...n.map(v=>v-1))});
+$g('r3zi').onclick=()=>ctrl.dolly(ctrl.distance*.3,true);$g('r3zo').onclick=()=>ctrl.dolly(-ctrl.distance*.4,true);
+$g('r3a').onclick=()=>$g('r3about').classList.toggle('on');
+function fit(){renderer.setSize(W(),H());composer.setSize(W(),H());cam.aspect=W()/H();cam.updateProjectionMatrix()}
+new ResizeObserver(fit).observe(host);
+const clock=new THREE.Clock();
+function tick(){if(!running)return;
+ const dt=Math.min(clock.getDelta(),.05);el+=dt;const k=1-Math.exp(-dt*5);
+ if(level==0&&!busy&&el-lastInput>4)ctrl.rotate(dt*.07,0,true);
+ if(Math.abs(fovT-cam.fov)>.01){cam.fov+=(fovT-cam.fov)*Math.min(1,dt*1.3);cam.updateProjectionMatrix()}
+ ctrl.update(dt);
+ for(const r of reg){r.cur+=(r.t-r.cur)*k;r.m.opacity=r.base*r.cur}
+ for(let c=0;c<C;c++){const d=doors[c];d.o+=(d.t-d.o)*k*.6;const e=d.o*d.o*(3-2*d.o);for(const p of d.dp)p.piv.rotation.y=p.s*e*1.9;
+  const cb=cabs[c];cb.glow+=(cb.gt-cb.glow)*Math.min(1,dt*3);cb.light.intensity=7+cb.glow*40;
+  for(let kk=0;kk<K;kk++){const o=iocs[c][kk];if(Math.abs(o.t-o.s)>.001){o.s+=(o.t-o.s)*k*.8;updIoc(c,kk)}}}
+ trailA+=(trailT-trailA)*Math.min(1,dt*2.5);for(const t of trails)t.material.uniforms.uA.value=trailA;tU.uT.value=diveT<0?0:el-diveT;
+ const g=cabs.reduce((a,c)=>a+c.glow,0)/C;bloom.strength=.8+g*.5;jb.material.emissiveIntensity=.15+g*2.5;jbLight.intensity=g*30;
+ bCur+=(bT-bCur)*k;for(const m of bMats)m.opacity=bCur;if(bCur<.01&&bT==0)bundle.visible=false;
+ const ca=inst.instanceColor.array,sel=level==4?idx(sc,sk,sb,sm):-1;
+ for(let i=0;i<N;i++){const a=cur[i]+=(tgt[i]-cur[i])*k,t=(before&&chg[i])?-1:type[i],c3=i*3;
+  if(t<0){const v=(.07+val[i]*.04)*a;ca[c3]=v;ca[c3+1]=v*1.15;ca[c3+2]=v*1.5}
+  else{const cc=IOC[t],cab=cabs[i/(M*B*K)|0].glow,f=(1.5+.25*Math.sin(el*2+i)+cab*1.3+(i===sel?1.2:0)+(chg[i]?.9+.5*Math.sin(el*4+i):0))*a;ca[c3]=cc.r*f;ca[c3+1]=cc.g*f;ca[c3+2]=cc.b*f}}
+ inst.instanceColor.needsUpdate=true;cam.updateMatrixWorld();
+ const w=W(),h=H();
+ for(const l of labels){if(!l.show()){l.el.style.opacity=0;continue}tmpV.copy(l.pos).project(cam);if(tmpV.z>1){l.el.style.opacity=0;continue}
+  l.el.style.opacity=1;l.el.style.transform=`translate(${(tmpV.x*.5+.5)*w}px,${(-tmpV.y*.5+.5)*h}px) translate(-50%,-50%)`}
+ composer.render();requestAnimationFrame(tick)}
+window.R3={on(v){if(v&&!running){running=true;fit();clock.getDelta();requestAnimationFrame(tick)}else if(!v)running=false},before(b){before=b}};
+if(document.getElementById('pg-room').classList.contains('on'))R3.on(true);
+}catch(err){host.innerHTML='<div class="r3load mono" style="text-align:center;padding:20px">3D engine could not load.<br><span style="color:var(--er)">'+String(err.message||err)+'</span></div>';console.error(err)}
+</script>
+
+</body></html>
