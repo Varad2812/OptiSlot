@@ -23,7 +23,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const outDir = path.join(root, "shots");
 
 // Keep in sync with SCREENS in src/shell/routes.ts.
-const ROUTES = ["/", "/mission", "/room", "/explorer", "/lab", "/proof", "/revisions", "/import", "/rules", "/tqs", "/grid", "/export"];
+const ROUTES = ["/", "/import", "/allocate", "/room", "/lab", "/rules", "/proof", "/revisions", "/export", "/mission", "/tqs", "/grid", "/explorer"];
 const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }];
 const THEMES = ["dark", "light"];
 const FRAMES = [0, 0.25, 0.5, 0.75, 1];
@@ -102,7 +102,17 @@ function watch(page, label) {
   page.on("pageerror", (e) => problems.push(`${label}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && problems.push(`${label}: ${m.text()}`));
   page.on("requestfailed", (r) => problems.push(`${label}: request failed ${r.url()}`));
+  // offline venue (CLAUDE.md §0.9): nothing may leave the machine — no CDN font, script, texture or API
+  page.on("request", (r) => {
+    const u = new URL(r.url());
+    if (u.protocol === "data:" || u.protocol === "blob:") return;
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) external.add(`${label}: ${r.url()}`);
+    // the generated offline fixtures are lazy chunks: with the API up, no screen should ever fetch them
+    if (/\/assets\/allocation(_revb)?-[^/]+\.js$/.test(u.pathname)) fixtureLoads.add(`${label}: ${u.pathname}`);
+  });
 }
+const external = new Set();
+const fixtureLoads = new Set();
 
 async function settle(page, ms = 450) {
   await page.evaluate(() => document.fonts.ready);
@@ -575,6 +585,9 @@ for (const r of perf3d) {
       ` · idle ${f(r.idle)} · →L1 ${f(r.toL1)}${r.toL2 ? ` · →L2 ${f(r.toL2)} · →L3 ${f(r.toL3)} · →L4 ${f(r.toL4)}` : ""} · →next cab ${f(r.toNext)} · dive ${f(r.dive)}`,
   );
 }
+console.log(`offline: ${external.size} request(s) to a non-local host · ${fixtureLoads.size} fixture chunk load(s) with the API up`);
+for (const x of external) problems.push(`external request — ${x}`);
+for (const x of fixtureLoads) problems.push(`fixture loaded while online — ${x}`);
 if (problems.length) {
   console.error(`\n${problems.length} browser problem(s):\n  ` + [...new Set(problems)].join("\n  "));
   process.exitCode = 1;
