@@ -6,6 +6,7 @@
  *   window.__optislot.revb.inject() / seek(p) / reset()   (Revision Center: run the gauntlet silently, then scrub the diff)
  *   window.__optislot.verify.seek(p) / play() / state()    (Proof Center: freeze the verify scan — 2D overlay and 3D beam; state = idle|uploading|scanning|flying|done)
  *   window.__optislot.world3d.ready() / goTo(level, addr) / playDive() / skipDive() / flyToSlot(id) / stats()   (3D Room)
+ *   window.__optislot.world3d.rain()            → the Location Rain's clock, signals landed / total, sampled flights, particles on screen
  *   window.__optislot.world3d.moment() / seek(p) / skipMoment()   (any 3D motion moment: freeze it at p for frames)
  *   window.__optislot.world3d.scan(fails?) / tamper(ids) / refuse(id) / revdiff(diff) / animateMove(from, to, opts)
  *   window.__optislot.verify.tamper()            (Proof Center: the Tamper test button)

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, FlaskConical, Info, Minus, Play, Plus, RotateCw, Search } from "lucide-react";
+import { ArrowLeft, FlaskConical, Info, Minus, Play, Plus, RotateCw, Search, SkipForward } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -257,6 +257,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
       goTo: (l: Level, a: object) => eng.current?.goTo(l, a),
       playDive: () => dive(),
       skipDive: () => eng.current?.skipDive(),
+      rain: () => eng.current?.diveInfo,
       flyToSlot: (id: string) => eng.current?.flyToSlot(id),
       sibling: (d: 1 | -1) => eng.current?.sibling(d),
       flip: () => eng.current?.flip(),
@@ -309,7 +310,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
 
       <div className="pointer-events-none absolute left-5 top-4 z-10 flex flex-col gap-2">
         {room && (
-          <div className="select-none text-[12px] font-semibold tracking-[0.18em] text-text" data-testid="room-title">
+          <div className="select-none text-[12px] font-semibold tracking-[0.18em] text-[#ECEEF3]" data-testid="room-title">
             MARSHALLING <span className="text-brand">ROOM</span>
           </div>
         )}
@@ -361,11 +362,13 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
       <div className={cn("absolute bottom-4 left-5 z-10 flex max-w-[calc(100%-40px)] flex-col items-start gap-1.5", minimal && "hidden")}>
         <div className="pointer-events-none pl-1 text-[11px] text-muted-foreground" data-testid="room-hint">
           {diving
-            ? "Upload Dive — press any key to skip"
+            ? "Location rain — Esc or click to skip"
             : `Click to zoom in · ←/→ siblings · F other face${room ? " · / find tag" : ""} · drag to orbit · scroll to dolly`}
         </div>
         {room ? <Legend active={filters.io} onToggle={toggleIo} /> : <Legend />}
       </div>
+
+      {diving && <DiveHud eng={eng} />}
 
       <AnimatePresence>
         {selSlot && !diving && !moment && <CharmPanel key={selSlot.id} slot={selSlot} model={model} dims={dims} />}
@@ -375,6 +378,55 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
         <HoverCard h={card.h} model={model} data={data} dims={dims} overlay={overlay} hostW={host.current?.clientWidth ?? 0} hostH={host.current?.clientHeight ?? 0} lock={card.lock} />
       )}
     </div>
+  );
+}
+
+// ───────────── Location Rain HUD ─────────────
+
+/** What the rain is doing, how many signals have landed, and Skip (the engine's clock is read every frame — no React re-render). */
+function DiveHud({ eng }: { eng: React.RefObject<World3DEngine | null> }) {
+  const stage = useRef<HTMLDivElement>(null);
+  const placed = useRef<HTMLSpanElement>(null);
+  const total = useRef<HTMLSpanElement>(null);
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const loop = () => {
+      const d = eng.current?.diveInfo;
+      if (d && stage.current && placed.current && total.current && bar.current) {
+        stage.current.textContent = d.stage;
+        placed.current.textContent = d.placed.toLocaleString();
+        total.current.textContent = ` / ${d.total.toLocaleString()}`;
+        bar.current.style.width = `${(100 * d.placed) / Math.max(1, d.total)}%`;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [eng]);
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EASE }}
+        className="pointer-events-none absolute inset-x-0 bottom-24 z-10 flex flex-col items-center gap-1.5" data-testid="dive-hud"
+      >
+        <div ref={stage} className="font-mono text-[11px] font-medium uppercase tracking-[0.3em] text-[#22D3EE] [text-shadow:0_0_12px_rgba(34,211,238,.6)]">Allocating</div>
+        <div className="font-mono text-[34px] font-bold leading-none tracking-tight text-[#ECEEF3] tnum [text-shadow:0_2px_16px_rgba(0,0,0,.8)]">
+          <span ref={placed}>0</span>
+          <span ref={total} className="text-[16px] font-medium text-[#8C95A8]" />
+        </div>
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-[#8C95A8]">signals landed</div>
+        <div className="h-1 w-[min(360px,60vw)] overflow-hidden rounded-full bg-white/10">
+          <i ref={bar} className="block h-full w-0 bg-[linear-gradient(90deg,#7C5CFF,#22D3EE)] shadow-[0_0_12px_#22D3EE]" />
+        </div>
+      </motion.div>
+      <Button
+        variant="outline" size="sm" className="glass absolute bottom-4 right-5 z-20 h-8 gap-1.5 border-border px-3 text-[12px]"
+        onClick={() => eng.current?.skipDive()} data-testid="dive-skip"
+      >
+        <SkipForward className="size-3.5" /> Skip <kbd className="ml-1 font-mono text-[10px] text-muted-foreground">Esc</kbd>
+      </Button>
+    </>
   );
 }
 

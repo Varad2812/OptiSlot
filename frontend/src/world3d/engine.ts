@@ -31,7 +31,7 @@ import { IO_COLOURS, ioKey, type IoKey } from "@/lib/io";
 
 import { KIND_KEYS, NONE, SPARE, ST_ALARM, ST_FIELD, ST_SPARE, ST_WIRED, type World3DData } from "./data";
 import { bpY, chX, decode, frameH, idxOf, isRear, ixOf, stackY, zOf, type Layout } from "./layout";
-import { DIVE, type DiveScript } from "./dive";
+import { buildRain, FLASH_S, landedBy, planRain, RAIN, type DiveScript, type Rain, type RainPlan } from "./dive";
 import { ArcCurve, buildArcTrails, buildBeam, easeInOut, easeOut3, ringGeometry, span, type ArcTrails, type Beam } from "./fx";
 import { buildTrails, type Trails } from "./trails";
 
@@ -64,6 +64,7 @@ const WARN = new THREE.Color(0xfbbf24);
 const LIVE = new THREE.Color(0x22d3ee);
 const BRAND = new THREE.Color(0xa78bfa);
 const DARK = new THREE.Color(0.09, 0.1035, 0.135); // a Spare Slot's protection cover (paint())
+const smooth01 = (u: number) => u * u * (3 - 2 * u);
 
 export type Level = 0 | 1 | 2 | 3 | 4;
 /** Public address: cab 0-based, cioc/bp/ch 1-based (Slot fields), -1 = not applicable at this level. */
@@ -332,6 +333,8 @@ export class World3DEngine {
   private trailA = 0;
   private trailT = 0;
   private trailClock = 0;
+  private rain: Rain | null = null;
+  private dive: { plan: RainPlan; script: DiveScript; t: number; calm: boolean } | null = null;
 
   // selection
   private sel: Sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
@@ -1041,36 +1044,42 @@ export class World3DEngine {
   }
 
   /**
-   * Upload Dive: a DiveScript (keyframes + effect curves, see dive.ts) played as a seekable moment. Fly in (the wide FOV
-   * settles), cabinets light up left → right, trails stream from the junction box to the baseplates that received cables
-   * (allocation order), the camera sweeps the row, pushes through and lands at L1 of the first cabinet. Any key or click skips.
+   * Location Rain Dive (§10.10, see dive.ts): the allocation's slot ids rain through the junction box into their CHARMs, cabinet by
+   * cabinet; each landing lights its CHARM; the camera pulls back from the junction box and settles on L0. A seekable moment: any key
+   * or a click skips to the end. Calm: a short cut to L0 while the CHARMs fade up.
    */
-  async playDive(script: DiveScript = DIVE): Promise<void> {
+  async playDive(script: DiveScript = RAIN): Promise<void> {
     const L = this.L;
     if (!L || this.diving) return;
     this.prep();
     this.diving = true;
     const calm = !!this.opts.calm?.();
     const room: Sel = { level: 0, c: -1, k: -1, b: -1, m: -1 };
-    const land: Sel = { level: 1, c: 0, k: -1, b: -1, m: -1 };
     this.face = 0;
     this.setSel(room, false, false);
-    const trails = calm ? null : this.ensureTrails();
-    // the spline: the script's poses + the landing pose (probed, not flown to)
+    const plan = planRain(L, this.status, script);
+    this.dive = { plan, script, t: 0, calm };
+    this.rain?.dispose();
+    this.rain = null;
+    if (!calm) {
+      const jb = new THREE.Vector3(L.jb[0], L.jb[1] - 0.2, L.jb[2] + 0.3);
+      this.rain = buildRain(L, plan, this.kind, this.slots, jb, (i, out) => this.charmPos(i, out), script);
+      this.scene.add(this.rain.group);
+      this.diveTrails(plan);
+    }
+    // the spline: the script's poses + the L0 pose (probed, not flown to)
     const keys = script.keys(L);
-    const end = this.probe(land);
+    const end = this.probe(room);
     const at = [...keys.map((k) => k.at), 1];
     const pos = new THREE.CatmullRomCurve3([...keys.map((k) => new THREE.Vector3(...k.pos)), end.p], false, "centripetal");
     const tgt = new THREE.CatmullRomCurve3([...keys.map((k) => new THREE.Vector3(...k.target)), end.t], false, "centripetal");
     const P = new THREE.Vector3(), T = new THREE.Vector3();
-    let landed = false;
-    if (trails) trails.group.visible = true;
+    const dark = DARK;
     await this.begin("dive", calm ? 0.35 : script.dur, false, {
       apply: (p) => {
-        if (calm) {
-          if (!landed) (landed = true), this.setSel(land, false);
-          return;
-        }
+        const t = p * script.dur;
+        this.dive!.t = calm ? p : t;
+        if (calm) return void (p === 0 && this.setSel(room, false));
         // time → spline parameter: piecewise linear through the keys, eased out on the last segment
         let j = 0;
         while (j < at.length - 2 && p >= at[j + 1]) j++;
@@ -1082,33 +1091,56 @@ export class World3DEngine {
         this.ctrl.setLookAt(P.x, P.y, P.z, T.x, T.y, T.z, false);
         this.cam.fov = this.fovT = script.fov(p);
         this.cam.updateProjectionMatrix();
-        if (p >= script.land && !landed) {
-          landed = true;
-          this.assignRigs([0]);
-          this.setSel(land, false, false);
-          this.captureFades();
-        } else if (p < script.land && landed) {
-          landed = false; // seeking back before the landing
-          this.fade = null;
-          this.setSel(room, false, false);
-        }
-        if (landed) this.driveFades(easeInOut(span(p, script.land, 1)));
         this.trailA = this.trailT = script.trail(p);
-        this.trailClock = script.clock(p);
-        this.cabs.forEach((cb, c) => (cb.glow = cb.gt = script.glow(p, c, L.n)));
+        this.trailClock = t;
+        if (this.rain) {
+          this.rain.uT.value = t;
+          this.rain.uPx.value = (this.h * this.renderer.getPixelRatio()) / (2 * Math.tan((this.cam.fov * Math.PI) / 360));
+        }
+        // a cabinet glows while its signals land
+        this.cabs.forEach((cb, c) => {
+          const w = plan.cab[c];
+          cb.glow = cb.gt = w && w.b > w.a ? smooth01(span(t, w.a - 0.15, w.a + 0.25)) * (1 - smooth01(span(t, w.b + 0.4, w.b + 1.2))) : 0;
+        });
+      },
+      paint: (p) => {
+        // not landed yet → a dark cover; just landed → a flash that settles into the IO colour
+        if (calm) {
+          for (const i of plan.idx) this.scaleCol(i, p);
+          for (const i of plan.wired) this.scaleCol(i, p);
+          return;
+        }
+        const t = p * script.dur;
+        for (let j = 0; j < plan.idx.length; j++) {
+          const i = plan.idx[j], dt = t - plan.land[j];
+          if (dt < 0) this.setCol(i, dark);
+          else if (dt < FLASH_S) this.scaleCol(i, 1 + 1.5 * (1 - dt / FLASH_S) ** 2);
+        }
+        for (let j = 0; j < plan.wired.length; j++) if (t < plan.wiredAt[j]) this.setCol(plan.wired[j], dark);
       },
       finish: () => {
         this.diving = false;
+        this.dive = null;
         this.cam.fov = this.fovT = 40;
         this.cam.updateProjectionMatrix();
         this.trailA = this.trailT = 0;
         if (this.trails) this.trails.group.visible = false;
+        this.rain?.dispose();
+        this.rain = null;
         this.cabs.forEach((cb) => (cb.glow = cb.gt = 0));
-        if (!landed || this.sel.level !== 1) this.setSel(land, false);
-        else this.retarget(); // labels hidden while diving come back
+        this.setSel(room, false); // L0 framing exactly (the spline ends on the probed pose; this also brings the labels back)
       },
       skipKeys: true,
     });
+  }
+
+  /** The running dive for the HUD: clock, signals landed so far, total (null when no dive runs). */
+  get diveInfo(): { t: number; dur: number; placed: number; total: number; flights: number; particles: number; stage: string } | null {
+    const d = this.dive;
+    if (!d) return null;
+    const total = d.plan.idx.length;
+    const placed = d.calm ? Math.round(d.t * total) : landedBy(d.plan, d.t);
+    return { t: d.t, dur: d.script.dur, placed, total, flights: this.rain?.flights ?? 0, particles: this.rain?.visible(d.t) ?? 0, stage: d.calm ? "Allocated" : d.script.stage(d.t) };
   }
 
   get isDiving() {
@@ -1225,6 +1257,8 @@ export class World3DEngine {
     this.dyn.clear();
     this.trails?.dispose();
     this.trails = null;
+    this.rain?.dispose();
+    this.rain = null;
     this.beam?.dispose();
     this.beam = null;
     this.arcs?.dispose();
@@ -1640,27 +1674,27 @@ export class World3DEngine {
     if (rig.c >= 0 && this.data!.cabinets[rig.c].ciocs[k]) this.layCharms(rig.c, k, o.s);
   }
 
-  private ensureTrails(): Trails {
-    if (this.trails) return this.trails;
+  /** Junction box → the baseplates that received cables (allocation order, sampled), each starting as its cabinet's rain begins. */
+  private diveTrails(plan: RainPlan) {
+    this.trails?.dispose();
+    this.trails?.group.removeFromParent();
     const L = this.L!, d = this.data!;
     const all = d.trailTargets;
     const step = Math.max(1, all.length / TRAILS_MAX);
     const picked = [];
     for (let i = 0; i < all.length && picked.length < TRAILS_MAX; i += step) picked.push(all[Math.floor(i)]);
     const acc = new THREE.Color(ACC);
-    const targets = picked.map((t, i) => ({
+    const targets = picked.map((t) => ({
       x: L.cab[t.c].x + ixOf(L, t.k),
       y: bpY(L, 0, t.b),
       z: L.cab[t.c].z + zOf(L, t.k),
       lz: zOf(L, t.k),
       colour: new THREE.Color(IO_COLOURS[t.io]).lerp(acc, 0.4),
-      delay: 0.2 + (2.6 * i) / Math.max(1, picked.length),
+      delay: Math.max(0.1, (plan.cab[t.c]?.a ?? 0) - 1.1),
     }));
     const jb = new THREE.Vector3(L.jb[0], L.jb[1], L.jb[2] + 0.3);
     this.trails = buildTrails(jb, L.room.wallZ, targets);
-    this.trails.group.visible = false;
     this.dyn.add(this.trails.group);
-    return this.trails;
   }
 
   // ───────────── moment plumbing ─────────────

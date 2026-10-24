@@ -263,8 +263,8 @@ function Hooks({ a, t }: { a: AllocationResult | undefined; t: (d: number) => ob
         body: (
           <>
             <Big className="text-err">CAUGHT<Small>{caught.length === 1 ? "1 edited copy" : `${caught.length} edited copies`} failed</Small></Big>
-            <Foot>re-read by the verifier · run certificate revoked for the copy</Foot>
-            <Foot className="font-mono text-[11px]">ours: sha256 {sha}</Foot>
+            <Foot>re-read by the independent verifier → FAIL</Foot>
+            <Foot className="font-mono text-[11px]">this run: sha256 {sha}</Foot>
           </>
         ),
       });
