@@ -51,6 +51,8 @@ Key idea: **inputs are stored, outputs are recomputed.** Same inputs + same rule
 
 In demo mode (`make demo`) FastAPI serves the built frontend and the API from one process on port 8000. In dev mode (`make dev`) Vite on :5173 proxies `/api` to the backend on :8000.
 
+**Solver warm-up.** The first import of OR-Tools on a freshly synced venv compiles its bytecode and loads the native libraries (about 15 s measured on an emulated cold venv, 0.3 s afterwards). `app/warmup.py` does this on a background thread at app start (the server accepts requests in under a second; a request for the demo project waits on the project lock until its allocation is ready). `make demo` and `scripts/start_demo.sh` also run `python -m app.warmup` while the frontend builds; `OPTISLOT_WARMUP=0` switches the background thread off (the tests do).
+
 ---
 
 ## 3. One click, end to end

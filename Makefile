@@ -1,4 +1,4 @@
-.PHONY: dev demo test types fixtures catalog profile backend frontend build
+.PHONY: dev demo warm test types fixtures catalog profile backend frontend build
 
 BACKEND := cd backend && uv run
 
@@ -11,7 +11,12 @@ dev: ## backend :8000 + Vite :5173 (proxy /api)
 build:
 	cd frontend && npm run build
 
-demo: build ## one offline process: FastAPI serves frontend/dist at :8000
+warm: ## compile + load the CP-SAT solver now (a fresh venv spends ~15-20 s on its first import)
+	$(BACKEND) python -m app.warmup
+
+demo: ## one offline process: FastAPI serves frontend/dist at :8000 (the solver warms up while the frontend builds, and again in the app)
+	@($(BACKEND) python -m app.warmup >/dev/null 2>&1 &)
+	@$(MAKE) --no-print-directory build
 	$(BACKEND) uvicorn app.main:app --port 8000
 
 test:

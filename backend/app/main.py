@@ -21,6 +21,7 @@ from app.schemas import (
     AssistAnswer, AssistAskRequest, AssistStatus, NLRuleRequest, NLRuleResult,
     RuleListing, RulePreviewRequest, RuleSet, RunRecord, SignalList, SignalPatchRequest, SignalPatchResult, SignalRow, StressResult, TQ, WhatIfRequest, WhatIfResult, WhyStep,
 )
+from app import warmup
 from app.service import DEMO_ID, Service
 from store.db import DEFAULT_DB, Store
 
@@ -34,7 +35,12 @@ svc = Service(Store(os.environ.get("OPTISLOT_DB", DEFAULT_DB)))
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     svc.ensure_demo()
-    svc.get(DEMO_ID)  # warm: the demo project is allocated before the first request
+    if warmup.enabled():
+        # the server accepts requests at once; the solver and the demo allocation warm up on a background thread
+        # (a request for the demo project simply waits on the project lock until its allocation is ready)
+        warmup.start_background(lambda: svc.get(DEMO_ID))
+    else:
+        svc.get(DEMO_ID)  # the demo project is allocated before the first request
     yield
 
 

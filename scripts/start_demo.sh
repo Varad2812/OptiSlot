@@ -25,5 +25,9 @@ DBENV=""
 osascript -e "tell application \"Terminal\" to do script \"cd '$ROOT' && ${DBENV}python3 scripts/dbwatch.py\"" >/dev/null 2>&1 \
   || echo "could not open a second window; run in another terminal:  python3 scripts/dbwatch.py"
 
-# 4) start the app (build + serve on http://localhost:8000); the server log is this window
+# 4) warm the CP-SAT solver right away (a fresh venv spends ~15-20 s compiling ortools on first import); `make demo` and the
+#    app itself warm it too, so this only starts the work a few seconds earlier
+(cd "$ROOT/backend" && uv run python -m app.warmup >/dev/null 2>&1 &)
+
+# 5) start the app (build + serve on http://localhost:8000); the server log is this window
 make demo
