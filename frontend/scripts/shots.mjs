@@ -22,7 +22,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const outDir = path.join(root, "shots");
 
 // Keep in sync with SCREENS in src/shell/routes.ts.
-const ROUTES = ["/", "/explorer", "/lab", "/proof", "/revisions", "/import", "/rules", "/tqs", "/grid", "/export"];
+const ROUTES = ["/", "/room", "/explorer", "/lab", "/proof", "/revisions", "/import", "/rules", "/tqs", "/grid", "/export"];
 const VIEWPORTS = [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }];
 const THEMES = ["dark", "light"];
 const FRAMES = [0, 0.25, 0.5, 0.75, 1];
@@ -32,6 +32,8 @@ const motionOnly = !!process.env.SHOTS_MOTION_ONLY;
 const noStress = !!process.env.SHOTS_NO_STRESS;
 const only3d = !!process.env.SHOTS_3D_ONLY;
 const gpu = !!process.env.SHOTS_GPU;
+const swift = process.env.SHOTS_SWIFT !== "0"; // SHOTS_SWIFT=0 with SHOTS_GPU=1: only the real-GPU 3D run
+const route3d = process.env.SHOTS_3D_ROUTE || "/room";
 const slug = (r) => (r === "/" ? "mission-control" : r.slice(1).replace(/\//g, "-"));
 const pct = (p) => String(Math.round(p * 100)).padStart(3, "0");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -356,8 +358,10 @@ try {
 
   // ───── 4. 3D Marshalling Room: frames + time to first frame + FPS (CLAUDE.md §10.7 targets: ≥55 fps sample, ≥30 at 10k) ─────
   const projects3d = noStress ? ["demo"] : ["demo", "stress10k"];
-  const runs3d = [{ mode: "swiftshader", launch: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }, frames: true }];
-  if (gpu) runs3d.push({ mode: "gpu", launch: { headless: false }, frames: true });
+  const runs3d = swift ? [{ mode: "swiftshader", launch: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] }, frames: true }] : [];
+  // headed: keep rendering while the window is covered (otherwise rAF stops and fps.measure never resolves)
+  const awake = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"];
+  if (gpu) runs3d.push({ mode: "gpu", launch: { headless: false, args: awake }, frames: true });
   for (const run of runs3d) {
     const b3 = await chromium.launch(run.launch);
     try {
@@ -366,7 +370,7 @@ try {
         const page = await ctx.newPage();
         watch(page, `3d ${project} ${run.mode}`);
         const t0 = Date.now();
-        await page.goto(`${base}/explorer?demo=1&project=${project}`, { waitUntil: "networkidle", timeout: 180_000 });
+        await page.goto(`${base}${route3d}?demo=1&project=${project}`, { waitUntil: "networkidle", timeout: 180_000 });
         await page.waitForFunction(() => window.__optislot?.world3d?.ready?.() === true, null, { timeout: 240_000 });
         const row = { project, mode: run.mode, readyMs: Date.now() - t0, ...(await page.evaluate(() => window.__optislot.world3d.stats())) };
         const tag = `${project}__${run.mode}`;
@@ -378,20 +382,46 @@ try {
         await settle(page, 1500);
         await snap("L0");
         row.idle = await page.evaluate(() => window.__optislot.fps.measure(3000)); // L0 has the idle camera drift: every frame renders
-        const fly = async (level, addr, name) => {
+        const fly = async (level, addr, name, { mid = 0 } = {}) => {
           const m = page.evaluate(() => window.__optislot.fps.measure(1800));
-          await page.evaluate(([l, a]) => window.__optislot.world3d.goTo(l, a), [level, addr]);
+          await page.evaluate(([l, a]) => void window.__optislot.world3d.goTo(l, a), [level, addr]);
+          if (mid) {
+            await sleep(mid);
+            await snap(`${name}-mid`);
+          }
           const r = await m;
           await sleep(1200);
           await snap(name);
           return r;
         };
-        row.toL1 = await fly(1, { cab: 0 }, "L1");
+        row.toL1 = await fly(1, { cab: 0 }, "L1", { mid: 330 });
         if (project === "demo") {
-          row.toL2 = await fly(2, { cab: 0, cioc: 1 }, "L2");
-          row.toL3 = await fly(3, { cab: 0, cioc: 1, bp: 2 }, "L3");
+          await page.evaluate(() => window.__optislot.world3d.flip());
+          await sleep(1900);
+          await snap("L1-rear");
+          await page.evaluate(() => window.__optislot.world3d.flip());
+          await sleep(1500);
+          row.toL2 = await fly(2, { cab: 0, cioc: 1 }, "L2", { mid: 300 });
+          row.toL3 = await fly(3, { cab: 0, cioc: 1, bp: 2 }, "L3", { mid: 260 });
+          // hover a CHARM at L3 (centre of the view): outline + hover card with Try changes
+          const vp = page.viewportSize();
+          const box = await page.locator('[data-testid="world3d"]').boundingBox();
+          await page.mouse.move(box.x + box.width / 2 - 30, box.y + box.height / 2 - 6);
+          await sleep(140);
+          await page.mouse.move(box.x + box.width / 2 - 28, box.y + box.height / 2 - 4);
+          await sleep(700);
+          await snap("L3-hover");
+          await page.mouse.move(vp.width - 5, vp.height - 5);
+          await sleep(400);
+          await page.evaluate(() => window.__optislot.world3d.sibling(1));
+          await sleep(1500);
+          await snap("L3-next");
+          row.toL4 = await fly(4, { cab: 0, cioc: 1, bp: 3, ch: 2 }, "L4");
         }
         row.toNext = await fly(1, { cab: 1 }, "L1-next");
+        await page.evaluate(() => void window.__optislot.world3d.goTo(0, {}));
+        await sleep(1800);
+        await snap("L0-back");
         // Upload Dive (≈7.5 s): frame at ~45 %, FPS over the first 5 s
         const dm = page.evaluate(() => window.__optislot.fps.measure(5000));
         await page.evaluate(() => void window.__optislot.world3d.playDive());
@@ -400,7 +430,38 @@ try {
         row.dive = await dm;
         await sleep(5500);
         await snap("dive-end");
-        row.stats = await page.evaluate(() => window.__optislot.world3d.stats());
+        if (project === "demo" && route3d === "/room") {
+          // Before | Now over the Workbench sandbox: apply one allowed move (temp DB), let the Room pick it up and fly it in
+          const api = (p, body) => fetch(`${base}/api/projects/${project}${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) }).then((r) => r.json());
+          await api("/placement/reset");
+          const res = await api("/placement/apply", { tag: "320-XYV  -42170", target: { slot_id: "P30-DCM-32001-04/015/5/1" }, reason: "shots: closer to the junction box" });
+          console.log(`3d room: sandbox apply → applied=${res.applied}`);
+          if (!res.applied) problems.push(`3d room: sandbox move refused: ${JSON.stringify(res.check?.reasons ?? res).slice(0, 200)}`);
+          await page.evaluate(() => window.__optislot.room.refresh());
+          await sleep(1450);
+          await snap("move-mid");
+          await sleep(2600);
+          await snap("now");
+          await page.evaluate(() => window.__optislot.room.mode("before"));
+          await sleep(900);
+          await snap("before");
+          await page.evaluate(() => window.__optislot.room.mode("now"));
+          await page.locator('[data-testid="change-item"]').first().click({ timeout: 8000 }).catch(async () =>
+            problems.push(`3d room: no change in the list (moves=${await page.evaluate(() => window.__optislot.room.moves())}, apply=${JSON.stringify(res).slice(0, 160)})`));
+          await sleep(2600);
+          await snap("change-fly");
+          await api("/placement/reset");
+          // L4 "Try changes" → the Try-out Lab with that signal's cable preselected
+          try {
+            await page.locator('[data-testid="charm-panel"] [data-testid="try-changes"]').click({ timeout: 8000 });
+            await page.waitForURL(/\/lab/, { timeout: 20_000 });
+            await sleep(1800);
+            await snap("try-changes-lab");
+          } catch (e) {
+            problems.push(`3d room: Try changes → Lab failed: ${e.message.split("\n")[0]}`);
+          }
+        }
+        row.stats = await page.evaluate(() => window.__optislot.world3d?.stats() ?? null);
         perf3d.push(row);
         await page.close();
         await ctx.close();
@@ -422,7 +483,7 @@ for (const r of perf3d) {
   const f = (g) => (g ? `${g.avg} fps (p95 ${g.p95} ms)` : "–");
   console.log(
     `3D ${r.project} [${r.mode}]: ${r.cabinets} cab · ${r.instances} CHARMs · ${r.drawCalls} draw calls · ready ${r.readyMs} ms · first frame ${r.firstFrameMs} ms` +
-      ` · idle ${f(r.idle)} · →L1 ${f(r.toL1)}${r.toL2 ? ` · →L2 ${f(r.toL2)} · →L3 ${f(r.toL3)}` : ""} · →next cab ${f(r.toNext)} · dive ${f(r.dive)}`,
+      ` · idle ${f(r.idle)} · →L1 ${f(r.toL1)}${r.toL2 ? ` · →L2 ${f(r.toL2)} · →L3 ${f(r.toL3)} · →L4 ${f(r.toL4)}` : ""} · →next cab ${f(r.toNext)} · dive ${f(r.dive)}`,
   );
 }
 if (problems.length) {
