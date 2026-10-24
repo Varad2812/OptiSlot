@@ -159,3 +159,29 @@ def test_headers_unknown_everywhere_still_read_as_a_table():
     t = read_table(xlsx([rename_all.get(h, h) for h in headers], [{rename_all.get(k, k): v for k, v in r.items()} for r in recs]),
                    filename="allunknown.xlsx")
     assert len(t.rows) == len(recs)
+
+
+# ───────────────────────────── a decoy column that is blank or "-" in most rows must not win ─────────────────────────────
+
+@pytest.mark.parametrize("alias", ["IO Type", "Signal I/O", "IO", "IO Typ"])
+def test_renamed_io_column_beats_the_mostly_empty_decoy(alias):
+    rows = data_rows()
+    for i, r in enumerate(rows):                                   # "I/O Type Name 2": "-" almost everywhere, a few real-looking values
+        r["I/O Type Name 2"] = "DO" if i in (3, 17, 30) else "-"
+    headers = [alias if h == IO else h for h in HEADERS] + ["I/O Type Name 2"]
+    recs = [{(alias if k == IO else k): v for k, v in r.items()} for r in rows]
+    m = mapping(headers, recs)
+    assert m["io_type"].source == alias, (alias, m["io_type"].source, m["io_type"].confidence)
+    assert m["io_type"].source != "I/O Type Name 2"
+    out = run(xlsx(headers, recs), filename="io.xlsx")
+    assert out.kpis.signals == len(rows) and out.kpis.allocated == len(rows)
+    assert not [q for q in out.quarantine if "unknown IO type" in q.reason]
+
+
+def test_a_sparse_column_is_still_used_when_nothing_better_exists():
+    rows = data_rows()
+    for i, r in enumerate(rows):
+        r[IO] = r[IO] if i % 5 == 0 else "-"                       # the real IO column is the only one, and it is mostly "-"
+    headers, recs = renamed({})
+    m = mapping(headers, recs)
+    assert m["io_type"].source == IO                                # no better-filled alternative: the header match stays

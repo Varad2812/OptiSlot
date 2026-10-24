@@ -68,6 +68,7 @@ INFER_SAMPLE = 400                # rows looked at per column
 INFER_MIN_SCORE = 0.75            # a column must look this much like the field before it is proposed
 INFER_VETO_BELOW = 0.30           # a fuzzy header match whose values score under this is dropped (the values contradict the name)
 INFER_TIE = 0.03                  # two columns this close are ambiguous → neither is taken
+MIN_FILL = 0.5                    # a required field's column must hold a value (not blank, not "-") in at least this share of rows
 INFERRED_FIELDS = ("io_type", "pair", "tag", "cable")                # order matters: cable needs the pair column
 _PAIR_RX = re.compile(r"^(?:pair|triad|core|p)?\s*#?\s*(\d{1,3})$", re.I)
 
@@ -313,6 +314,19 @@ def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None,
         def weak(f: str) -> bool:
             return FIELDS[f][1] and f not in overrides and (f not in chosen or chosen[f][1] < CONFIRM_BELOW)
 
+        n_rows = max(1, min(len(rows), INFER_SAMPLE))
+
+        def fill(h: str) -> float:
+            return len(_values(rows, h)) / n_rows
+
+        for f in INFERRED_FIELDS:                 # a header match whose column is blank or "-" in most rows (a decoy such as
+            if f in chosen and f not in overrides and fill(chosen[f][0]) < MIN_FILL:      # "I/O Type Name 2") loses to a
+                h = chosen[f][0]                  # better-filled column whose values look like the field
+                pair_h = chosen["pair"][0] if "pair" in chosen else None
+                if any(h2 != h and h2 not in used and fill(h2) >= MIN_FILL and _field_score(f, rows, h2, pair_h) >= INFER_MIN_SCORE
+                       for h2 in headers if h2):
+                    del chosen[f]
+                    used.discard(h)
         for f in INFERRED_FIELDS:                 # a fuzzy header whose values contradict it is dropped
             if f in chosen and f not in overrides and chosen[f][1] < 1.0 and FIELDS[f][1]:
                 h, conf = chosen[f]
@@ -327,6 +341,7 @@ def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None,
             if f in chosen:                       # a weak header match whose values agree stays (and stays "to confirm")
                 continue
             scored = sorted(((_field_score(f, rows, h, pair_h), h) for h in headers if h and h not in used), reverse=True)
+            scored = [x for x in scored if fill(x[1]) >= MIN_FILL] or scored       # a mostly blank column never outranks a filled one
             if scored and scored[0][0] >= INFER_MIN_SCORE and (len(scored) < 2 or scored[0][0] - scored[1][0] > INFER_TIE):
                 s, h = scored[0]
                 chosen[f] = (h, round(0.30 + 0.30 * s, 2))
