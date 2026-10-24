@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation, useOutlet } from "react-router-dom";
 
+import { DiveCurtain } from "@/motion/DiveCurtain";
 import { pageVariants } from "@/motion/shared";
 
 import { CommandPalette } from "./CommandPalette";
@@ -31,6 +32,7 @@ export function AppShell() {
         </main>
       </div>
       <CommandPalette />
+      <DiveCurtain />
     </div>
   );
 }

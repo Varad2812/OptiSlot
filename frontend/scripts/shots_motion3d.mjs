@@ -160,6 +160,31 @@ try {
       await ctx.close();
     }
   }
+
+  // ───── 4. Upload Dive: Import → Allocate → curtain → 3D Room dive (burst of the hand-off, then the dive frozen) ─────
+  if (want.has("dive")) {
+    for (const f of readdirSync(out)) if (f.startsWith("dive-handoff__")) rmSync(path.join(out, f));
+    const { ctx, page } = await open("/import", { wait3d: false });
+    await page.getByTestId("preview-table").waitFor({ timeout: 30_000 });
+    let burst = true, k = 0;
+    const sizes = [];
+    const loop = (async () => {
+      while (burst && k < 80) {
+        const f = path.join(out, `dive-handoff__${String(k++).padStart(2, "0")}.jpg`);
+        await page.screenshot({ path: f, type: "jpeg", quality: 45 }).catch(() => {});
+        try { sizes.push(statSync(f).size); } catch { /* navigation in flight */ }
+      }
+    })();
+    await page.getByTestId("allocate-btn").click();
+    await page.waitForFunction(() => window.__optislot?.world3d?.moment?.() === "dive", null, { timeout: 120_000, polling: 30 }).catch(() => problems.push("dive: no 3D dive after Allocate"));
+    await sleep(1600);
+    burst = false;
+    await loop;
+    console.log(`dive hand-off: ${k} burst frames, jpeg KB ${sizes.map((x) => Math.round(x / 1024)).join(" ")}`);
+    fps.push({ name: "dive", ...(await page.evaluate(() => window.__optislot.fps.measure(1500))) });
+    await frames(page, "dive");
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }

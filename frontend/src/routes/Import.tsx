@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useCurtain, ZOOM_CALM_MS, ZOOM_MS } from "@/motion/curtain";
 import { DIVE_KEY, EASE, useCalm } from "@/motion/shared";
 import { useUi } from "@/store/ui";
 import { ALLOCATE_LANDING_ROUTE } from "@/world/actions";
@@ -59,12 +60,20 @@ export default function Import() {
   }
 
   async function run() {
+    // the preview grid zooms in and tilts into the room's floor while the engine allocates; the curtain holds that floor
+    // through the route change and lifts on the Upload Dive's first frame (motion/curtain.ts)
+    const grid = document.querySelector<HTMLElement>('[data-testid="preview-table"]')?.closest("section") ?? document.querySelector<HTMLElement>('[data-testid="import-page"]');
+    const r = grid?.getBoundingClientRect();
+    const zoom = new Promise((res) => window.setTimeout(res, calm ? ZOOM_CALM_MS : ZOOM_MS));
+    if (r) useCurtain.getState().start({ x: r.left, y: r.top, w: r.width, h: r.height }, getComputedStyle(grid!).backgroundColor);
     await allocate.mutateAsync().catch(() => null);
+    await zoom;
     try {
       sessionStorage.setItem(DIVE_KEY, "1");
     } catch {
       /* storage can be blocked */
     }
+    useCurtain.getState().hold();
     nav(`${ALLOCATE_LANDING_ROUTE}?dive=1`);
   }
 

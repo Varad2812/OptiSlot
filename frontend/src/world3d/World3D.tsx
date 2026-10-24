@@ -9,6 +9,7 @@ import type { Slot } from "@/api/hooks";
 import { Button } from "@/components/ui/button";
 import { IO_COLOURS, IO_LABELS, ioKey, type IoKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
+import { useCurtain } from "@/motion/curtain";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { DIVE_KEY, EASE, isCalm } from "@/motion/shared";
 import { typing } from "@/shell/useHotkeys";
@@ -73,6 +74,7 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
     try {
       e = new World3DEngine(host.current, { calm: isCalm });
     } catch {
+      useCurtain.getState().lift();
       onFail("webgl");
       return;
     }
@@ -80,7 +82,10 @@ export default function World3D({ model, dims, match, onFail, room, overlay, hud
     const offs = [
       e.on("level", (s) => (setSel(s), card.clear())),
       e.on("hover", (h) => card.feed(h)),
-      e.on("moment", (m) => m.phase !== "frame" && (setMoment(m.phase === "start" ? m.name : null), card.clear())),
+      e.on("moment", (m) => {
+        if (m.phase !== "frame") return void (setMoment(m.phase === "start" ? m.name : null), card.clear());
+        if (m.name === "dive") useCurtain.getState().lift(); // the dive is on screen: the Import curtain may go
+      }),
       e.on("select", (s) => {
         const st = useUi.getState();
         if (s.cab >= 0 && s.cab !== st.cabIdx) useUi.setState({ cabIdx: s.cab });

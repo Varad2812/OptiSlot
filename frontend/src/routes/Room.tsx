@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IO_COLOURS, ioKey } from "@/lib/io";
 import { cn } from "@/lib/utils";
 import { moveKey, subscribe, takePending, type MotionEvent } from "@/motion/bus";
+import { useCurtain } from "@/motion/curtain";
 import { demoMode, registerDemo } from "@/motion/demoHooks";
 import { useSequence } from "@/motion/sequence";
 import { EASE, isCalm } from "@/motion/shared";
@@ -37,6 +38,9 @@ export default function Room() {
   const { data: a } = useAllocation();
   const { data: p } = useProject();
   const view3d = useUi((s) => s.view3d) && hasWebGL();
+  useEffect(() => {
+    if (!view3d) useCurtain.getState().lift(); // the 2D World runs its own dive: nothing to wait for
+  }, [view3d]);
   if (!a) {
     return (
       <div className="grid h-full grid-cols-[1fr_300px] gap-3 p-4">

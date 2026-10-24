@@ -511,6 +511,7 @@ export class World3DEngine {
     if (a.face && level <= 1) this.face = a.face === "R" ? 1 : 0;
     const tgt = this.internal(level, a);
     if (!tgt) return;
+    if (this.moment && !this.moment.held) this.endMoment(); // the user (or a page) took the camera: finish the moment now
     const token = ++this.navToken;
     if (this.opts.calm?.()) return void this.setSel(tgt, false);
     const steps = this.path(this.sel, tgt);
@@ -1674,6 +1675,7 @@ export class World3DEngine {
 
   /** Ready a new moment: the previous one ends first (its selection and fades must not land on top of the new flight). */
   private prep() {
+    this.navToken++; // a staged goTo still on its way must not land on top of the moment
     this.endMoment();
     this.clearMarks();
   }
