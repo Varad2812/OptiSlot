@@ -6,7 +6,8 @@ whitespace noise, duplicate rows, a ';' latin-1 CSV, 2,000-row scale-ups) and pu
 pipeline headless: read → map → normalise → pre-flight → allocate → render → export → independent verifier.
 
 A variant PASSES when nothing raised, no SYS-<stage> TQ reports an internal error or an unreadable file, the verifier
-finds 0 hard violations on the exported workbook, and every live row is either placed or quarantined with a TQ.
+finds 0 hard violations on the exported workbook, every live row is either placed or quarantined with a TQ, and it did not
+place under 50% of its live signals without a reason (a blanked required column or a broken header explains it; nothing else does).
 
     cd backend && uv run python tests/fuzz_surprise.py                       # 300 variants, seed 20261024
     uv run python tests/fuzz_surprise.py --seed 7 --n 50 --workers 4 --keep /tmp/fuzz_fails --json /tmp/fuzz.json
@@ -353,7 +354,19 @@ def _stage_of(tb: traceback.StackSummary) -> str:
     return "?"
 
 
-def evaluate(data: bytes, fname: str) -> tuple[list[tuple[str, str]], dict]:
+# a variant may legitimately place little when one of these was applied: a required column is empty, or the header is damaged
+JUSTIFIES_LOW_PLACEMENT = {"blank_required_column", "split_header_two_rows", "merge_header_cells"}
+LOW_PLACEMENT = "placed under 50% with no justification"
+
+
+def low_placement(stats: dict, mutations: list[str]) -> tuple[bool, bool]:
+    """(placed under half of the live signals, and no applied mutation explains it)."""
+    n, placed = stats.get("signals", 0), stats.get("allocated", 0)
+    low = n > 0 and placed * 2 < n
+    return low, low and not (set(mutations) & JUSTIFIES_LOW_PLACEMENT)
+
+
+def evaluate(data: bytes, fname: str, mutations: list[str] | None = None) -> tuple[list[tuple[str, str]], dict]:
     """Run the pipeline on one file; return [(category, detail)] — empty means PASS — and some stats."""
     from app.service import Service
     from engine.pipeline import run
@@ -385,6 +398,11 @@ def evaluate(data: bytes, fname: str) -> tuple[list[tuple[str, str]], dict]:
             if c.failed and c.severity == "hard":
                 v = c.violations[0] if c.violations else None
                 fails.append((f"verify {c.id} {c.label}", f"{c.failed} row(s); first: row {v.row if v else '?'} {v.message[:160] if v else ''}"))
+        low, unjustified = low_placement(stats, mutations or [])
+        stats["low_placement"] = low
+        if unjustified:
+            fails.append((LOW_PLACEMENT, f"placed {stats['allocated']} of {stats['signals']} live signals; "
+                                         f"{stats['quarantined']} quarantined; mutations: {', '.join(mutations or []) or '-'}"))
         if out.kpis.accounted_pct < 100 and not any(c.startswith("SYS-") for c, _ in fails):
             live = out.kpis.signals
             fails.append(("rows neither placed nor quarantined with a TQ",
@@ -415,7 +433,7 @@ def run_variant(seed: int, i: int, keep: str | None) -> dict:
     except BaseException as e:      # noqa: BLE001 — the generator failing is a harness bug: say so loudly
         return {"i": i, "base": "?", "mutations": [], "rows": 0, "fails": [("harness error", f"{type(e).__name__}: {e}")],
                 "stats": {}, "ms": 0}
-    fails, stats = evaluate(data, fname)
+    fails, stats = evaluate(data, fname, muts)
     try:
         signal.alarm(0)
     except (ValueError, AttributeError):
@@ -472,6 +490,10 @@ def main() -> int:
           f"· {time.perf_counter() - t0:.0f} s")
     for cat, vs in sorted(cats.items(), key=lambda kv: -len(kv[1])):
         print(f"  {len(vs):4} × {cat}\n         e.g. " + ", ".join(f"v{v:03d}" for v in vs[:6]))
+    low = [x for x in results if x["stats"].get("low_placement")]
+    print(f"\n  placed under 50% of live signals: {len(low)} variants, of which {len(low) - sum(1 for x in bad if any(c == LOW_PLACEMENT for c, _ in x['fails']))} "
+          f"justified (blank required column / split or merged header) and "
+          f"{sum(1 for x in bad if any(c == LOW_PLACEMENT for c, _ in x['fails']))} not")
     print("\n  failing share by mutation: " + " · ".join(f"{m} {by_mut[m]}/{tot_mut[m]}" for m, _ in sorted(
         tot_mut.items(), key=lambda kv: -(by_mut[kv[0]] / kv[1]))))
     if a.json:
