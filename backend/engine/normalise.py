@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from app.cabledomain import domain_of
+from app.pairs import parse_pair_text
 from app.schemas import ProjectSettings, Signal
 from engine.failsafe import sys_tq
 from engine.rules import Rules, derive, match_when
@@ -13,8 +14,6 @@ from xio.reader import SOURCE_COL, RawTable
 EMPTY = {"", "-", "--", "N/A", "NA", "NONE", "NULL", "NAN", "TBA", "TBC"}
 _SIZE = re.compile(r"^\s*0*(\d{1,3})\s*(?:PX|TX|QX|P\b|PR\b|PAIRS?\b|T\b|TRIADS?\b|C\b|CORES?\b|X)", re.I)
 _SIZE_LOOSE = re.compile(r"(\d{1,3})\s*(?:PX|TX|PAIRS?|PR|TRIADS?)", re.I)
-# only clean pair forms: "Pair 10", "Triad 1", "10", "Pair #10" — anything else ("1:0", "3-4", "10/11") is not a pair
-_PAIR = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})(?:\.0+)?", re.I)
 PASSTHROUGH = ("operating_area", "unit", "service", "location", "is_type", "external_power", "system2",
                "old_tag", "loop_name", "section")
 
@@ -42,13 +41,8 @@ def parse_cable_size(spec: str) -> int | None:
 
 
 def parse_pair(p: str) -> int | None:
-    if blank(p):
-        return None
-    m = _PAIR.fullmatch(str(p).strip())
-    if not m:
-        return None
-    n = int(m.group(1))
-    return n if n > 0 else None
+    """The pair number of a cell ("Pair 3", "P-3", "03", "3.0" …) or None: the grammar lives in app.pairs, shared with the verifier."""
+    return None if blank(p) else parse_pair_text(p)
 
 
 def family_of(group: str, rules: Rules) -> str:

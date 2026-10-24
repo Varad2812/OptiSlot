@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from app.cabledomain import cable_homes, row_home
+from app.pairs import parse_pair_text
 from app.ruleslang import ExprError, catalog, compiled_expr, derive, eval_cond, first_match, fmt, match_when
 from app.schemas import CheckResult, ProjectSettings, RuleCheckReport, RuleSet, Signal, TQ, Violation
 
@@ -25,12 +26,8 @@ TOKEN_RX = {"cioc3": r"\d{3}", "bp": r"\d+", "ch": r"\d+", "ctrl2": r"\d{2}", "c
 _SIZE = re.compile(r"^\s*0*(\d{1,3})\s*[PTQ]?X", re.I)
 
 
-_PAIR_RX = re.compile(r"(?:pair|triad|pr)?\s*#?\s*(\d{1,4})(?:\.0+)?", re.I)  # same clean forms as the MDB reader accepts
-
-
 def _pair(v: str) -> int | None:
-    m = _PAIR_RX.fullmatch((v or "").strip())
-    return int(m.group(1)) if m and int(m.group(1)) > 0 else None
+    return parse_pair_text(v)         # the same grammar the MDB reader accepts (app.pairs)
 
 
 def _int(v: str) -> int | None:
