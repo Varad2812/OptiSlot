@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { useAllocate, useVerify } from "@/api/hooks";
+import { skipAllSequences } from "@/motion/sequence";
 import { useUi } from "@/store/ui";
 
 /** True when a key press belongs to a text field (or the palette), not to the app. */
@@ -30,7 +31,14 @@ export function useGlobalHotkeys() {
         ui.setPalette(true);
       }
     };
+    // Esc skips any running motion sequence (verify scan, Rev B diff, Mission Control dive) before anything backs out a level
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || useUi.getState().paletteOpen || !skipAllSequences()) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onEsc, true);
+    return () => (window.removeEventListener("keydown", onKey), window.removeEventListener("keydown", onEsc, true));
   }, [allocate, verify]);
 }

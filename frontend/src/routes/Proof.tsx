@@ -439,7 +439,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
             <div className="absolute inset-3 z-20 flex flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-live bg-bg/70 backdrop-blur-sm" data-testid="drop-overlay">
               <FileUp className="size-8 text-live" />
               <span className="text-[15px] font-semibold">Drop to verify</span>
-              <span className="text-[12px] text-muted-foreground">POST /api/verify-file — the independent verifier re-reads the workbook</span>
+              <span className="text-[12px] text-muted-foreground">The independent verifier re-reads every row of the workbook</span>
             </div>
           )}
           {phase === "uploading" && (
@@ -471,7 +471,7 @@ function ProofInner({ a, p }: { a: AllocationResult; p: Project | undefined }) {
           <section className="card-surface shrink-0 p-3.5">
             <header className="mb-2 flex items-center justify-between gap-2 px-0.5">
               <h2 className="label-caps">Independent checks</h2>
-              <span className="text-[11px] text-muted-foreground tnum"><CountUp value={report.checks_passed} follow={ticked} />/{report.checks_total} rule checks pass</span>
+              <span className="text-[11px] text-muted-foreground tnum"><CountUp value={report.checks_passed} follow={ticked} />/{report.checks_total} rule checks pass · {a.kpis.signals} signals</span>
             </header>
             <p className="mb-1.5 px-0.5 text-[11.5px] text-muted-foreground">Re-read from the .xlsx by a verifier that shares no code with the engine.</p>
             <ul className="space-y-px" data-testid="checks">

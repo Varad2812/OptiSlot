@@ -98,7 +98,7 @@ export function ChangesStrip({ state, unavailable, onPickTag }: Props) {
 
       <div className="min-w-0 flex-1 overflow-x-auto" data-testid="changes-list">
         {n === 0 ? (
-          <span className="text-[12px] text-muted-foreground">{unavailable ? "The sandbox API did not answer — the table still shows the committed allocation." : "No draft moves. Pick a signal, choose a slot — Apply puts the move here."}</span>
+          <span className="text-[12px] text-muted-foreground">{unavailable ? "The draft moves could not be loaded — the table still shows the committed allocation." : "No draft moves. Pick a signal, choose a slot — Apply puts the move here."}</span>
         ) : (
           <div className="flex items-center gap-1.5">
             {moves.map((m) => (

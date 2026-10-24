@@ -130,7 +130,7 @@ export default function Hero() {
         <nav className="flex items-center gap-1.5" aria-label="Open the app">
           {offline && (
             <span className="mr-1 flex items-center gap-1 rounded-chip border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] text-warn">
-              <WifiOff className="size-3" /> Offline fixtures
+              <WifiOff className="size-3" /> Offline — saved demo data
             </span>
           )}
           {a && (

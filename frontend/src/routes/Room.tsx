@@ -292,7 +292,7 @@ function ChangesPanel({ ch, failed, mode, model, onFly, onClose }: {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {failed && !ch && <Empty icon={<Wrench className="size-5" />} title="Sandbox not reachable" body="The Workbench sandbox API did not answer — the room shows the committed allocation." />}
+        {failed && !ch && <Empty icon={<Wrench className="size-5" />} title="Sandbox not reachable" body="The Workbench drafts could not be loaded — the room shows the committed allocation." />}
         {!failed && ch && !moves.length && !hw.length && (
           <Empty
             icon={<GitCompareArrows className="size-5" />}

@@ -101,7 +101,7 @@ export function Builder({ onAdded, load }: { onAdded: (id: string) => void; load
       <p className="mt-0.5 text-[12px] text-muted-foreground">Rules are data. Pick a template, say which signals it covers — it is previewed against the real project before anything is stored.</p>
 
       {cat.isLoading && <div className="mt-4 text-[12.5px] text-muted-foreground"><Loader2 className="mr-1.5 inline size-3.5 animate-spin" />Loading rule templates…</div>}
-      {cat.isError && <p className="mt-4 rounded-chip border border-dashed border-border p-3 text-[12.5px] text-muted-foreground">The rule-template catalogue needs the backend (GET /api/rule-types), which is not answering.</p>}
+      {cat.isError && <p className="mt-4 rounded-chip border border-dashed border-border p-3 text-[12.5px] text-muted-foreground">The rule templates come from the server, which is not answering right now. Try again in a moment.</p>}
 
       {types.length > 0 && (
         <div className="mt-3.5 space-y-4">
