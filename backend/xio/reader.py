@@ -42,7 +42,7 @@ FIELDS: dict[str, tuple[str, bool, list[str]]] = {
     "external_power": ("External power", False, ["External Power Supply", "External Power", "Ext Power"]),
     "cable_spec": ("Cable spec / size", False, ["Multi-cable / Cable", "Cable Type", "Cable Size", "Cable Spec", "Multicable", "Field Cable Size"]),
     "cable": ("Cable no.", True, ["Multipair Cable No.", "Multipair Cable No", "Cable No", "Cable No.", "Cable Number", "Multipair Cable", "Field Cable No", "Cable",
-                                "Cbl", "Cable Ref"]),
+                                "Cbl", "Cable Ref", "Cbl No", "Cbl Number", "Cable ID", "Multicable No", "Multi-cable No", "Multicable Number"]),
     "pair": ("Pair", True, ["Pair Number", "Pair", "Pair No", "Pair No.", "Field Cable Pair", "Core",
                                 "Core No", "Cable Core"]),
     "group": ("IO grouping / segregation", False, ["IO Grouping", "Segregation", "Group", "IO Group", "Segregation Group"]),
@@ -60,6 +60,17 @@ HEADER_SCAN_ROWS = 25
 
 def norm_header(h: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(h).lower())
+
+
+# A header that names a cable NUMBER belongs to the cable field, one that names a cable SIZE or TYPE to the spec field.
+_ID_WORDS = {"no", "number", "id", "ref", "nr", "num"}
+_SPEC_WORDS = {"size", "spec", "type", "pairs"}
+
+
+def _header_kind(h: str) -> str | None:
+    words = set(re.findall(r"[a-z0-9]+", str(h).lower()))
+    ident, spec = bool(words & _ID_WORDS) or "#" in str(h), bool(words & _SPEC_WORDS)
+    return "id" if ident and not spec else "spec" if spec and not ident else None
 
 
 # ── value inference (last resort for REQUIRED fields with no confident header match) ──
@@ -83,9 +94,12 @@ def _values(rows: list[dict[str, str]], header: str) -> list[str]:
 
 
 def _io_score(vs: list[str]) -> float:
-    if len(vs) < 3 or len(set(vs)) > 12:
+    if len(vs) < 3:
         return 0.0
-    hit = sum(1 for v in vs if re.sub(r"[\s/]", "", v).upper() in IO_VOCAB) / len(vs)
+    norm = [re.sub(r"[\s/]", "", v).upper() for v in vs]            # "ai", " AI ", "A/I" are one spelling
+    if len(set(norm)) > 30:                                           # a few unseen type names are fine, a free-text column is not
+        return 0.0
+    hit = sum(1 for v in norm if v in IO_VOCAB) / len(norm)
     return hit if hit >= 0.8 else 0.0
 
 
@@ -121,8 +135,9 @@ def _cable_score(rows: list[dict[str, str]], header: str, pair_header: str | Non
     if len(vs) < 5:
         return 0.0
     shape = sum(1 for v in vs if re.search(r"[A-Za-z]", v) and re.search(r"\d", v)) / len(vs)
+    idlike = sum(1 for v in vs if len(v) <= 24 and not re.search(r"\s", v)) / len(vs)     # 320-CE-0001, MC-00001 — not a phrase
     distinct = len(set(vs))
-    if shape < 0.8 or distinct < 2 or distinct > 0.7 * len(vs):
+    if shape < 0.8 or idlike < 0.6 or distinct < 2 or distinct > 0.7 * len(vs):
         return 0.0                                  # cables repeat (one row per pair) but are not a single constant
     if not pair_header:
         return 0.55 if distinct <= 0.5 * len(vs) else 0.0
@@ -291,6 +306,9 @@ def auto_map(headers: list[str], overrides: dict[str, str | None] | None = None,
             for h, nh in normed.items():
                 if not nh:
                     continue
+                kind = _header_kind(h)
+                if (f == "cable" and kind == "spec") or (f == "cable_spec" and kind == "id"):
+                    continue              # "Multicable No" is a cable number, never the spec; "Cable Size" is never the number
                 score = 100.0 if nh == ns else fuzz.ratio(nh, ns)
                 if score >= floor:
                     candidates.append((score, -pri, f, h))
