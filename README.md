@@ -5,7 +5,7 @@
 OptiSlot reads any IO MDB workbook, allocates every live signal to a CHARM slot (cabinet → CIOC → baseplate → channel),
 proves the result with an independent verifier that re-reads the exported Excel, and revises (Rev B) while moving only what changed.
 
-## Verified facts (HEAD `05f6399`)
+## Verified facts (HEAD `b521035`)
 
 | Item | Value |
 |---|---|
