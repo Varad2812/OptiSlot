@@ -1,5 +1,7 @@
 # OptiSlot — fact-check (read-only QA)
 
+> **Current status (supersedes the older counts below):** `cd backend && uv run pytest -q` → **748 passed**. The verifier runs **22 checks per run** and **23 on a re-read exported workbook** (adds C00). The fuzz harness passes **300 of 300 variants** (seed 20261024). The 291/299 test counts and the 21/22-check figures further down are historical, from the commits named there.
+
 **Tested commit:** `a15e1088d53b4a324c019e29a54b87e76c33b331` (`a15e108`, branch `master`) for everything below.
 **HEAD moved during this QA:** the other session committed `2e7ebc4` ("one cable-home function ...", suite 299 passed) while I worked.
 I re-checked only the adversarial-fixture finding against `2e7ebc4` (see §3b, "Update"); every other number is from `a15e108`.

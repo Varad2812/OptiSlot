@@ -45,4 +45,4 @@ The MDB contains only `440-PI-20077-L` (MDB row 157, AO, Pair 14 of `500-CE-LP-0
 - **Show me it can fail.** Tamper test: edit one CHARM in the export; the verifier names the row and check. Across a 335-case tamper matrix, only `Revision No`, `Remarks` and `Change Type` are undetected.
 - **Is it reproducible?** The output sha256 is identical across repeated runs; the certificate records input, ruleset and output hashes.
 - **Speed?** Sample 1.2–1.4 s; 950 rows 6.3–6.4 s; 10,000 rows ~19 s end to end, ~3 s allocate + verify in memory. The first Allocate after a cold start waits ~15 s for the solver warm-up.
-- **Tests?** 664 backend tests passing, 0 failed, including Hypothesis property tests.
+- **Tests?** 748 backend tests passing, 0 failed, including Hypothesis property tests. The fuzz harness passes 300 of 300 variants (seed 20261024).

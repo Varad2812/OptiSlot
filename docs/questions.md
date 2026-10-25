@@ -75,6 +75,8 @@ Two kinds of rule:
 5. **"Excepted by TQ": isn't that hiding failures?** It is the opposite of silent: when a clash cannot be satisfied (A and B on one cable, a mixed IS/NON-IS cable), we place the cable, raise a TQ naming the clash, and the verifier labels it "excepted by TQ", not a pass. Each one is counted and visible.
 6. **Why 23 checks?** It is the number of rule checks the verifier ran, not the signal count. The default rule set runs 22 (C01–C20, plus C07.2 for IS/NON-IS and C17.2 for descriptive columns); re-reading the exported workbook adds C00 (all template columns present). Each enabled custom rule adds one (C23 and up). Verified by counting the Checks sheet of Rule_Check_Report.xlsx for the sample and the adversarial MDB (23 rows each).
 
+6b. **How many tests, and how robust is it?** 748 backend tests pass, 0 failed. The fuzz harness passes 300 of 300 variants (seed 20261024). The verifier runs 22 checks per run in memory and 23 on a re-read exported workbook (adds C00).
+
 **Rules and flexibility**
 
 7. **Can I add a rule that you didn't write?** Yes, in Rules Studio: pick a template (max-per-scope, same/different scope, forbid-mix, zone→cabinets, extra spares), set the filter and scope, preview, add. Both the engine and a new independent verifier check enforce it. It's a safe declarative language, no `eval`.
@@ -106,7 +108,7 @@ Two kinds of rule:
 **Engineering**
 
 23. **Is it reproducible?** Every run records sha256 of the input, ruleset and output plus the engine version; tests confirm the same inputs give the same hashes, also after a restart. **[CHECK]** show it live once.
-24. **How is it tested?** 664 backend tests, including Hypothesis property tests (allocator vs verifier agreement, junk rows never crash, workbench "allowed" implies the verifier agrees) and a drill test that fails if any drill regresses.
+24. **How is it tested?** 748 backend tests (fuzz harness: 300 of 300 variants pass, seed 20261024), including Hypothesis property tests (allocator vs verifier agreement, junk rows never crash, workbench "allowed" implies the verifier agrees) and a drill test that fails if any drill regresses.
 25. **Does it work offline?** Yes: no CDN, fonts or textures are fetched; the only optional network call is the AI assistant, which falls back automatically.
 26. **Where is the data stored?** SQLite (`projects/optislot.db`): uploaded files, ruleset versions, runs, decisions, activity. Outputs are recomputed, never trusted from storage.
 27. **Why a separate verifier?** So the checker can't share a bug with the allocator, and so it can audit files we didn't make.

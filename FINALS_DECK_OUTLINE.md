@@ -15,7 +15,7 @@ Numbers are verified at HEAD `05f6399` unless marked [VERIFY].
    - 10k+ run time measured — delivered (see slide 8)
 4. **How it decides** — read/map → normalise → pre-flight → cable blocks → CP-SAT/greedy CIOC choice → deterministic layout → `CHARM_No = (bp − 1) × 12 + ch`.
 5. **Live demo** — Import → Allocate → 3D room → Workbench → Rules → Proof + tamper → Revisions → Export (see `DEMO_SCRIPT.md`).
-6. **Proof** — 22 checks per run, 23 rows in the exported report (adds C00); no C21/C22; 664 backend tests passing, 0 failed.
+6. **Proof** — 22 checks per run, 23 rows in the exported report (adds C00); no C21/C22; 748 backend tests passing, 0 failed; fuzz harness 300 of 300 variants pass (seed 20261024).
 7. **Rules are data** — 13 rules in `rulesets/default.json`; a new rule or a new MDB needs no code change.
 8. **Performance** — sample 1.2–1.4 s · 950 rows 6.3–6.4 s · 10,000 rows ~19 s end to end (~3 s allocate + verify in memory). First Allocate after a cold start waits ~15 s for solver warm-up.
 9. **Honesty slide** — solver status OPTIMAL for the CIOC assignment, but no lower bound is reported; Rev B uses greedy by design; the reference differs on `440-PI-20076-L` / `440-PI-20077-L` (we allocate what the MDB says); AI is optional and only drafts rules.

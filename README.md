@@ -9,7 +9,8 @@ proves the result with an independent verifier that re-reads the exported Excel,
 
 | Item | Value |
 |---|---|
-| Backend tests | 664 passed, 0 failed |
+| Backend tests | 748 passed, 0 failed |
+| Fuzz harness | 300 of 300 variants pass (seed 20261024) |
 | Verifier checks | 22 per run in memory; the exported `Rule_Check_Report` has 23 rows (adds C00, "workbook has every template column"). There is no C21 or C22. Each enabled custom rule adds one (C23+) |
 | Rules | 13 in `rulesets/default.json` |
 | Time, sample MDB (189 live signals) | 1.2–1.4 s end to end |
